@@ -3,12 +3,11 @@ dist
 out
 .DS_Store
 
-# Claude Code local overrides (per-user)
-.claude/settings.local.json
-
-# AI-DLC: keep intents/units/plans in git, ignore only transient state
-.ai-dlc/**/state/scratchpad.md
-.ai-dlc/**/state/blockers.md
-
-# AI-DLC intent worktrees
-.ai-dlc/worktrees/
+# AI tooling — all agent/IDE AI artifacts are local-only, not shared via git
+AGENTS.md
+CLAUDE.md
+.claude/
+.cursor/
+.aider*
+.continue/
+.github/copilot*
