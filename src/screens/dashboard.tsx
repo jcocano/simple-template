@@ -363,7 +363,10 @@ function Dashboard({ onOpen, onNew }) {
               <div style={{fontSize:12,fontWeight:500}}>Carmen Luna</div>
               <div style={{fontSize:11,color:'var(--fg-3)'}}>Espacio Acme</div>
             </div>
-            <button className="btn icon sm ghost" style={{marginLeft:'auto'}} onClick={()=>onOpen && onOpen('settings')}><I.settings size={13}/></button>
+            <div style={{marginLeft:'auto',display:'flex',gap:4}}>
+              <ThemeToggleBtn/>
+              <button className="btn icon sm ghost" onClick={()=>onOpen && onOpen('settings')}><I.settings size={13}/></button>
+            </div>
           </div>
         </div>
       </aside>
@@ -650,14 +653,14 @@ function Gallery({ onBack, onPick }) {
   return (
     <div className="editor">
       <div className="editor-top">
-        <button className="btn ghost" onClick={onBack}><I.chevronL size={14}/> Volver a mis plantillas</button>
-        <div className="vdivider"/>
-        <div style={{fontFamily:'var(--font-display)',fontSize:16,fontWeight:600,letterSpacing:-0.2}}>Ejemplos listos para usar</div>
+        <button className="btn ghost sm" onClick={onBack}><I.chevronL size={14}/> Volver a mis plantillas</button>
+        <div style={{fontFamily:'var(--font-display)',fontSize:15,fontWeight:600,letterSpacing:-0.2}}>Ejemplos listos para usar</div>
         <div className="grow"/>
         <div className="search">
           <span className="si"><I.search size={14}/></span>
           <input placeholder="Busca por ocasión…"/>
         </div>
+        <ThemeToggleBtn/>
       </div>
       <div style={{display:'flex',gap:6,padding:'12px 24px',borderBottom:'1px solid var(--line)',background:'var(--surface)',overflowX:'auto'}}>
         {cats.map(c => (

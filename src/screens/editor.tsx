@@ -3,7 +3,15 @@
 function BlockTile({ b, onClick }) {
   const Ico = I[b.icon] || I.grid;
   return (
-    <div className="block-tile" onClick={onClick}>
+    <div
+      className="block-tile"
+      draggable
+      onClick={onClick}
+      onDragStart={(e)=>{
+        e.dataTransfer.setData('text/x-mc-block', b.id);
+        e.dataTransfer.effectAllowed = 'copy';
+      }}
+    >
       <div className="block-ic"><Ico size={18}/></div>
       <div>{b.name}</div>
     </div>
@@ -23,8 +31,8 @@ function ContentPanel({ onAddBlock, onAddSection }) {
   ];
   const f = (arr) => arr.filter(b => b.name.toLowerCase().includes(q.toLowerCase()));
   return (
-    <div style={{display:'flex',flexDirection:'column',height:'100%'}}>
-      <div style={{padding:'10px 12px',borderBottom:'1px solid var(--line)'}}>
+    <div style={{display:'flex',flexDirection:'column',flex:1,minHeight:0}}>
+      <div style={{padding:'10px 12px',borderBottom:'1px solid var(--line)',flexShrink:0}}>
         <div className="search">
           <span className="si"><I.search size={13}/></span>
           <input placeholder="Busca un bloque o una sección…" value={q} onChange={e=>setQ(e.target.value)}/>
@@ -41,7 +49,17 @@ function ContentPanel({ onAddBlock, onAddSection }) {
                 <h4>{c.h}</h4>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
                   {items.map(p => (
-                    <button key={p.id} className="block-tile" style={{height:'auto',padding:0,flexDirection:'column',gap:0,overflow:'hidden'}} onClick={()=>onAddSection(p)}>
+                    <button
+                      key={p.id}
+                      className="block-tile"
+                      style={{height:'auto',padding:0,flexDirection:'column',gap:0,overflow:'hidden'}}
+                      draggable
+                      onClick={()=>onAddSection(p)}
+                      onDragStart={(e)=>{
+                        e.dataTransfer.setData('text/x-mc-section', p.id);
+                        e.dataTransfer.effectAllowed = 'copy';
+                      }}
+                    >
                       <div style={{width:'100%',background:'var(--surface-2)',borderBottom:'1px solid var(--line)'}}>
                         <SectionPresetPreview preview={p.preview}/>
                       </div>
@@ -321,13 +339,18 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
       })};
     }));
   };
-  const addSection = (preset) => {
+  const addSection = (preset, atIndex=null) => {
     const newId = 's'+Date.now();
     const cols = preset.layout==='2col' ? [{w:50,blocks:[]},{w:50,blocks:[]}]
       : preset.layout==='3col' ? [{w:33,blocks:[]},{w:33,blocks:[]},{w:34,blocks:[]}]
       : [{w:100,blocks:[]}];
     const newSection = { id:newId, name:preset.name, layout:preset.layout, style:defaultSectionStyle(), columns:cols };
-    setDoc(d => [...d, newSection]);
+    setDoc(d => {
+      if (atIndex === null || atIndex >= d.length) return [...d, newSection];
+      const copy = [...d];
+      copy.splice(atIndex, 0, newSection);
+      return copy;
+    });
     setSel({type:'section',id:newId});
   };
   const deleteSection = (id) => {
@@ -366,9 +389,10 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
     } : s));
     setSel({type:'block', id, sectionId:targetSectionId, colIdx:0});
   };
-  const addBlankBlockInColumn = (sectionId, colIdx, atIndex) => {
+  const addBlankBlockInColumn = (sectionId, colIdx, atIndex, blockType='text') => {
     const id = 'b'+Math.random().toString(36).slice(2,8);
-    const newBlock = { id, type:'text', data:{body:'Nuevo bloque — edita aquí.'} };
+    const defaultData = blockType==='text' ? {body:'Nuevo bloque — edita aquí.'} : {};
+    const newBlock = { id, type:blockType, data:defaultData };
     setDoc(d => d.map(s => s.id===sectionId ? {
       ...s, columns: s.columns.map((c,i) => {
         if (i !== colIdx) return c;
@@ -379,6 +403,9 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
     } : s));
     setSel({type:'block', id, sectionId, colIdx});
   };
+  // Resolve a section preset id from SECTION_PRESETS — used by drop handlers
+  // that only carry the preset id over `text/x-mc-section`.
+  const resolvePreset = (id) => SECTION_PRESETS.find(x => x.id === id);
   const addBlankSection = (atIndex) => {
     const newId = 's'+Date.now();
     const newSection = { id:newId, name:'Sección', layout:'1col', style:defaultSectionStyle({padding:40}), columns:[{w:100,blocks:[]}] };
@@ -393,38 +420,35 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
   return (
     <div className="editor" data-view={device}>
       <div className="editor-top">
-        <button className="btn ghost" onClick={onBack}><I.chevronL size={14}/></button>
-        <div className="brand-mark" style={{width:24,height:24,fontSize:11}}>M</div>
+        {/* Zone A — context */}
+        <button className="btn icon ghost sm" onClick={onBack} title="Volver a mis plantillas" aria-label="Volver"><I.chevronL size={14}/></button>
         <div className="name">
           <input value={name} onChange={e=>setName(e.target.value)}/>
-          <div className="meta">{template?.folder || 'Newsletter'} · versión 12 · {doc.length} secciones</div>
+          <div className="meta"><span className="save-dot"/> Guardado automático · {template?.folder || 'Newsletter'} · {doc.length} secciones</div>
         </div>
-        <div className="vdivider"/>
-        <button className="btn icon ghost"><I.undo size={14}/></button>
-        <button className="btn icon ghost"><I.redo size={14}/></button>
-        <div className="vdivider"/>
-        <div className="save-ind"><span className="save-dot"/> Guardado automático</div>
+
+        {/* Zone B — view mode (centered) */}
         <div className="grow"/>
-        <button
-          className="btn ghost sm"
-          onClick={()=>window.dispatchEvent(new CustomEvent('mc:cmd-open'))}
-          title="Buscar cualquier cosa (⌘K)"
-          style={{gap:8}}
-        >
-          <I.search size={13}/>
-          <span style={{color:'var(--fg-3)',fontSize:12}}>Buscar…</span>
-          <span className="kbd" style={{fontSize:10}}>⌘K</span>
-        </button>
-        <div className="vdivider"/>
         <div className="device-toggle" data-tour="device-toggle">
           <button className={device==='desktop'?'on':''} onClick={()=>setDevice('desktop')} title="Escritorio (600 px)" aria-label="Escritorio"><I.monitor size={13}/></button>
           <button className={device==='mobile'?'on':''} onClick={()=>setDevice('mobile')} title="Móvil (375 px)" aria-label="Móvil"><I.phone size={13}/></button>
         </div>
-        <button className="btn ghost" onClick={onOpenVars}><I.braces size={13}/> Etiquetas</button>
-        <button className="btn ghost" onClick={onPreview}><I.eye size={13}/> Ver cómo se verá</button>
-        <button className="btn" onClick={onReview} title="Revisar antes de enviar (⌘⇧R)" data-tour="review-btn"><I.check size={13}/> Revisar</button>
-        <button className="btn" onClick={onTestSend}><I.send size={13}/> Enviar prueba</button>
-        <button className="btn primary" onClick={onExport} data-tour="export-btn"><I.download size={13}/> Enviar o exportar</button>
+        <div className="grow"/>
+
+        {/* Zone C — utility cluster */}
+        <div className="icon-cluster">
+          <button className="btn icon ghost sm" title="Deshacer (⌘Z)" aria-label="Deshacer"><I.undo size={13}/></button>
+          <button className="btn icon ghost sm" title="Rehacer (⌘⇧Z)" aria-label="Rehacer"><I.redo size={13}/></button>
+          <ThemeToggleBtn/>
+          <button className="btn icon ghost sm" onClick={()=>window.dispatchEvent(new CustomEvent('mc:cmd-open'))} title="Buscar (⌘K)" aria-label="Buscar"><I.search size={13}/></button>
+        </div>
+
+        {/* Zone D — actions */}
+        <button className="btn ghost sm" onClick={onOpenVars}><I.braces size={13}/> Etiquetas</button>
+        <button className="btn ghost sm" onClick={onPreview}><I.eye size={13}/> Vista previa</button>
+        <button className="btn ghost sm" onClick={onReview} title="Revisar antes de enviar (⌘⇧R)" data-tour="review-btn"><I.check size={13}/> Revisar</button>
+        <button className="btn sm" onClick={onTestSend}><I.send size={13}/> Enviar prueba</button>
+        <button className="btn primary sm" onClick={onExport} data-tour="export-btn"><I.download size={13}/> Exportar</button>
       </div>
 
       <div className="editor-body">
@@ -443,7 +467,23 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
           <div className="canvas-rulers">
             <div className="canvas-frame" style={{transform:`scale(${zoom/100})`,transformOrigin:'top center'}}>
               {doc.length === 0 ? (
-                <div style={{background:'var(--surface)',border:'1px solid var(--line)',borderRadius:'var(--r-md)',padding:'20px 0'}}>
+                <div
+                  style={{background:'var(--surface)',border:'1px solid var(--line)',borderRadius:'var(--r-md)',padding:'20px 0'}}
+                  onDragOver={(e)=>{
+                    if (Array.from(e.dataTransfer.types).includes('text/x-mc-section')) {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'copy';
+                    }
+                  }}
+                  onDrop={(e)=>{
+                    const id = e.dataTransfer.getData('text/x-mc-section');
+                    if (!id) return;
+                    const p = resolvePreset(id);
+                    if (!p) return;
+                    e.preventDefault();
+                    addSection(p, 0);
+                  }}
+                >
                   <EmptyState
                     illustration="editor-empty"
                     title="Empieza añadiendo una sección"
@@ -456,7 +496,10 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
                   />
                 </div>
               ) : (<>
-              <SectionInsertBtn onClick={()=>addBlankSection(0)}/>
+              <SectionInsertBtn
+                onClick={()=>addBlankSection(0)}
+                onDropPreset={(id)=>{ const p=resolvePreset(id); if (p) addSection(p, 0); }}
+              />
               {doc.map((s, si) => (
                 <React.Fragment key={s.id}>
                   <SectionView
@@ -472,8 +515,12 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
                     onMoveBlock={(colIdx,blockId,dir)=>moveBlock(s.id,colIdx,blockId,dir)}
                     onDeleteBlock={(blockId)=>deleteBlock(s.id,blockId)}
                     onAddBlankBlock={(colIdx,atIdx)=>addBlankBlockInColumn(s.id,colIdx,atIdx)}
+                    onDropBlock={(colIdx, atIdx, blockType)=>addBlankBlockInColumn(s.id, colIdx, atIdx, blockType)}
                   />
-                  <SectionInsertBtn onClick={()=>addBlankSection(si+1)}/>
+                  <SectionInsertBtn
+                    onClick={()=>addBlankSection(si+1)}
+                    onDropPreset={(id)=>{ const p=resolvePreset(id); if (p) addSection(p, si+1); }}
+                  />
                 </React.Fragment>
               ))}
               </>)}
@@ -624,9 +671,30 @@ function ImproveAIModal({ block, onClose, onApply }) {
   );
 }
 
-function SectionInsertBtn({ onClick }) {
+function SectionInsertBtn({ onClick, onDropPreset }) {
+  const [over, setOver] = React.useState(false);
   return (
-    <div className="section-insert">
+    <div
+      className={`section-insert${over?' drop-active':''}`}
+      onDragOver={(e)=>{
+        if (!onDropPreset) return;
+        if (Array.from(e.dataTransfer.types).includes('text/x-mc-section')) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'copy';
+          setOver(true);
+        }
+      }}
+      onDragLeave={()=>setOver(false)}
+      onDrop={(e)=>{
+        if (!onDropPreset) return;
+        const id = e.dataTransfer.getData('text/x-mc-section');
+        if (!id) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setOver(false);
+        onDropPreset(id);
+      }}
+    >
       <div className="section-insert-line"/>
       <button className="section-insert-btn" onClick={onClick} title="Insertar sección vacía">
         <I.plus size={14}/>
@@ -636,9 +704,32 @@ function SectionInsertBtn({ onClick }) {
   );
 }
 
-function BlockInsertBtn({ onClick }) {
+function BlockInsertBtn({ onClick, onDropBlock }) {
+  const [over, setOver] = React.useState(false);
   return (
-    <div className="block-insert" onClick={onClick}>
+    <div
+      className={`block-insert${over?' drop-active':''}`}
+      onClick={onClick}
+      onDragOver={(e)=>{
+        if (!onDropBlock) return;
+        if (Array.from(e.dataTransfer.types).includes('text/x-mc-block')) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = 'copy';
+          setOver(true);
+        }
+      }}
+      onDragLeave={()=>setOver(false)}
+      onDrop={(e)=>{
+        if (!onDropBlock) return;
+        const type = e.dataTransfer.getData('text/x-mc-block');
+        if (!type) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setOver(false);
+        onDropBlock(type);
+      }}
+    >
       <div className="block-insert-line"/>
       <button className="block-insert-btn" title="Insertar bloque vacío" onClick={e=>{e.stopPropagation(); onClick();}}>
         <I.plus size={12}/>
@@ -648,7 +739,7 @@ function BlockInsertBtn({ onClick }) {
   );
 }
 
-function SectionView({ section, selected, selectedBlockId, onSelectSection, onSelectBlock, onMoveUp, onMoveDown, onDuplicate, onDelete, onMoveBlock, onDeleteBlock, onAddBlankBlock }) {
+function SectionView({ section, selected, selectedBlockId, onSelectSection, onSelectBlock, onMoveUp, onMoveDown, onDuplicate, onDelete, onMoveBlock, onDeleteBlock, onAddBlankBlock, onDropBlock }) {
   const font = FONT_OPTIONS.find(f => f.id===section.style.font) || FONT_OPTIONS[0];
   const [hover, setHover] = React.useState(false);
   const showChrome = selected || hover;
@@ -711,6 +802,7 @@ function SectionView({ section, selected, selectedBlockId, onSelectSection, onSe
             onMoveBlock={(blockId,dir)=>onMoveBlock(ci,blockId,dir)}
             onDeleteBlock={onDeleteBlock}
             onAddBlankBlock={(atIdx)=>onAddBlankBlock(ci, atIdx)}
+            onDropBlock={(atIdx, blockType)=>onDropBlock(ci, atIdx, blockType)}
           />
         ))}
       </div>
@@ -718,9 +810,31 @@ function SectionView({ section, selected, selectedBlockId, onSelectSection, onSe
   );
 }
 
-function ColumnView({ column, colIdx, totalBlocks, selectedBlockId, onSelectBlock, onMoveBlock, onDeleteBlock, onAddBlankBlock }) {
+function ColumnView({ column, colIdx, totalBlocks, selectedBlockId, onSelectBlock, onMoveBlock, onDeleteBlock, onAddBlankBlock, onDropBlock }) {
+  const [dragOver, setDragOver] = React.useState(false);
   return (
     <div
+      onDragOver={(e)=>{
+        if (!onDropBlock) return;
+        if (Array.from(e.dataTransfer.types).includes('text/x-mc-block')) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'copy';
+          setDragOver(true);
+        }
+      }}
+      onDragLeave={(e)=>{
+        // Only clear when leaving the column itself, not internal children
+        if (e.currentTarget.contains(e.relatedTarget)) return;
+        setDragOver(false);
+      }}
+      onDrop={(e)=>{
+        if (!onDropBlock) return;
+        const type = e.dataTransfer.getData('text/x-mc-block');
+        if (!type) return;
+        e.preventDefault();
+        setDragOver(false);
+        onDropBlock(column.blocks.length, type);
+      }}
       style={{
         minHeight: column.blocks.length ? 'auto' : 80,
         border: column.blocks.length ? 'none' : '1px dashed color-mix(in oklab, currentColor 22%, transparent)',
@@ -728,17 +842,23 @@ function ColumnView({ column, colIdx, totalBlocks, selectedBlockId, onSelectBloc
         padding: column.blocks.length ? 0 : 12,
         display:'flex',flexDirection:'column',gap:2,
         position:'relative',
+        outline: dragOver ? '2px dashed var(--accent)' : undefined,
+        outlineOffset: dragOver ? 2 : undefined,
+        background: dragOver ? 'color-mix(in oklab, var(--accent) 10%, transparent)' : undefined,
+        transition:'outline-color 120ms, background 120ms',
       }}
     >
       {column.blocks.length === 0 && (
         <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8,padding:'12px 0'}}>
-          <div style={{fontSize:11,opacity:0.5,fontFamily:'var(--font-mono)'}}>Columna vacía</div>
+          <div style={{fontSize:11,opacity:0.5,fontFamily:'var(--font-mono)'}}>{dragOver ? 'Soltar aquí' : 'Columna vacía'}</div>
           <button className="round-add" onClick={e=>{e.stopPropagation(); onAddBlankBlock(0);}} title="Añadir bloque">
             <I.plus size={14}/>
           </button>
         </div>
       )}
-      {column.blocks.length > 0 && <BlockInsertBtn onClick={()=>onAddBlankBlock(0)}/>}
+      {column.blocks.length > 0 && (
+        <BlockInsertBtn onClick={()=>onAddBlankBlock(0)} onDropBlock={(type)=>onDropBlock(0, type)}/>
+      )}
       {column.blocks.map((b, bi) => {
         const R = EB_RENDERERS[b.type];
         const isSel = selectedBlockId === b.id;
@@ -762,7 +882,7 @@ function ColumnView({ column, colIdx, totalBlocks, selectedBlockId, onSelectBloc
                 <button onClick={e=>{e.stopPropagation(); onDeleteBlock(b.id);}} title="Eliminar" className="danger"><I.minus size={13}/></button>
               </div>
             </div>
-            <BlockInsertBtn onClick={()=>onAddBlankBlock(bi+1)}/>
+            <BlockInsertBtn onClick={()=>onAddBlankBlock(bi+1)} onDropBlock={(type)=>onDropBlock(bi+1, type)}/>
           </React.Fragment>
         );
       })}

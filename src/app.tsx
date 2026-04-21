@@ -11,7 +11,12 @@ function App() {
     if (saved) { try { return {...window.TWEAKS, ...JSON.parse(saved)}; } catch {} }
     return {...window.TWEAKS};
   });
-  React.useEffect(() => { localStorage.setItem('mc:tweaks', JSON.stringify(tweaks)); }, [tweaks]);
+  React.useEffect(() => {
+    localStorage.setItem('mc:tweaks', JSON.stringify(tweaks));
+    window.__mcTweaks = tweaks;
+    window.dispatchEvent(new CustomEvent('mc:tweaks-change'));
+  }, [tweaks]);
+  window.__mcTweaks = tweaks; // keep synchronous mirror for first paint
   window.__mcSetTweaks = setTweaks; // allow settings panel / cmd-k to mutate
   const [tweaksVisible, setTweaksVisible] = React.useState(false);
   const [reviewOpen, setReviewOpen] = React.useState(false);
@@ -85,23 +90,7 @@ function App() {
   return (
     <>
       <div className="shell" data-screen-label={`Screen: ${screen}`}>
-        {/* Titlebar simulates Electron window */}
-        <div className="titlebar">
-          <div className="traffic"><span className="r"/><span className="y"/><span className="g"/></div>
-          <div className="nav">
-            <IconBtn icon="chevronL" size="sm" />
-            <IconBtn icon="chevronR" size="sm" />
-          </div>
-          <div className="title">Mailcraft — {screen==='dashboard'?'Biblioteca':screen==='editor'?(tpl?.name||'Plantilla sin título'):screen==='preview'?'Vista previa':screen==='library'?'Bloques guardados':screen==='gallery'?'Galería de plantillas':'App'}</div>
-          <IconBtn
-            icon={tweaks.mode==='dark' ? 'sun' : 'moon'}
-            size="sm"
-            title={tweaks.mode==='dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
-            onClick={()=>setTweaks(t=>({...t, mode: t.mode==='dark'?'light':'dark'}))}
-          />
-          <IconBtn icon="settings" size="sm" onClick={()=>setModal('settings')}/>
-        </div>
-
+        <div className="drag-strip" aria-hidden="true"/>
         {screen==='dashboard' && (
           <Dashboard
             onOpen={(s,t)=>{ if(s==='editor') openEditor(t); else if(s==='gallery') setScreen('gallery'); else if(s==='library') setScreen('library'); else if(s==='settings'||s==='smtp') setModal('settings'); }}

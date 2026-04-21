@@ -116,9 +116,8 @@ function Preview({ onBack }) {
     <div className="editor" style={{background:'var(--bg)'}}>
       {/* Top bar */}
       <div className="editor-top">
-        <button className="btn ghost" onClick={onBack}><I.chevronL size={14}/> Editor</button>
-        <div className="vdivider"/>
-        <div style={{fontFamily:'var(--font-display)',fontSize:16,fontWeight:600,letterSpacing:-0.2}}>Vista previa</div>
+        <button className="btn ghost sm" onClick={onBack}><I.chevronL size={14}/> Editor</button>
+        <div style={{fontFamily:'var(--font-display)',fontSize:15,fontWeight:600,letterSpacing:-0.2}}>Vista previa</div>
         <span className="chip">Newsletter de Noviembre</span>
 
         <div className="grow"/>
@@ -163,7 +162,7 @@ function Preview({ onBack }) {
           </button>
         </div>
 
-        <button className="btn"><I.send size={13}/> Enviar prueba</button>
+        <button className="btn sm"><I.send size={13}/> Enviar prueba</button>
       </div>
 
       {/* Stage del cliente de correo */}

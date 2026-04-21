@@ -30,16 +30,16 @@ function Library({ onBack }) {
   return (
     <div className="editor">
       <div className="editor-top">
-        <button className="btn ghost" onClick={onBack}><I.chevronL size={14}/> Biblioteca</button>
-        <div className="vdivider"/>
-        <div style={{fontFamily:'var(--font-display)',fontSize:16,fontWeight:600,letterSpacing:-0.2}}>Bloques guardados</div>
+        <button className="btn ghost sm" onClick={onBack}><I.chevronL size={14}/> Biblioteca</button>
+        <div style={{fontFamily:'var(--font-display)',fontSize:15,fontWeight:600,letterSpacing:-0.2}}>Bloques guardados</div>
         <span className="chip">{filtered.length} bloque{filtered.length===1?'':'s'}{q||cat!=='Todos'?` de ${SAVED_BLOCKS.length}`:''}</span>
         <div className="grow"/>
         <div className="search">
           <span className="si"><I.search size={14}/></span>
           <input placeholder="Buscar bloques…" value={q} onChange={e=>setQ(e.target.value)}/>
         </div>
-        <button className="btn primary" onClick={()=>window.toast && window.toast({kind:'ok', title:'Bloque guardado en tu biblioteca', msg:'Podrás reusarlo en cualquier plantilla.'})}><I.plus size={13}/> Guardar nuevo</button>
+        <ThemeToggleBtn/>
+        <button className="btn primary sm" onClick={()=>window.toast && window.toast({kind:'ok', title:'Bloque guardado en tu biblioteca', msg:'Podrás reusarlo en cualquier plantilla.'})}><I.plus size={13}/> Guardar nuevo</button>
       </div>
 
       <div style={{display:'flex',gap:6,padding:'12px 24px',borderBottom:'1px solid var(--line)',background:'var(--surface)',overflowX:'auto'}}>

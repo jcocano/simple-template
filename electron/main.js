@@ -10,6 +10,9 @@ if (!app || !BrowserWindow) {
 }
 
 function createWindow() {
+  const isMac = process.platform === "darwin";
+  const isWin = process.platform === "win32";
+
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -17,6 +20,17 @@ function createWindow() {
     minHeight: 720,
     backgroundColor: "#10131a",
     autoHideMenuBar: true,
+    titleBarStyle: "hidden",
+    ...(isMac ? { trafficLightPosition: { x: 10, y: 6 } } : {}),
+    ...(isWin
+      ? {
+          titleBarOverlay: {
+            color: "#0b0d12",
+            symbolColor: "#cbd1dc",
+            height: 28
+          }
+        }
+      : {}),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false

@@ -1,5 +1,11 @@
 import ReactDOM from "react-dom/client";
 
+// Flag the platform so CSS can reserve room for native window controls
+// (traffic lights on the left for macOS, overlay buttons on the right for Windows).
+const ua = navigator.userAgent;
+const platform = ua.includes("Mac") ? "darwin" : ua.includes("Win") ? "win32" : "linux";
+document.documentElement.setAttribute("data-platform", platform);
+
 import "./icons.tsx";
 import "./data.tsx";
 import "./ui.tsx";

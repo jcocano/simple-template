@@ -219,7 +219,12 @@
   textarea.field{height:auto;padding:10px;resize:vertical;min-height:72px;font-family:var(--font-mono);font-size:12px}
 
   .divider{height:1px;background:var(--line);margin:var(--gap) 0}
-  .vdivider{width:1px;background:var(--line);align-self:stretch}
+  .vdivider{
+    width:1px;height:16px;
+    background:var(--line);opacity:0.6;
+    align-self:center;flex-shrink:0;
+    margin:0 4px;
+  }
 
   .kbd{
     font-family:var(--font-mono);font-size:11px;
@@ -242,21 +247,17 @@
   /* ===== Shell ===== */
   .shell{display:flex;flex-direction:column;height:100vh;width:100vw;overflow:hidden}
 
-  /* Title bar (electron-like) */
-  .titlebar{
-    display:flex;align-items:center;gap:10px;
-    height:36px;padding:0 12px;
-    background:var(--surface);border-bottom:1px solid var(--line);
-    font-size:12px;color:var(--fg-2);
-    user-select:none;
+  /* Thin drag strip at the very top of the shell. Sized to hug the native
+     window controls (macOS traffic lights are moved up to y:6, Windows
+     overlay height is 28px) so it reads as a narrow edge / tool chrome,
+     not a separate header. Shares `var(--surface)` with whatever sits
+     directly below (sidebar / dash-head / editor-top). */
+  .drag-strip{
+    flex-shrink:0;height:22px;
+    background:var(--surface);
+    -webkit-app-region:drag;user-select:none;
   }
-  .traffic{display:flex;gap:7px}
-  .traffic span{width:11px;height:11px;border-radius:50%;display:block}
-  .traffic .r{background:#ff5f57}
-  .traffic .y{background:#ffbd2e}
-  .traffic .g{background:#28c840}
-  .titlebar .title{flex:1;text-align:center;color:var(--fg-2);font-size:12px}
-  .titlebar .nav{display:flex;gap:2px}
+  [data-platform="win32"] .drag-strip{height:28px}
 
   /* ===== Sidebar (dashboard) ===== */
   .sidebar{
@@ -349,25 +350,42 @@
   /* ===== Editor shell ===== */
   .editor{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
   .editor-top{
-    display:flex;align-items:center;gap:10px;
-    padding:10px 14px;
+    display:flex;align-items:center;gap:8px;
+    padding:8px 14px;
     background:var(--surface);border-bottom:1px solid var(--line);
     flex-shrink:0;
   }
   .editor-top .name{
-    display:flex;flex-direction:column;gap:1px;min-width:0;
+    display:flex;flex-direction:column;gap:1px;min-width:0;max-width:320px;
   }
   .editor-top .name input{
     background:transparent;border:none;outline:none;
-    font-size:14px;font-weight:500;padding:2px 0;
+    font-size:13.5px;font-weight:500;padding:2px 0;
     width:100%;
   }
   .editor-top .name input:hover, .editor-top .name input:focus{
     background:var(--surface-2);padding:2px 6px;margin:-2px -6px;border-radius:4px;
   }
-  .editor-top .meta{font-size:11px;color:var(--fg-3)}
-  .save-ind{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--fg-3)}
-  .save-dot{width:6px;height:6px;border-radius:50%;background:var(--ok)}
+  .editor-top .meta{
+    font-size:11px;color:var(--fg-3);
+    display:flex;align-items:center;gap:6px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .save-dot{width:6px;height:6px;border-radius:50%;background:var(--ok);flex-shrink:0}
+
+  /* Grouped utility icons in the editor toolbar — reads as a segmented
+     pill, consistent with .device-toggle. Keeps undo/redo/theme/search
+     visually packaged without needing vertical dividers around them. */
+  .editor-top .icon-cluster{
+    display:flex;align-items:center;gap:1px;
+    padding:2px;
+    background:var(--surface-2);border:1px solid var(--line);
+    border-radius:var(--r-md);
+  }
+  .editor-top .icon-cluster .btn{
+    border-color:transparent;background:transparent;
+  }
+  .editor-top .icon-cluster .btn:hover{background:var(--surface)}
 
   .device-toggle{
     display:flex;background:var(--surface-2);border-radius:var(--r-md);padding:2px;
@@ -588,7 +606,9 @@
     overflow:visible;
     opacity:0;transition:opacity 140ms;
   }
-  .section-insert:hover{opacity:1}
+  .section-insert:hover, .section-insert.drop-active{opacity:1}
+  .section-insert.drop-active .section-insert-line{opacity:1;height:2px}
+  .section-insert.drop-active .section-insert-btn{transform:scale(1.2)}
   .section-insert-line{
     flex:1;height:1px;background:var(--accent);opacity:.4;
   }
@@ -612,7 +632,9 @@
     height:14px;margin:0;
     opacity:0;transition:opacity 120ms;
   }
-  .block-insert:hover{opacity:1}
+  .block-insert:hover, .block-insert.drop-active{opacity:1}
+  .block-insert.drop-active .block-insert-line{background:var(--accent);height:2px}
+  .block-insert.drop-active .block-insert-btn{transform:scale(1.25)}
   .block-insert-line{flex:1;height:1px;background:color-mix(in oklab, var(--accent) 40%, transparent)}
   .block-insert-btn{
     width:18px;height:18px;border-radius:50%;

@@ -67,4 +67,25 @@ function Tooltip({ label, children, side='bottom' }) {
   return <span title={label}>{children}</span>;
 }
 
-Object.assign(window, { IconBtn, Seg, Num, Swatch, Avatar, Tab, Tooltip });
+// Shared app-theme (light/dark) toggle. Subscribes to App's tweaks via
+// `mc:tweaks-change` so every instance stays in sync regardless of screen.
+function ThemeToggleBtn({ size = 'sm', ...rest }) {
+  const [, force] = React.useReducer(x => x + 1, 0);
+  React.useEffect(() => {
+    const onChange = () => force();
+    window.addEventListener('mc:tweaks-change', onChange);
+    return () => window.removeEventListener('mc:tweaks-change', onChange);
+  }, []);
+  const mode = (window.__mcTweaks && window.__mcTweaks.mode) || 'light';
+  return (
+    <IconBtn
+      icon={mode==='dark' ? 'sun' : 'moon'}
+      size={size}
+      title={mode==='dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+      onClick={()=>window.__mcSetTweaks && window.__mcSetTweaks(t=>({...t, mode: t.mode==='dark'?'light':'dark'}))}
+      {...rest}
+    />
+  );
+}
+
+Object.assign(window, { IconBtn, Seg, Num, Swatch, Avatar, Tab, Tooltip, ThemeToggleBtn });
