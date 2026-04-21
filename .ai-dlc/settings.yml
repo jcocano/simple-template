@@ -1,0 +1,25 @@
+# AI-DLC project settings for simple-templete (Mailcraft)
+# Schema: ~/.claude/plugins/cache/ai-dlc/ai-dlc/1.84.1/schemas/settings.schema.json
+# Precedence: unit frontmatter > intent settings > this file
+
+git:
+  change_strategy: intent
+  default_branch: main
+  auto_merge: true
+  elaboration_review: true
+
+workflow_mode: interactive
+granularity: standard
+mockup_format: ascii
+
+default_passes: []
+default_announcements: [changelog]
+
+review_agents:
+  accessibility: true
+  design_system: true
+  data_integrity: true
+  api_contract: true
+
+visual_review: true
+knowledge_refresh: true
