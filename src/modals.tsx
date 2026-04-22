@@ -131,9 +131,9 @@ function SendTab({ onClose }) {
         <div className="col" style={{gap:12,padding:16,background:'var(--surface-2)',borderRadius:'var(--r-md)'}}>
           <div className="prop-label">Tu link privado</div>
           <div className="row">
-            <input className="field" readOnly value="https://mailcraft.app/v/k7h2-39pq" style={{flex:1,fontFamily:'var(--font-mono)',fontSize:12}}/>
+            <input className="field" readOnly value="https://simple-template.app/v/k7h2-39pq" style={{flex:1,fontFamily:'var(--font-mono)',fontSize:12}}/>
             <button className="btn" onClick={()=>{
-              try { navigator.clipboard?.writeText('https://mailcraft.app/v/k7h2-39pq'); } catch(e){}
+              try { navigator.clipboard?.writeText('https://simple-template.app/v/k7h2-39pq'); } catch(e){}
               window.toast && window.toast({ kind:'ok', title:'Link copiado', msg:'Pégalo donde lo quieras compartir.' });
             }}><I.copy size={13}/> Copiar</button>
           </div>
@@ -385,7 +385,7 @@ function VariablesModal({ onClose }) {
           <div style={{fontSize:11,color:'var(--fg-3)',marginBottom:8,lineHeight:1.5}}>Elige de dónde queremos sacar el nombre, correo, etc. de cada persona.</div>
           <div className="col" style={{gap:8}}>
             {[
-              {n:'Mi lista de contactos', d:'La lista que cargaste en Mailcraft', on:true},
+              {n:'Mi lista de contactos', d:'La lista que cargaste en Simple Template', on:true},
               {n:'Archivo CSV', d:'Sube un Excel o Google Sheets', on:false},
               {n:'Mi tienda / CRM',d:'Shopify, HubSpot, Pipedrive, Salesforce', on:false},
               {n:'Mi base de datos', d:'Solo si tu equipo técnico la configuró', on:false},
