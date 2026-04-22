@@ -195,12 +195,24 @@ function EBImage({ data = {} }) {
   const c = getContent(data);
   const align = s.align || 'center';
   const width = s.width || 100; // percent
+  const hasSrc = !!c.src;
   return (
     <div style={{...bwrap(s, data.spacing), textAlign:align}}>
-      <div style={{
-        display:'inline-block',width:`${width}%`,maxWidth:'100%',
-      }}>
-        <ImgPH ratio={s.ratio||'2/1'} label={c.alt || 'Imagen — 1200×600'} radius={s.radius}/>
+      <div style={{display:'inline-block',width:`${width}%`,maxWidth:'100%'}}>
+        {hasSrc ? (
+          <img
+            src={c.src}
+            alt={c.alt || ''}
+            style={{
+              display:'block',width:'100%',height:'auto',
+              aspectRatio: s.ratio || 'auto',
+              objectFit: 'cover',
+              borderRadius: s.radius || 0,
+            }}
+          />
+        ) : (
+          <ImgPH ratio={s.ratio||'2/1'} label={c.alt || 'Imagen — 1200×600'} radius={s.radius}/>
+        )}
       </div>
     </div>
   );
