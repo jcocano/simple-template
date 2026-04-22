@@ -1,11 +1,11 @@
 // Editor Tour — overlay with spotlight + tooltip, walks user through editor on first open
-// Persistence: localStorage 'mc:tour-seen'. Reactivable from Ajustes or via window event 'mc:start-tour'.
+// Persistence: setting 'tour-seen'. Reactivable from Ajustes or via window event 'st:start-tour'.
 
 const TOUR_STEPS = [
   {
     id: 'welcome',
     target: null, // centered, no spotlight
-    title: '¡Bienvenida al editor de Mailcraft!',
+    title: '¡Bienvenida al editor de Simple Template!',
     body: 'Te mostramos las partes principales en 6 pasos. Tarda menos de un minuto.',
     icon: 'sparkles',
   },
@@ -37,7 +37,7 @@ const TOUR_STEPS = [
     id: 'device',
     target: '[data-tour="device-toggle"]',
     title: 'Escritorio y móvil',
-    body: 'Alterna la vista en cualquier momento. Mailcraft se encarga de que el correo se vea bien en ambos.',
+    body: 'Alterna la vista en cualquier momento. Simple Template se encarga de que el correo se vea bien en ambos.',
     placement: 'bottom',
     icon: 'phone',
   },
@@ -107,7 +107,7 @@ function EditorTour({ onClose }) {
   });
 
   const handleClose = () => {
-    try { localStorage.setItem('mc:tour-seen', '1'); } catch(e) {}
+    window.stStorage.setSetting('tour-seen', true);
     onClose && onClose();
   };
   const handleNext = () => { if (isLast) handleClose(); else setStepIdx(i => i + 1); };

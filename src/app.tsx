@@ -2,19 +2,15 @@
 
 function App() {
   // persistent screen in localStorage
-  const [screen, setScreen] = React.useState(() => localStorage.getItem('mc:screen') || 'dashboard');
+  const [screen, setScreen] = React.useState(() => window.stStorage.getSetting('screen', 'dashboard'));
   const [tpl, setTpl] = React.useState(null);
   const [modal, setModal] = React.useState(null);
-  const [onboard, setOnboard] = React.useState(() => localStorage.getItem('mc:onboard') !== 'done');
-  const [tweaks, setTweaks] = React.useState(() => {
-    const saved = localStorage.getItem('mc:tweaks');
-    if (saved) { try { return {...window.TWEAKS, ...JSON.parse(saved)}; } catch {} }
-    return {...window.TWEAKS};
-  });
+  const [onboard, setOnboard] = React.useState(() => !window.stStorage.getSetting('onboard', false));
+  const [tweaks, setTweaks] = React.useState(() => ({...window.TWEAKS, ...window.stStorage.getSetting('tweaks', {})}));
   React.useEffect(() => {
-    localStorage.setItem('mc:tweaks', JSON.stringify(tweaks));
+    window.stStorage.setSetting('tweaks', tweaks);
     window.__mcTweaks = tweaks;
-    window.dispatchEvent(new CustomEvent('mc:tweaks-change'));
+    window.dispatchEvent(new CustomEvent('st:tweaks-change'));
   }, [tweaks]);
   window.__mcTweaks = tweaks; // keep synchronous mirror for first paint
   window.__mcSetTweaks = setTweaks; // allow settings panel / cmd-k to mutate
@@ -36,14 +32,14 @@ function App() {
     };
     window.addEventListener('keydown', onKey);
     const openH = () => setPaletteOpen(true);
-    window.addEventListener('mc:cmd-open', openH);
+    window.addEventListener('st:cmd-open', openH);
     return () => {
       window.removeEventListener('keydown', onKey);
-      window.removeEventListener('mc:cmd-open', openH);
+      window.removeEventListener('st:cmd-open', openH);
     };
   }, []);
 
-  React.useEffect(() => { localStorage.setItem('mc:screen', screen); }, [screen]);
+  React.useEffect(() => { window.stStorage.setSetting('screen', screen); }, [screen]);
 
   // Tweaks protocol
   React.useEffect(() => {
@@ -73,7 +69,7 @@ function App() {
   }, [tweaks]);
 
   const finishOnboarding = () => {
-    localStorage.setItem('mc:onboard','done');
+    window.stStorage.setSetting('onboard', true);
     setOnboard(false);
   };
 
@@ -150,7 +146,7 @@ function App() {
           else if (target === 'export') setModal('export');
           else if (target === 'test') setModal('test');
           else if (target === 'vars') setModal('vars');
-          else if (target === 'ai-generate') { setScreen('dashboard'); setTimeout(()=>window.dispatchEvent(new CustomEvent('mc:ai-generate')), 50); }
+          else if (target === 'ai-generate') { setScreen('dashboard'); setTimeout(()=>window.dispatchEvent(new CustomEvent('st:ai-generate')), 50); }
           else if (target === 'theme:light') { setTweaks(t=>({...t, mode:'light'})); window.toast && window.toast({kind:'ok', title:'Tema claro activado'}); }
           else if (target === 'theme:dark')  { setTweaks(t=>({...t, mode:'dark'})); window.toast && window.toast({kind:'ok', title:'Tema oscuro activado'}); }
           else if (target === 'theme:toggle') { setTweaks(t=>({...t, mode: t.mode==='dark'?'light':'dark'})); }
@@ -160,7 +156,7 @@ function App() {
           }
           else if (target && target.startsWith('insert:')) {
             setScreen('editor');
-            setTimeout(()=>window.dispatchEvent(new CustomEvent('mc:insert-block', {detail:{type:target.slice(7)}})), 60);
+            setTimeout(()=>window.dispatchEvent(new CustomEvent('st:insert-block', {detail:{type:target.slice(7)}})), 60);
           }
           else setScreen(target);
         }}

@@ -103,7 +103,7 @@ function SettingsPanel({ onClose, initialSection='account' }) {
           </div>
 
           <div style={{marginTop:'auto',padding:'12px 10px 4px',fontSize:10.5,color:'var(--fg-3)',lineHeight:1.55}}>
-            Mailcraft v0.4.2 · <span style={{color:'var(--accent)',cursor:'pointer'}}>Cambios</span>
+            Simple Template v0.4.2 · <span style={{color:'var(--accent)',cursor:'pointer'}}>Cambios</span>
           </div>
         </aside>
 
@@ -188,14 +188,11 @@ function SGroup({ title, children }) {
 
 // ───────────────────────────── Appearance ─────────────────────────────
 function AppearanceSection({ onChange }) {
-  const [tw, setTw] = React.useState(() => {
-    try { return {...window.TWEAKS, ...JSON.parse(localStorage.getItem('mc:tweaks')||'{}')}; }
-    catch { return {...window.TWEAKS}; }
-  });
+  const [tw, setTw] = React.useState(() => ({...window.TWEAKS, ...window.stStorage.getSetting('tweaks', {})}));
   const set = (k, v) => {
     const next = {...tw, [k]: v};
     setTw(next);
-    localStorage.setItem('mc:tweaks', JSON.stringify(next));
+    window.stStorage.setSetting('tweaks', next);
     if (window.__mcSetTweaks) window.__mcSetTweaks(next);
     onChange();
   };
@@ -368,8 +365,8 @@ function AppearanceSection({ onChange }) {
       <SGroup title="Recorrido guiado">
         <SRow label="Volver a ver el tour del editor" hint="Te llevamos de nuevo por las partes principales del editor. Dura menos de un minuto.">
           <button className="btn" onClick={()=>{
-            try { localStorage.removeItem('mc:tour-seen'); } catch(e) {}
-            window.dispatchEvent(new CustomEvent('mc:start-tour'));
+            window.stStorage.removeSetting('tour-seen');
+            window.dispatchEvent(new CustomEvent('st:start-tour'));
             onChange();
           }}><I.sparkles size={12}/> Iniciar tour</button>
         </SRow>
@@ -380,8 +377,8 @@ function AppearanceSection({ onChange }) {
 
 // ───────────────────────────── Account (perfil local) ─────────────────────────────
 function AccountSection({ onChange }) {
-  const [acc, setAcc] = React.useState(() => JSON.parse(localStorage.getItem('mc:account') || '{}'));
-  const set = (k,v) => { const next = {...acc, [k]:v}; setAcc(next); localStorage.setItem('mc:account', JSON.stringify(next)); onChange(); };
+  const [acc, setAcc] = React.useState(() => window.stStorage.getSetting('account', {}));
+  const set = (k,v) => { const next = {...acc, [k]:v}; setAcc(next); window.stStorage.setSetting('account', next); onChange(); };
 
   const stats = [
     { k:'Plantillas guardadas', v:'24', icon:'mail' },
@@ -414,7 +411,7 @@ function AccountSection({ onChange }) {
         </SRow>
       </SGroup>
 
-      <SGroup title="Sobre Mailcraft">
+      <SGroup title="Sobre Simple Template">
         <div style={{
           padding:14, borderRadius:'var(--r-md)',
           background:'var(--surface-2)', border:'1px solid var(--line)',
@@ -430,7 +427,7 @@ function AccountSection({ onChange }) {
               Aplicación local, de código abierto
             </div>
             <p style={{fontSize:12.5,color:'var(--fg-2)',lineHeight:1.55,margin:0}}>
-              Mailcraft se ejecuta 100 % en tu equipo. Toda la información — plantillas, marca, credenciales — se guarda localmente.
+              Simple Template se ejecuta 100 % en tu equipo. Toda la información — plantillas, marca, credenciales — se guarda localmente.
               No hay planes, ni roles, ni servidores centrales: todas las personas que usan la app tienen acceso completo a todas las funciones.
             </p>
             <div style={{display:'flex',gap:8,marginTop:10,flexWrap:'wrap'}}>
@@ -482,9 +479,9 @@ function StorageSection({ onChange }) {
     imgbb: { apiKey:'' },
     github: { repo:'', branch:'main', token:'', path:'assets/' },
     ftp: { host:'', port:'21', user:'', password:'', path:'/public_html/img/', publicUrl:'' },
-    ...JSON.parse(localStorage.getItem('mc:storage') || '{}'),
+    ...window.stStorage.getSetting('storage', {}),
   }));
-  const save = (next) => { setS(next); localStorage.setItem('mc:storage', JSON.stringify(next)); onChange(); };
+  const save = (next) => { setS(next); window.stStorage.setSetting('storage', next); onChange(); };
   const setMode = (mode) => save({...s, mode});
   const setField = (provider, k, v) => save({...s, [provider]: {...s[provider], [k]:v}});
 
@@ -522,7 +519,7 @@ function StorageSection({ onChange }) {
           <div style={{flex:1,minWidth:0}}>
             <p style={{fontSize:12.5,lineHeight:1.55,margin:0,color:'var(--fg-2)'}}>
               Los clientes de correo (Gmail, Outlook, Apple Mail) no muestran imágenes locales: necesitan una URL pública.
-              Elige dónde se subirán las imágenes de tus plantillas. Si no configuras nada, Mailcraft las incrustará en Base64 — funciona, pero con limitaciones.
+              Elige dónde se subirán las imágenes de tus plantillas. Si no configuras nada, Simple Template las incrustará en Base64 — funciona, pero con limitaciones.
             </p>
           </div>
         </div>
@@ -585,7 +582,7 @@ function StorageSection({ onChange }) {
         <SGroup title="Configuración · Base64">
           <div style={{padding:14,background:'var(--surface-2)',border:'1px solid var(--line)',borderRadius:'var(--r-md)'}}>
             <div style={{fontSize:12.5,color:'var(--fg-2)',lineHeight:1.6,marginBottom:10}}>
-              No hay nada que configurar. Mailcraft embeberá automáticamente cada imagen como un string Base64 dentro del HTML.
+              No hay nada que configurar. Simple Template embeberá automáticamente cada imagen como un string Base64 dentro del HTML.
             </div>
             <div style={{fontSize:11.5,color:'var(--fg-3)',lineHeight:1.6}}>
               <strong style={{color:'var(--fg-1)'}}>Limitaciones conocidas:</strong><br/>
@@ -594,7 +591,7 @@ function StorageSection({ onChange }) {
               · El peso total del correo aumenta ~33 % por la codificación.
             </div>
           </div>
-          <SRow label="Tamaño máximo por imagen" hint="Mailcraft te avisará antes de embeber imágenes más grandes que este límite.">
+          <SRow label="Tamaño máximo por imagen" hint="Simple Template te avisará antes de embeber imágenes más grandes que este límite.">
             <div style={{display:'flex',gap:8,alignItems:'center'}}>
               <input type="range" min="50" max="500" defaultValue="150" style={{flex:1}}/>
               <span className="chip" style={{minWidth:60,textAlign:'center'}}>150 KB</span>
@@ -646,7 +643,7 @@ function StorageSection({ onChange }) {
             <input className="field" value={s.cloudinary.cloudName} onChange={e=>setField('cloudinary','cloudName',e.target.value)} placeholder="mi-cuenta"/>
           </SRow>
           <SRow label="Upload preset" hint="Preset sin firma (Unsigned) configurado en Settings → Upload.">
-            <input className="field" value={s.cloudinary.uploadPreset} onChange={e=>setField('cloudinary','uploadPreset',e.target.value)} placeholder="mailcraft_unsigned"/>
+            <input className="field" value={s.cloudinary.uploadPreset} onChange={e=>setField('cloudinary','uploadPreset',e.target.value)} placeholder="simple_template_unsigned"/>
           </SRow>
           <SRow label="API key" hint="Opcional. Solo necesario si usas presets firmados.">
             <input className="field" value={s.cloudinary.apiKey} onChange={e=>setField('cloudinary','apiKey',e.target.value)} placeholder="1234567890"/>
@@ -681,7 +678,7 @@ function StorageSection({ onChange }) {
       {s.mode==='github' && (
         <SGroup title="Configuración · GitHub Pages">
           <SRow label="Repositorio" hint="Formato usuario/repo. Debe tener GitHub Pages habilitado.">
-            <input className="field" value={s.github.repo} onChange={e=>setField('github','repo',e.target.value)} placeholder="mi-usuario/mailcraft-assets"/>
+            <input className="field" value={s.github.repo} onChange={e=>setField('github','repo',e.target.value)} placeholder="mi-usuario/simple-template-assets"/>
           </SRow>
           <SRow label="Rama" hint="Rama donde se harán los commits.">
             <input className="field" value={s.github.branch} onChange={e=>setField('github','branch',e.target.value)} placeholder="main"/>
@@ -742,8 +739,8 @@ function StorageSection({ onChange }) {
 
 // ───────────────────────────── Brand ─────────────────────────────
 function BrandSection({ onChange }) {
-  const [brand, setBrand] = React.useState(() => JSON.parse(localStorage.getItem('mc:brand') || '{}'));
-  const set = (k,v) => { const n = {...brand, [k]:v}; setBrand(n); localStorage.setItem('mc:brand', JSON.stringify(n)); onChange(); };
+  const [brand, setBrand] = React.useState(() => window.stStorage.getSetting('brand', {}));
+  const set = (k,v) => { const n = {...brand, [k]:v}; setBrand(n); window.stStorage.setSetting('brand', n); onChange(); };
 
   const colors = brand.colors || ['#5b5bf0','#1a1a2e','#f6f5f1','#e8eddd','#d97757'];
   const fonts  = ['Inter','Söhne','Fraunces','DM Serif Display','Instrument Serif','Playfair Display','Space Grotesk','IBM Plex Sans'];
@@ -826,8 +823,8 @@ function DeliveryInner() {
 
 // ───────────────────────────── Editor ─────────────────────────────
 function EditorSection({ onChange }) {
-  const [ed, setEd] = React.useState(() => JSON.parse(localStorage.getItem('mc:editor') || '{}'));
-  const set = (k,v) => { const n = {...ed, [k]:v}; setEd(n); localStorage.setItem('mc:editor', JSON.stringify(n)); onChange(); };
+  const [ed, setEd] = React.useState(() => window.stStorage.getSetting('editor', {}));
+  const set = (k,v) => { const n = {...ed, [k]:v}; setEd(n); window.stStorage.setSetting('editor', n); onChange(); };
 
   const Seg = ({value, options, onPick}) => (
     <div style={{display:'inline-flex',background:'var(--surface-2)',padding:3,borderRadius:'var(--r-sm)',gap:2,border:'1px solid var(--line)'}}>
@@ -930,8 +927,8 @@ function EditorSection({ onChange }) {
 
 // ───────────────────────────── Variables ─────────────────────────────
 function VariablesSection({ onChange }) {
-  const [vars, setVars] = React.useState(() => JSON.parse(localStorage.getItem('mc:vars') || 'null') || VARIABLES);
-  const save = (next) => { setVars(next); localStorage.setItem('mc:vars', JSON.stringify(next)); onChange(); };
+  const [vars, setVars] = React.useState(() => window.stStorage.getSetting('vars', null) || VARIABLES);
+  const save = (next) => { setVars(next); window.stStorage.setSetting('vars', next); onChange(); };
   const setVal = (i,v) => save(vars.map((x,j)=>j===i?{...x,sample:v}:x));
 
   return (
@@ -962,8 +959,8 @@ function VariablesSection({ onChange }) {
 
 // ───────────────────────────── Export ─────────────────────────────
 function ExportSection({ onChange }) {
-  const [ex, setEx] = React.useState(() => JSON.parse(localStorage.getItem('mc:export') || '{}'));
-  const set = (k,v) => { const n = {...ex, [k]:v}; setEx(n); localStorage.setItem('mc:export', JSON.stringify(n)); onChange(); };
+  const [ex, setEx] = React.useState(() => window.stStorage.getSetting('export', {}));
+  const set = (k,v) => { const n = {...ex, [k]:v}; setEx(n); window.stStorage.setSetting('export', n); onChange(); };
 
   return (
     <>
@@ -1015,8 +1012,8 @@ function ExportSection({ onChange }) {
 
 // ───────────────────────────── Notifications ─────────────────────────────
 function NotifSection({ onChange }) {
-  const [n, setN] = React.useState(() => JSON.parse(localStorage.getItem('mc:notif') || '{}'));
-  const set = (k,v) => { const nn = {...n, [k]:v}; setN(nn); localStorage.setItem('mc:notif', JSON.stringify(nn)); onChange(); };
+  const [n, setN] = React.useState(() => window.stStorage.getSetting('notif', {}));
+  const set = (k,v) => { const nn = {...n, [k]:v}; setN(nn); window.stStorage.setSetting('notif', nn); onChange(); };
 
   const Switch = ({k, def=true}) => (
     <label className="switch"><input type="checkbox" defaultChecked={n[k]!==false && (n[k]===undefined?def:n[k])} onChange={e=>set(k,e.target.checked)}/><span/></label>
@@ -1025,7 +1022,7 @@ function NotifSection({ onChange }) {
   return (
     <>
       <SGroup title="Avisos dentro de la app">
-        <SRow label="Recordar autoguardado" hint="Te avisa en la esquina inferior cada vez que Mailcraft guarda tu trabajo automáticamente.">
+        <SRow label="Recordar autoguardado" hint="Te avisa en la esquina inferior cada vez que Simple Template guarda tu trabajo automáticamente.">
           <Switch k="saved"/>
         </SRow>
         <SRow label="Aviso de imagen muy pesada" hint="Cuando arrastras una imagen mayor al límite recomendado para correo.">
@@ -1049,7 +1046,7 @@ function NotifSection({ onChange }) {
       </SGroup>
 
       <SGroup title="Actualizaciones">
-        <SRow label="Avisarme cuando haya una versión nueva" hint="Mailcraft revisa GitHub una vez al día. La descarga es siempre manual.">
+        <SRow label="Avisarme cuando haya una versión nueva" hint="Simple Template revisa GitHub una vez al día. La descarga es siempre manual.">
           <Switch k="updates"/>
         </SRow>
         <SRow label="Incluir versiones beta" hint="Recibe avisos de releases con el tag 'beta' o 'rc'. Pueden tener errores.">
@@ -1062,8 +1059,8 @@ function NotifSection({ onChange }) {
 
 // ───────────────────────────── IA ─────────────────────────────
 function AISection({ onChange }) {
-  const [ai, setAi] = React.useState(() => JSON.parse(localStorage.getItem('mc:ai') || '{}'));
-  const set = (k,v) => { const next = {...ai, [k]:v}; setAi(next); localStorage.setItem('mc:ai', JSON.stringify(next)); onChange(); };
+  const [ai, setAi] = React.useState(() => window.stStorage.getSetting('ai', {}));
+  const set = (k,v) => { const next = {...ai, [k]:v}; setAi(next); window.stStorage.setSetting('ai', next); onChange(); };
 
   const PROVIDERS = [
     { id:'anthropic', name:'Anthropic Claude', models:['claude-sonnet-4-5','claude-opus-4-1','claude-haiku-4-5'], hint:'Mejores resultados para copy y HTML.', url:'https://console.anthropic.com' },

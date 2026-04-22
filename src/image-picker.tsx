@@ -85,7 +85,7 @@ function ImagePickerModal({ open, onClose, onSelect }) {
     .filter(i => folder==='all' || i.folder===folder)
     .filter(i => i.name.toLowerCase().includes(q.toLowerCase()));
 
-  const cdnConfig = (JSON.parse(localStorage.getItem('mc:storage')||'{}').mode) || 'base64';
+  const cdnConfig = window.stStorage.getSetting('storage', {}).mode || 'base64';
 
   return (
     <div style={{
@@ -282,7 +282,7 @@ function ImagePickerModal({ open, onClose, onSelect }) {
               <div style={{maxWidth:500,margin:'0 auto'}}>
                 <div style={{fontFamily:'var(--font-display)',fontSize:18,fontWeight:600,marginBottom:6}}>Cargar desde URL</div>
                 <p style={{fontSize:13,color:'var(--fg-3)',lineHeight:1.6,marginBottom:20}}>
-                  Pega el enlace directo de la imagen. Mailcraft la referenciará tal cual en el correo — asegúrate de que la URL sea pública y permanente.
+                  Pega el enlace directo de la imagen. Simple Template la referenciará tal cual en el correo — asegúrate de que la URL sea pública y permanente.
                 </p>
                 <label style={{fontSize:11.5,color:'var(--fg-3)',fontWeight:500}}>URL de la imagen</label>
                 <input

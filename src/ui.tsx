@@ -68,13 +68,13 @@ function Tooltip({ label, children, side='bottom' }) {
 }
 
 // Shared app-theme (light/dark) toggle. Subscribes to App's tweaks via
-// `mc:tweaks-change` so every instance stays in sync regardless of screen.
+// `st:tweaks-change` so every instance stays in sync regardless of screen.
 function ThemeToggleBtn({ size = 'sm', ...rest }) {
   const [, force] = React.useReducer(x => x + 1, 0);
   React.useEffect(() => {
     const onChange = () => force();
-    window.addEventListener('mc:tweaks-change', onChange);
-    return () => window.removeEventListener('mc:tweaks-change', onChange);
+    window.addEventListener('st:tweaks-change', onChange);
+    return () => window.removeEventListener('st:tweaks-change', onChange);
   }, []);
   const mode = (window.__mcTweaks && window.__mcTweaks.mode) || 'light';
   return (

@@ -298,17 +298,17 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
   const [zoom, setZoom] = React.useState(100);
   const [improveBlock, setImproveBlock] = React.useState(null);
   const [showTour, setShowTour] = React.useState(() => {
-    try { return !localStorage.getItem('mc:tour-seen'); } catch(e) { return false; }
+    try { return !window.stStorage.getSetting('tour-seen', false); } catch(e) { return false; }
   });
 
   React.useEffect(() => {
     const h = (e) => setImproveBlock(e.detail.block);
-    window.addEventListener('mc:improve', h);
+    window.addEventListener('st:improve', h);
     const t = () => setShowTour(true);
-    window.addEventListener('mc:start-tour', t);
+    window.addEventListener('st:start-tour', t);
     return () => {
-      window.removeEventListener('mc:improve', h);
-      window.removeEventListener('mc:start-tour', t);
+      window.removeEventListener('st:improve', h);
+      window.removeEventListener('st:start-tour', t);
     };
   }, []);
 
@@ -440,7 +440,7 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
           <button className="btn icon ghost sm" title="Deshacer (⌘Z)" aria-label="Deshacer"><I.undo size={13}/></button>
           <button className="btn icon ghost sm" title="Rehacer (⌘⇧Z)" aria-label="Rehacer"><I.redo size={13}/></button>
           <ThemeToggleBtn/>
-          <button className="btn icon ghost sm" onClick={()=>window.dispatchEvent(new CustomEvent('mc:cmd-open'))} title="Buscar (⌘K)" aria-label="Buscar"><I.search size={13}/></button>
+          <button className="btn icon ghost sm" onClick={()=>window.dispatchEvent(new CustomEvent('st:cmd-open'))} title="Buscar (⌘K)" aria-label="Buscar"><I.search size={13}/></button>
         </div>
 
         {/* Zone D — actions */}
@@ -556,7 +556,7 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
 // Improve AI Modal — reescribe el texto de un bloque seleccionado
 // ════════════════════════════════════════════════════════════════
 function ImproveAIModal({ block, onClose, onApply }) {
-  const aiCfg = JSON.parse(localStorage.getItem('mc:ai') || '{}');
+  const aiCfg = window.stStorage.getSetting('ai', {});
   const [action, setAction] = React.useState('rewrite');
   const [extra, setExtra] = React.useState('');
   const [loading, setLoading] = React.useState(false);

@@ -1,5 +1,5 @@
 // Command Palette — atajo ⌘K / Ctrl+K
-// API: window.dispatchEvent(new CustomEvent('mc:cmd-open'))
+// API: window.dispatchEvent(new CustomEvent('st:cmd-open'))
 // Comandos registrados desde fuera vía window.registerCommands([...])
 
 function CommandPalette({ onNavigate, onClose }) {

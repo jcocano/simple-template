@@ -58,7 +58,7 @@ function BlockProps({ block, onChange, onDelete }) {
         {(['text','heading','button','footer','hero'].includes(block.type)) && (
           <button className="btn icon sm ghost" title="Mejorar con IA: reescribir, acortar, cambiar tono, traducir"
             style={{color:'var(--accent)'}}
-            onClick={()=>window.dispatchEvent(new CustomEvent('mc:improve', {detail:{block}}))}>
+            onClick={()=>window.dispatchEvent(new CustomEvent('st:improve', {detail:{block}}))}>
             <I.sparkles size={12}/>
           </button>
         )}

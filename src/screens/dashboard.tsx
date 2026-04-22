@@ -293,13 +293,13 @@ function Dashboard({ onOpen, onNew }) {
     <div className="editor" style={{flexDirection:'row'}}>
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">M</div>
-          <div className="brand-name">Mailcraft</div>
+          <div className="brand-mark">S</div>
+          <div className="brand-name">Simple Template</div>
           <button
             className="btn icon sm ghost"
             style={{marginLeft:'auto'}}
             title="Buscar cualquier cosa (⌘K)"
-            onClick={()=>window.dispatchEvent(new CustomEvent('mc:cmd-open'))}
+            onClick={()=>window.dispatchEvent(new CustomEvent('st:cmd-open'))}
           >
             <I.search size={13}/>
           </button>
@@ -493,7 +493,7 @@ function Dashboard({ onOpen, onNew }) {
 // AI Generate Modal — prompt para generar plantilla desde cero
 // ════════════════════════════════════════════════════════════════
 function AIGenerateModal({ onClose, onGenerate }) {
-  const aiCfg = JSON.parse(localStorage.getItem('mc:ai') || '{}');
+  const aiCfg = window.stStorage.getSetting('ai', {});
   const configured = aiCfg.enabled !== false && (aiCfg.key || aiCfg.provider === 'ollama');
   const [prompt, setPrompt] = React.useState('');
   const [tone, setTone] = React.useState(aiCfg.tone || 'neutral');

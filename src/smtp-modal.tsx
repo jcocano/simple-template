@@ -12,29 +12,40 @@ const DELIVERY_PROVIDERS = [
 const MAX_RECIPIENTS = 5;
 
 function DeliveryModal({ onClose, embedded = false }) {
-  const [provider, setProvider] = React.useState(() => localStorage.getItem('mc:delivery:provider') || null);
-
-  const loadCfg = (id) => {
-    const saved = localStorage.getItem(`mc:delivery:cfg:${id}`);
-    if (saved) { try { return JSON.parse(saved); } catch {} }
-    return {
-      fromName:'Carmen Luna',
-      fromEmail:'carmen@acme.com',
-      recipients:['carmen@acme.com'],
-      host:'', port:587, user:'', pass:'', security:'tls',
-    };
+  const DEFAULT_CFG = {
+    fromName:'Carmen Luna',
+    fromEmail:'carmen@acme.com',
+    recipients:['carmen@acme.com'],
+    host:'', port:587, user:'', pass:'', security:'tls',
   };
 
-  const [cfg, setCfg] = React.useState(() => loadCfg(provider || 'gmail'));
+  const [provider, setProvider] = React.useState(() => window.stStorage.getSetting('delivery:provider', null));
+  const [cfg, setCfg] = React.useState(DEFAULT_CFG);
   const [state, setState] = React.useState('idle'); // idle | sending | sent | err
-  const [connected, setConnected] = React.useState(() => localStorage.getItem('mc:delivery:connected') === 'true');
+  const [connected, setConnected] = React.useState(() => window.stStorage.getSetting('delivery:connected', false));
   const [recipInput, setRecipInput] = React.useState('');
+
+  // Credentials live in safeStorage (encrypted); load async when the provider changes.
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
+      const id = provider || 'gmail';
+      try {
+        const raw = await window.stStorage.secrets.get(`delivery:cfg:${id}`);
+        if (!alive) return;
+        if (raw) { try { setCfg(JSON.parse(raw)); return; } catch {} }
+        setCfg(DEFAULT_CFG);
+      } catch {
+        if (alive) setCfg(DEFAULT_CFG);
+      }
+    })();
+    return () => { alive = false; };
+  }, [provider]);
 
   const p = DELIVERY_PROVIDERS.find(x => x.id === provider);
 
   const choose = (id) => {
     setProvider(id);
-    setCfg(loadCfg(id));
     setState('idle');
   };
   const update = (k,v) => setCfg(c => ({...c, [k]:v}));
@@ -58,19 +69,23 @@ function DeliveryModal({ onClose, embedded = false }) {
   };
   const sendTest = () => {
     setState('sending');
-    setTimeout(() => {
+    setTimeout(async () => {
       setState('sent');
       setConnected(true);
-      localStorage.setItem('mc:delivery:connected','true');
-      localStorage.setItem('mc:delivery:provider', provider);
-      localStorage.setItem(`mc:delivery:cfg:${provider}`, JSON.stringify(cfg));
+      window.stStorage.setSetting('delivery:connected', true);
+      window.stStorage.setSetting('delivery:provider', provider);
+      try {
+        await window.stStorage.secrets.set(`delivery:cfg:${provider}`, JSON.stringify(cfg));
+      } catch (err) {
+        console.error('[delivery] save secret', err);
+      }
     }, 1400);
   };
   const disconnect = () => {
     setConnected(false);
     setProvider(null);
     setState('idle');
-    localStorage.setItem('mc:delivery:connected','false');
+    window.stStorage.setSetting('delivery:connected', false);
   };
 
   // ── Step 1 body ──

@@ -1,5 +1,5 @@
 // AI Improve Modal — se abre al hacer clic en ✨ en la toolbar de un bloque
-// Escucha el evento window 'mc:improve' y muestra variantes con toasts
+// Escucha el evento window 'st:improve' y muestra variantes con toasts
 
 function AIImproveModal() {
   const [block, setBlock] = React.useState(null);
@@ -15,8 +15,8 @@ function AIImproveModal() {
       setTone('clearer');
       setBusy(false);
     };
-    window.addEventListener('mc:improve', h);
-    return () => window.removeEventListener('mc:improve', h);
+    window.addEventListener('st:improve', h);
+    return () => window.removeEventListener('st:improve', h);
   }, []);
 
   if (!block) return null;
