@@ -117,16 +117,25 @@ const HISTORY = [
 // Each column has: width% + blocks[]
 // Blocks are atomic: type + data + override-style
 
+// Section style is Beefree-shaped:
+//   outerBg / outerPadY → the full-width "wall" around the section (what fills
+//                          the inbox viewport behind it). `transparent` = none.
+//   bg / padding         → the inner content card (max `width` wide, centered
+//                          inside the outer band).
+//   width                → content width of THIS section (per-row, not global).
 const defaultSectionStyle = (over = {}) => ({
   bg: '#ffffff',
   text: '#1a1a17',
   padding: 32,
   font: 'inter',
   align: 'left',
+  outerBg: 'transparent',
+  outerPadY: 0,
+  width: 600,
   ...over,
 });
 
-const DEFAULT_DOC = [
+const DEFAULT_SECTIONS = [
   {
     id:'s1', name:'Cabecera',
     layout:'1col',
@@ -190,7 +199,7 @@ const DEFAULT_DOC = [
   },
 ];
 
-const BLANK_DOC = [
+const BLANK_SECTIONS = [
   {
     id:'s1', name:'Sección vacía',
     layout:'1col',
@@ -200,6 +209,9 @@ const BLANK_DOC = [
     ]
   }
 ];
+
+const DEFAULT_DOC = { sections: DEFAULT_SECTIONS };
+const BLANK_DOC   = { sections: BLANK_SECTIONS };
 
 // Preset section templates (for "Añadir sección") — descriptive names
 const SECTION_PRESETS = [

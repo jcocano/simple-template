@@ -256,13 +256,25 @@ function renderHTMLSection(section, ctx) {
     innerHTML = (col.blocks || []).map(b => renderHTMLBlock(b, sectionCtx)).join('\n');
   }
 
-  const bg = s.bg || '#ffffff';
+  const innerBg = s.bg || '#ffffff';
+  const outerBg = s.outerBg || 'transparent';
+  const outerPadY = s.outerPadY || 0;
+  const width = s.width || 600;
   const textColor = s.text || '#1a1a17';
-  const hasGradient = /gradient/i.test(bg);
+  const hasGradient = /gradient/i.test(innerBg);
+  const outerBgAttr = outerBg === 'transparent' ? '' : ` bgcolor="${outerBg}"`;
 
+  // Each section is a full-width <tr> (the wall) holding a centered fixed-width
+  // inner table (the content card). Beefree-shaped: one row, two backgrounds.
   return `<tr>
-<td bgcolor="${hasGradient ? '#ffffff' : bg}" align="${s.align || 'left'}" style="background:${bg};color:${textColor};padding:${padding};font-family:${font};">
+<td${outerBgAttr} align="center" style="background:${outerBg};padding:${outerPadY}px 0;">
+<table role="presentation" width="${width}" cellpadding="0" cellspacing="0" border="0" align="center" style="max-width:${width}px;width:100%;background:${hasGradient ? '#ffffff' : innerBg};">
+<tr>
+<td align="${s.align || 'left'}" style="background:${innerBg};color:${textColor};padding:${padding};font-family:${font};">
 ${innerHTML}
+</td>
+</tr>
+</table>
 </td>
 </tr>`;
 }
@@ -278,7 +290,7 @@ function renderLegalFooterHTML(brand, ctx) {
   }
   if (parts.length === 0) return '';
   return `<tr>
-<td align="center" style="padding:24px 32px;font-family:Helvetica,Arial,sans-serif;font-size:11px;line-height:1.5;color:#888;background:#f6f5f1;">
+<td align="center" style="padding:24px 32px;font-family:Helvetica,Arial,sans-serif;font-size:11px;line-height:1.5;color:#888;background:transparent;">
 ${parts.join(' · ')}
 </td>
 </tr>`;
@@ -287,9 +299,7 @@ ${parts.join(' · ')}
 function renderHTML(template, opts = {}) {
   const { minify = false, includeTxt = false, resolveVars: doResolve = false } = opts;
   if (!template) return '';
-  const sections = Array.isArray(template.doc?.sections)
-    ? template.doc.sections
-    : (Array.isArray(template.doc) ? template.doc : []);
+  const sections = template.doc?.sections || [];
 
   const brand = (typeof window !== 'undefined' && window.stStorage)
     ? (window.stStorage.getWSSetting('brand', {}) || {})
@@ -323,6 +333,9 @@ function renderHTML(template, opts = {}) {
   const preview = escapeHtml(template.meta?.preview || '');
   const bodyFont = fontStack(brand.fontBody || 'inter');
 
+  // No global wall: <body> is transparent and the outer table just stacks each
+  // section as a full-width row. Each section provides its own outer bg + the
+  // centered fixed-width content card (see renderHTMLSection).
   let html = `<!doctype html>
 <html lang="es">
 <head>
@@ -331,17 +344,11 @@ function renderHTML(template, opts = {}) {
 <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
 <title>${subject}</title>
 </head>
-<body style="margin:0;padding:0;background:#f6f5f1;font-family:${bodyFont};">
+<body style="margin:0;padding:0;background:transparent;font-family:${bodyFont};">
 ${preview ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${preview}</div>` : ''}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f6f5f1" style="background:#f6f5f1;">
-<tr>
-<td align="center" style="padding:24px 0;">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#ffffff;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 ${sectionsHTML}
 ${legalFooter}
-</table>
-</td>
-</tr>
 </table>
 ${includeTxt ? `<!--[TXT]\n${renderTXT(template)}\n[/TXT]-->` : ''}
 </body>
@@ -414,26 +421,32 @@ function renderMJMLSection(section, ctx) {
   const s = section.style || {};
   const sectionCtx = { ...ctx, font: s.font || ctx.font };
   const padding = typeof s.padding === 'number' ? `${s.padding}px` : '32px';
-  const bg = s.bg || '#ffffff';
+  const innerBg = s.bg || '#ffffff';
+  const outerBg = s.outerBg || 'transparent';
+  const outerPadY = s.outerPadY || 0;
   const textColor = s.text || '#1a1a17';
 
   const cols = (section.columns || []).filter(col => col);
   const colsXml = cols.map(col => {
     const blocksXml = (col.blocks || []).map(b => renderMJMLBlock(b, sectionCtx)).join('\n');
-    return `      <mj-column width="${col.w}%">\n${blocksXml}\n      </mj-column>`;
+    return `        <mj-column width="${col.w}%">\n${blocksXml}\n        </mj-column>`;
   }).join('\n');
 
-  return `    <mj-section background-color="${bg}" padding="${padding}" color="${textColor}" text-align="${s.align || 'left'}">
+  // mj-wrapper provides the full-width outer band; the nested mj-section is
+  // the centered content card with its own bg. Per-section content `width` is
+  // not expressible in MJML (one mj-body width applies to all) — handled at
+  // the renderMJML level by setting mj-body width to the max across sections.
+  return `    <mj-wrapper background-color="${outerBg}" padding="${outerPadY}px 0">
+      <mj-section background-color="${innerBg}" padding="${padding}" color="${textColor}" text-align="${s.align || 'left'}">
 ${colsXml}
-    </mj-section>`;
+      </mj-section>
+    </mj-wrapper>`;
 }
 
 function renderMJML(template, opts = {}) {
   const { resolveVars: doResolve = false } = opts;
   if (!template) return '';
-  const sections = Array.isArray(template.doc?.sections)
-    ? template.doc.sections
-    : (Array.isArray(template.doc) ? template.doc : []);
+  const sections = template.doc?.sections || [];
 
   const brand = (typeof window !== 'undefined' && window.stStorage)
     ? (window.stStorage.getWSSetting('brand', {}) || {})
@@ -456,8 +469,13 @@ function renderMJML(template, opts = {}) {
   if (brand.footer) legalParts.push(`<mj-text font-size="11px" color="#888" align="center">${V(brand.footer)}</mj-text>`);
   if (brand.unsubscribe) legalParts.push(`<mj-text font-size="11px" color="#888" align="center"><a href="${U(brand.unsubscribe)}" style="color:#888;">Darme de baja</a></mj-text>`);
   const legal = legalParts.length
-    ? `    <mj-section background-color="#f6f5f1" padding="24px">\n      <mj-column>\n        ${legalParts.join('\n        ')}\n      </mj-column>\n    </mj-section>`
+    ? `    <mj-section background-color="transparent" padding="24px">\n      <mj-column>\n        ${legalParts.join('\n        ')}\n      </mj-column>\n    </mj-section>`
     : '';
+
+  // mj-body has a single global content width — use the max across all
+  // sections so the widest section fits. Narrower sections will visually be
+  // padded by mj-section's auto-centering inside mj-body.
+  const bodyWidth = sections.reduce((m, sec) => Math.max(m, sec.style?.width || 600), 600);
 
   return `<mjml>
   <mj-head>
@@ -467,7 +485,7 @@ function renderMJML(template, opts = {}) {
       <mj-all font-family="${bodyFont}"/>
     </mj-attributes>
   </mj-head>
-  <mj-body background-color="#f6f5f1">
+  <mj-body background-color="transparent" width="${bodyWidth}px">
 ${sectionsXml}
 ${legal}
   </mj-body>
@@ -532,9 +550,7 @@ function renderTXTBlock(block, ctx) {
 function renderTXT(template, opts = {}) {
   const { resolveVars: doResolve = false } = opts;
   if (!template) return '';
-  const sections = Array.isArray(template.doc?.sections)
-    ? template.doc.sections
-    : (Array.isArray(template.doc) ? template.doc : []);
+  const sections = template.doc?.sections || [];
 
   const brand = (typeof window !== 'undefined' && window.stStorage)
     ? (window.stStorage.getWSSetting('brand', {}) || {})
