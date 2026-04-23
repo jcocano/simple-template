@@ -1129,16 +1129,21 @@ function Editor({ template, block, onBack, onPreview, onExport, onTestSend, onOp
                     ]}
                   />
                 </div>
-              ) : doc.map((s, si) => (
-                <React.Fragment key={s.id}>
-                  {si === 0 && !isBlockMode && (
+              ) : doc.flatMap((s, si) => {
+                const items = [];
+                if (si === 0 && !isBlockMode) {
+                  items.push(
                     <SectionInsertBtn
+                      key={`ins-${s.id}-before`}
                       onClick={()=>addBlankSection(0)}
                       onDropPreset={(id)=>{ const p=resolvePreset(id); if (p) addSection(p, 0); }}
                       onDropSavedBlock={(id)=>addSavedBlock(id, 0)}
                     />
-                  )}
+                  );
+                }
+                items.push(
                   <SectionView
+                    key={`sec-${s.id}`}
                     section={s}
                     selected={sel?.type==='section' && sel.id===s.id}
                     selectedBlockId={sel?.type==='block' ? sel.id : null}
@@ -1154,15 +1159,19 @@ function Editor({ template, block, onBack, onPreview, onExport, onTestSend, onOp
                     onDropBlock={(colIdx, atIdx, blockType)=>addBlankBlockInColumn(s.id, colIdx, atIdx, blockType)}
                     onEditBlock={(block, patch)=>editBlockContent(s.id, block, patch)}
                   />
-                  {!isBlockMode && (
+                );
+                if (!isBlockMode) {
+                  items.push(
                     <SectionInsertBtn
+                      key={`ins-${s.id}-after`}
                       onClick={()=>addBlankSection(si+1)}
                       onDropPreset={(id)=>{ const p=resolvePreset(id); if (p) addSection(p, si+1); }}
                       onDropSavedBlock={(id)=>addSavedBlock(id, si+1)}
                     />
-                  )}
-                </React.Fragment>
-              ))}
+                  );
+                }
+                return items;
+              })}
             </div>
           </div>
           <div className="canvas-foot">
