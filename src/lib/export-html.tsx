@@ -1197,4 +1197,5 @@ ${body}
 Object.assign(window, {
   docToEmailHtml,
   mapMergeTag,
+  tokenizeMergeTags,
 });

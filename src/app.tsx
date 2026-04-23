@@ -90,6 +90,15 @@ function App() {
     return () => window.removeEventListener('message', onMsg);
   }, []);
 
+  // Review panel fixes (c1/c2/g3) disparan st:open-details para abrir el modal
+  // de Detalles. Se cierra el Review al mismo tiempo — el usuario vuelve a
+  // abrirlo a mano para ver el re-chequeo.
+  React.useEffect(() => {
+    const onOpenDetails = () => { setReviewOpen(false); setModal('details'); };
+    window.addEventListener('st:open-details', onOpenDetails);
+    return () => window.removeEventListener('st:open-details', onOpenDetails);
+  }, []);
+
   // Apply theme/density/radius to :root
   React.useEffect(() => {
     const applyTheme = () => {
@@ -187,6 +196,7 @@ function App() {
             onExport={()=>setModal('export')}
             onTestSend={()=>setModal('test')}
             onOpenVars={()=>setModal('vars')}
+            onOpenDetails={()=>setModal('details')}
             onReview={()=>setReviewOpen(true)}
           />
         )}
@@ -222,6 +232,7 @@ function App() {
       {modal==='export' && <ExportModal onClose={()=>setModal(null)}/>}
       {modal==='test' && <TestSendModal onClose={()=>setModal(null)}/>}
       {modal==='vars' && <VariablesModal onClose={()=>setModal(null)}/>}
+      {modal==='details' && <DetailsModal onClose={()=>setModal(null)}/>}
       {modal==='settings' && <SettingsPanel onClose={()=>setModal(null)} initialSection={settingsSection}/>}
 
       <TweaksPanel tweaks={tweaks} setTweaks={setTweaks} visible={tweaksVisible}/>
@@ -253,8 +264,14 @@ function App() {
         }}
       />}
       {reviewOpen && <ReviewPanel
+        tpl={tpl}
         onClose={()=>setReviewOpen(false)}
         onGoSettings={(sec)=>{ setReviewOpen(false); setSettingsSection(sec || 'account'); setModal('settings'); }}
+        onFocusBlock={(ref)=>{
+          setReviewOpen(false);
+          setScreen('editor');
+          setTimeout(()=>window.dispatchEvent(new CustomEvent('st:focus-block', { detail: ref })), 60);
+        }}
       />}
     </>
   );
