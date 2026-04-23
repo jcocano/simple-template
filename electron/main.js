@@ -37,6 +37,13 @@ if (!app || !BrowserWindow) {
   process.exit(1);
 }
 
+// Force the app name so dev builds (which run the raw Electron binary)
+// still show "Simple Template" in the menu bar, About panel and process
+// title — not the bundled "Electron" name from node_modules.
+const APP_NAME = "Simple Template";
+app.setName(APP_NAME);
+process.title = APP_NAME;
+
 crashReporter.start({ uploadToServer: false });
 
 function logCrash(kind, err) {
@@ -96,6 +103,13 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  if (process.platform === "darwin" && typeof app.setAboutPanelOptions === "function") {
+    app.setAboutPanelOptions({
+      applicationName: APP_NAME,
+      applicationVersion: app.getVersion(),
+      copyright: "MIT — Jesus Cocaño",
+    });
+  }
   db.init();
   seed.ensureFirstWorkspace();
 
