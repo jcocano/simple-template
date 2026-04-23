@@ -1170,7 +1170,7 @@ function useEditorPrefs() {
   return prefs;
 }
 
-function Editor({ template, block, onBack, onPreview, onExport, onTestSend, onOpenVars, onReview }) {
+function Editor({ template, block, onBack, onPreview, onExport, onTestSend, onOpenVars, onOpenDetails, onReview }) {
   const t = window.stI18n.t;
   window.stI18n.useLang();
   // Mode: template (full email, many sections) vs block (a single reusable
@@ -1511,6 +1511,29 @@ function Editor({ template, block, onBack, onPreview, onExport, onTestSend, onOp
       getTemplateId: () => templateIdRef.current,
       getVars: () => varsRef.current,
       setVars: (next) => setVars(next || []),
+      // Devuelve un snapshot fresco del template (doc/name/vars/meta) para
+      // consumidores que no pueden confiar en el `tpl` de app.tsx (stale tras
+      // ediciones en memoria). Lo usa DetailsModal para renderTXT y para leer
+      // meta actual.
+      getSnapshot: () => ({
+        ...(templateJsonRef.current || {}),
+        id: templateIdRef.current,
+        name: nameRef.current,
+        doc: { sections: docRef.current },
+        vars: varsRef.current,
+        meta: (templateJsonRef.current && templateJsonRef.current.meta) || {},
+      }),
+      // Mutación atómica de meta: patch-merge y flushSave inmediato. No
+      // requiere un state React porque el canvas no renderiza meta.
+      setMeta: async (patch) => {
+        const prevMeta = (templateJsonRef.current && templateJsonRef.current.meta) || {};
+        templateJsonRef.current = {
+          ...(templateJsonRef.current || {}),
+          meta: { ...prevMeta, ...(patch || {}) },
+        };
+        setSaveState('dirty');
+        await flushSaveRef.current();
+      },
     };
   }, [saveState]);
 
@@ -1725,6 +1748,7 @@ function Editor({ template, block, onBack, onPreview, onExport, onTestSend, onOp
         {!isBlockMode && (
           <>
             <button className="btn ghost sm" onClick={onOpenVars}><I.braces size={13}/> {t('editor.action.tags')}</button>
+            <button className="btn ghost sm" onClick={onOpenDetails} title={t('editor.action.detailsTooltip')}><I.info size={13}/> {t('editor.action.details')}</button>
             <button className="btn ghost sm" onClick={async ()=>{ await flushSaveRef.current(); onPreview(); }}><I.eye size={13}/> {t('editor.action.preview')}</button>
             <button className="btn ghost sm" onClick={onReview} title={t('editor.action.reviewTooltip')} data-tour="review-btn"><I.check size={13}/> {t('editor.action.review')}</button>
             <button className="btn sm" onClick={onTestSend}><I.send size={13}/> {t('editor.action.testSend')}</button>

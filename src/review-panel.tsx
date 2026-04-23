@@ -1,48 +1,70 @@
-// Pre-flight Review Panel — checklist antes de enviar
-// Se abre como panel lateral derecho desde el editor o el command palette
+// Pre-flight Review Panel — live checklist over the current template.
+// Checks come from window.stReview (engine in src/lib/review.tsx) which is
+// populated by src/lib/review/*.tsx category files. Results are derived from
+// the real doc — no static mock.
 
-function ReviewPanel({ onClose, onGoSettings }) {
+function ReviewPanel({ tpl, onClose, onGoSettings, onFocusBlock }) {
   const t = window.stI18n.t;
   const lang = window.stI18n.useLang();
   const [running, setRunning] = React.useState(true);
   const [results, setResults] = React.useState([]);
   const [fixed, setFixed] = React.useState({});
 
-  // Translate each check's static labels using the active language. Rebuild
-  // when `lang` changes so the panel reflects language switches while open.
-  const translated = React.useMemo(() => {
-    return results.map(r => ({
-      ...r,
-      cat:    t(`review.cat.${r.cat}`),
-      title:  t(`review.check.${r.id}.title`),
-      detail: t(`review.check.${r.id}.detail`),
-      fixes:  r.fixes ? r.fixes.map((f, i) => ({ ...f, label: t(`review.check.${r.id}.fix.${i}`) })) : null,
-    }));
-  }, [results, lang]);
-
+  // Progressive analysis: runs sync checks first, then resolves async ones
+  // (image weight HEAD fetches, link-reachability, etc.) so the panel feels
+  // alive and never blocks on a slow probe.
   React.useEffect(() => {
-    // Simula análisis progresivo
-    const checks = ALL_CHECKS;
     let cancelled = false;
-    let i = 0;
-    const tick = () => {
-      if (cancelled) return;
-      if (i >= checks.length) {
+    setResults([]);
+    setRunning(true);
+    setFixed({});
+    const run = async () => {
+      if (!window.stReview || typeof window.stReview.runAsync !== 'function') {
         setRunning(false);
         return;
       }
-      const item = checks[i];
-      i++;
-      if (item) setResults(r => [...r, item]);
-      setTimeout(tick, 140);
+      await window.stReview.runAsync(tpl, (_item, snapshot) => {
+        if (cancelled) return;
+        setResults(snapshot.slice());
+      });
+      if (!cancelled) setRunning(false);
     };
-    const id = setTimeout(tick, 140);
-    return () => { cancelled = true; clearTimeout(id); };
-  }, []);
+    run();
+    return () => { cancelled = true; };
+  }, [tpl]);
+
+  // Translate dynamic check output. `detailKey` (+ optional `detailCtx`) takes
+  // priority; then the default `review.check.<id>.detail`; finally the raw
+  // `detail` string the check returned (useful for best-effort messages).
+  const translated = React.useMemo(() => {
+    return results.map(r => {
+      const title = t(`review.check.${r.id}.title`);
+      let detail = r.detail || null;
+      if (r.detailKey) detail = t(r.detailKey, r.detailCtx || null);
+      else if (!detail) {
+        const def = t(`review.check.${r.id}.detail`, r.detailCtx || null);
+        if (def && def !== `review.check.${r.id}.detail`) detail = def;
+      }
+      const fixes = r.fixes ? r.fixes.map((f, i) => ({
+        ...f,
+        label: f.label || t(`review.check.${r.id}.fix.${i}`),
+      })) : null;
+      return {
+        ...r,
+        cat: t(`review.cat.${r.cat}`),
+        title,
+        detail,
+        fixes,
+      };
+    });
+  }, [results, lang]);
 
   const summary = React.useMemo(() => {
     const s = { ok:0, warn:0, error:0, info:0 };
-    translated.forEach(r => { if (!fixed[r.id]) s[r.kind] = (s[r.kind]||0) + 1; else s.ok++; });
+    translated.forEach(r => {
+      if (fixed[r.id]) s.ok++;
+      else s[r.kind] = (s[r.kind] || 0) + 1;
+    });
     return s;
   }, [translated, fixed]);
 
@@ -58,6 +80,16 @@ function ReviewPanel({ onClose, onGoSettings }) {
   const markFixed = (id) => {
     setFixed(f => ({...f, [id]:true}));
     window.toast && window.toast({ kind:'ok', title: t('review.toast.fixed.title'), msg: t('review.toast.fixed.msg') });
+  };
+
+  const handleFixAction = (r, f) => {
+    if (f.goSettings) { onGoSettings && onGoSettings(f.goSettings); return; }
+    if (f.focusBlock && onFocusBlock) { onFocusBlock(f.focusBlock); return; }
+    if (typeof f.action === 'function') {
+      try { f.action({ tpl, markFixed: ()=>markFixed(r.id) }); } catch {}
+      return;
+    }
+    markFixed(r.id);
   };
 
   return (
@@ -130,7 +162,12 @@ function ReviewPanel({ onClose, onGoSettings }) {
               }}>{cat}</div>
               <div style={{display:'flex',flexDirection:'column',gap:6}}>
                 {items.map(r => (
-                  <ReviewItem key={r.id} r={r} fixed={!!fixed[r.id]} onFix={()=>markFixed(r.id)} onGoSettings={onGoSettings}/>
+                  <ReviewItem
+                    key={r.id}
+                    r={r}
+                    fixed={!!fixed[r.id]}
+                    onFix={(f)=>handleFixAction(r, f)}
+                  />
                 ))}
               </div>
             </div>
@@ -139,6 +176,11 @@ function ReviewPanel({ onClose, onGoSettings }) {
             <div style={{padding:'10px 14px',fontSize:12,color:'var(--fg-3)',display:'flex',alignItems:'center',gap:8}}>
               <div className="spinner" style={{width:12,height:12,border:'2px solid var(--line)',borderTopColor:'var(--accent)',borderRadius:'50%',animation:'spin 0.7s linear infinite'}}/>
               {t('review.analyzingFull')}
+            </div>
+          )}
+          {!running && translated.length === 0 && (
+            <div style={{padding:'20px 14px',fontSize:12,color:'var(--fg-3)',textAlign:'center'}}>
+              {t('review.empty')}
             </div>
           )}
         </div>
@@ -164,7 +206,7 @@ function ReviewPanel({ onClose, onGoSettings }) {
   );
 }
 
-function ReviewItem({ r, fixed, onFix, onGoSettings }) {
+function ReviewItem({ r, fixed, onFix }) {
   const t = window.stI18n.t;
   window.stI18n.useLang();
   const [expanded, setExpanded] = React.useState(r.kind === 'error');
@@ -199,7 +241,7 @@ function ReviewItem({ r, fixed, onFix, onGoSettings }) {
           {r.fixes && !fixed && (
             <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>
               {r.fixes.map((f,i) => (
-                <button key={i} className="btn sm" onClick={()=>{ f.goSettings ? onGoSettings(f.goSettings) : onFix(); }}>
+                <button key={i} className="btn sm" onClick={()=>onFix(f)}>
                   {f.label}
                 </button>
               ))}
@@ -211,43 +253,5 @@ function ReviewItem({ r, fixed, onFix, onGoSettings }) {
     </div>
   );
 }
-
-// Mock checks — cubre categorías reales de email marketing.
-// Fields `cat`, `title`, `detail`, and `fixes[i].label` are translation-keyed:
-// the component replaces them via `review.cat.<cat>`, `review.check.<id>.title`, etc.
-const ALL_CHECKS = [
-  // Contenido
-  { id:'c1', cat:'content',       kind:'ok',    fixes:null },
-  { id:'c2', cat:'content',       kind:'warn',  fixes:[{},{}] },
-  { id:'c3', cat:'content',       kind:'ok',    fixes:null },
-  { id:'c4', cat:'content',       kind:'error', fixes:[{}, { goSettings:'vars' }] },
-  { id:'c5', cat:'content',       kind:'ok',    fixes:null },
-
-  // Accesibilidad
-  { id:'a1', cat:'a11y',          kind:'error', fixes:[{},{}] },
-  { id:'a2', cat:'a11y',          kind:'warn',  fixes:[{},{}] },
-  { id:'a3', cat:'a11y',          kind:'ok',    fixes:null },
-  { id:'a4', cat:'a11y',          kind:'ok',    fixes:null },
-
-  // Compatibilidad
-  { id:'k1', cat:'compat',        kind:'warn',  fixes:[{},{}] },
-  { id:'k2', cat:'compat',        kind:'ok',    fixes:null },
-  { id:'k3', cat:'compat',        kind:'ok',    fixes:null },
-  { id:'k4', cat:'compat',        kind:'info',  fixes:null },
-
-  // Imágenes y pesos
-  { id:'i1', cat:'images',        kind:'warn',  fixes:[{}] },
-  { id:'i2', cat:'images',        kind:'ok',    fixes:null },
-
-  // Enlaces
-  { id:'l1', cat:'links',         kind:'ok',    fixes:null },
-  { id:'l2', cat:'links',         kind:'ok',    fixes:null },
-
-  // Legal y entrega
-  { id:'g1', cat:'legal',         kind:'ok',    fixes:null },
-  { id:'g2', cat:'legal',         kind:'ok',    fixes:null },
-  { id:'g3', cat:'legal',         kind:'warn',  fixes:[{}] },
-  { id:'g4', cat:'legal',         kind:'info',  fixes:null },
-];
 
 Object.assign(window, { ReviewPanel });
