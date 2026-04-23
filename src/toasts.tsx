@@ -42,7 +42,12 @@ function Toasts() {
     // pass a topic from NOTIF_DEFAULTS; unmapped topics fall through.
     window.notify = (topic, opts) => {
       if (!notifEnabled(topic)) return null;
-      return window.toast(opts);
+      const id = window.toast(opts);
+      const cfg = window.stStorage?.getWSSetting?.('notif', {}) || {};
+      if (cfg.sound === true) {
+        try { window.shell?.beep?.(); } catch (_) {}
+      }
+      return id;
     };
 
     return () => {

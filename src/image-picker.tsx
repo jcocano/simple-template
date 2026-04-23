@@ -95,6 +95,15 @@ function ImagePickerModal({ open, onClose, onSelect }) {
         localPath: result.localPath || null,
       });
       if (saved) setSel(saved);
+      const HEAVY_IMG_BYTES = 200 * 1024; // 200 KB — matchea el copy de i18n
+      if (saved && file.size > HEAVY_IMG_BYTES) {
+        const sizeKB = Math.round(file.size / 1024);
+        window.notify && window.notify('heavyImg', {
+          kind: 'warn',
+          title: t('notif.heavyImg.toast.title', { size: sizeKB + ' KB' }),
+          msg: t('notif.heavyImg.toast.msg'),
+        });
+      }
     } catch (err) {
       setUploadError(err?.message || t('imagePicker.upload.unexpected'));
     } finally {

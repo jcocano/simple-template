@@ -749,6 +749,8 @@ window.stI18nDict.zh = {
   'modals.vars.sub.readonly': '打开模板以编辑其标签。这里显示的是工作区的默认值。',
   'modals.vars.title': '此模板的标签',
   'modals.vars.willShow': '显示:',
+  'notif.heavyImg.toast.msg': '建议优化以提升邮件送达率。',
+  'notif.heavyImg.toast.title': '图片较大 ({size})',
   'onboarding.helpAfter': '随时获取帮助',
   'onboarding.helpBefore': '按',
   'onboarding.lede': '拖动区块、修改颜色和文字,在 Gmail、Outlook 和手机上都好看的邮件就这么简单。不用 HTML,不用折腾。',

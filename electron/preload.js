@@ -66,7 +66,8 @@ contextBridge.exposeInMainWorld('smtp', {
 });
 
 contextBridge.exposeInMainWorld('shell', {
-  openExternal: (url) => invoke('shell:openExternal', url)
+  openExternal: (url) => invoke('shell:openExternal', url),
+  beep: () => invoke('shell:beep')
 });
 
 contextBridge.exposeInMainWorld('oauth', {

@@ -13,6 +13,11 @@ function register() {
       return { ok: false, error: err?.message || 'No se pudo abrir el navegador.' };
     }
   });
+
+  ipcMain.handle('shell:beep', () => {
+    try { shell.beep(); } catch (_) {}
+    return { ok: true };
+  });
 }
 
 module.exports = { register };

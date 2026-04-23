@@ -748,6 +748,8 @@ window.stI18nDict.es = {
   'modals.vars.sub.readonly': 'Abre una plantilla para editar sus etiquetas. Aquí ves los valores por defecto del workspace.',
   'modals.vars.title': 'Etiquetas de esta plantilla',
   'modals.vars.willShow': 'Se verá:',
+  'notif.heavyImg.toast.msg': 'Considerá optimizarla para mejorar la entrega del correo.',
+  'notif.heavyImg.toast.title': 'Imagen pesada ({size})',
   'onboarding.helpAfter': 'cuando necesites ayuda',
   'onboarding.helpBefore': 'Pulsa',
   'onboarding.lede': 'Arrastra bloques, cambia colores y textos, y envía correos que se vean igual de bien en Gmail, Outlook y en el celular. Nada de HTML, nada de complicaciones.',

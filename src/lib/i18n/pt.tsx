@@ -748,6 +748,8 @@ window.stI18nDict.pt = {
   'modals.vars.sub.readonly': 'Abra um modelo para editar suas etiquetas. Aqui você vê os valores padrão do workspace.',
   'modals.vars.title': 'Etiquetas deste modelo',
   'modals.vars.willShow': 'Aparecerá:',
+  'notif.heavyImg.toast.msg': 'Considere otimizá-la para melhorar a entrega do e-mail.',
+  'notif.heavyImg.toast.title': 'Imagem pesada ({size})',
   'onboarding.helpAfter': 'sempre que precisar de ajuda',
   'onboarding.helpBefore': 'Pressione',
   'onboarding.lede': 'Arraste blocos, mude cores e textos e envie e-mails que ficam bonitos no Gmail, Outlook e no celular. Sem HTML, sem complicação.',

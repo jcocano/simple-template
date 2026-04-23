@@ -749,6 +749,8 @@ window.stI18nDict.ja = {
   'modals.vars.sub.readonly': 'タグを編集するにはテンプレートを開いてください。ここではワークスペースの既定値が表示されます。',
   'modals.vars.title': 'このテンプレートのタグ',
   'modals.vars.willShow': '表示:',
+  'notif.heavyImg.toast.msg': '配信を安定させるため最適化を検討してください。',
+  'notif.heavyImg.toast.title': '重い画像 ({size})',
   'onboarding.helpAfter': 'を押せばいつでもヘルプが開きます',
   'onboarding.helpBefore': '困ったら',
   'onboarding.lede': 'ブロックをドラッグして色や文字を変え、Gmail でも Outlook でもスマホでもきれいに見えるメールを送りましょう。HTML も面倒な操作も不要です。',

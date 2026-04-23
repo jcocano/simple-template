@@ -751,6 +751,8 @@ window.stI18nDict.en = {
   'modals.vars.sub.readonly': 'Open a template to edit its tags. Here you see the workspace defaults.',
   'modals.vars.title': 'Tags for this template',
   'modals.vars.willShow': 'Will show:',
+  'notif.heavyImg.toast.msg': 'Consider optimizing it to improve email delivery.',
+  'notif.heavyImg.toast.title': 'Heavy image ({size})',
   'onboarding.helpAfter': 'whenever you need help',
   'onboarding.helpBefore': 'Press',
   'onboarding.lede': 'Drag blocks, change colors and text, and send emails that look great in Gmail, Outlook and on mobile. No HTML, no hassle.',

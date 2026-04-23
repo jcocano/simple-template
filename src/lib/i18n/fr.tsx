@@ -748,6 +748,8 @@ window.stI18nDict.fr = {
   'modals.vars.sub.readonly': 'Ouvre un modèle pour modifier ses étiquettes. Tu vois ici les valeurs par défaut de l’espace.',
   'modals.vars.title': 'Étiquettes de ce modèle',
   'modals.vars.willShow': 'S’affichera :',
+  'notif.heavyImg.toast.msg': 'Pense à l’optimiser pour améliorer la délivrabilité.',
+  'notif.heavyImg.toast.title': 'Image lourde ({size})',
   'onboarding.helpAfter': 'quand tu as besoin d’aide',
   'onboarding.helpBefore': 'Appuie sur',
   'onboarding.lede': 'Glisse des blocs, change les couleurs et les textes, et envoie des e-mails aussi jolis sur Gmail, Outlook et mobile. Sans HTML, sans prise de tête.',
