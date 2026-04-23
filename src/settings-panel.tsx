@@ -713,9 +713,9 @@ function AccountSection({ onChange }) {
               {t('settings.account.about.body')}
             </p>
             <div style={{display:'flex',gap:8,marginTop:10,flexWrap:'wrap'}}>
-              <button className="btn sm"><I.code size={12}/> {t('settings.account.about.btn.github')}</button>
-              <button className="btn sm ghost"><I.external size={12}/> {t('settings.account.about.btn.docs')}</button>
-              <button className="btn sm ghost"><I.book size={12}/> {t('settings.account.about.btn.license')}</button>
+              <button className="btn sm" onClick={()=>window.shell?.openExternal?.('https://github.com/jcocano/simple-templete')}><I.code size={12}/> {t('settings.account.about.btn.github')}</button>
+              <button className="btn sm ghost" onClick={()=>window.shell?.openExternal?.('https://github.com/jcocano/simple-templete/blob/main/LICENSE')}><I.book size={12}/> {t('settings.account.about.btn.license')}</button>
+              <button className="btn sm ghost" onClick={()=>window.shell?.openExternal?.('https://buymeacoffee.com/jesuscocana')}><I.heart size={12}/> {t('settings.account.about.btn.coffee')}</button>
             </div>
           </div>
         </div>

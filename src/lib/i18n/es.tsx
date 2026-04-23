@@ -885,7 +885,7 @@ window.stI18nDict.es = {
   'section.preset.imgtext': 'Texto junto a imagen',
   'section.preset.products': 'Dos productos',
   'settings.account.about.body': 'Open source, local, licencia MIT. Tus datos viven en tu equipo.',
-  'settings.account.about.btn.docs': 'Ver código en GitHub',
+  'settings.account.about.btn.coffee': 'Invitame un café',
   'settings.account.about.btn.github': 'GitHub',
   'settings.account.about.btn.license': 'Licencia MIT',
   'settings.account.about.title': 'Sobre Simple Template',

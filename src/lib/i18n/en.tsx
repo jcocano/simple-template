@@ -888,7 +888,7 @@ window.stI18nDict.en = {
   'section.preset.imgtext': 'Text next to image',
   'section.preset.products': 'Two products',
   'settings.account.about.body': 'Open-source, local, MIT-licensed. Your data stays on your computer.',
-  'settings.account.about.btn.docs': 'See code on GitHub',
+  'settings.account.about.btn.coffee': 'Buy me a coffee',
   'settings.account.about.btn.github': 'GitHub',
   'settings.account.about.btn.license': 'MIT license',
   'settings.account.about.title': 'About Simple Template',

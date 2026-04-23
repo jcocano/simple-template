@@ -886,7 +886,7 @@ window.stI18nDict.zh = {
   'section.preset.imgtext': '文字与图片并排',
   'section.preset.products': '两款产品',
   'settings.account.about.body': '开源、本地、MIT 许可证。数据始终保存在你的电脑上。',
-  'settings.account.about.btn.docs': '在 GitHub 查看代码',
+  'settings.account.about.btn.coffee': '请我喝咖啡',
   'settings.account.about.btn.github': 'GitHub',
   'settings.account.about.btn.license': 'MIT 许可证',
   'settings.account.about.title': '关于 Simple Template',
