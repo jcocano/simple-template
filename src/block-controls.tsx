@@ -27,22 +27,69 @@ function Slider({ value, onChange, min=0, max=100, step=1, suffix='px', compact=
   );
 }
 
+// Quick-access brand palette for ColorInput. Reads brand.colors from the
+// current workspace; refreshes on workspace switch + on brand setting change.
+function useBrandColors() {
+  const get = () => {
+    const b = window.stStorage?.getWSSetting('brand', {}) || {};
+    return Array.isArray(b.colors) ? b.colors : [];
+  };
+  const [colors, setColors] = React.useState(get);
+  React.useEffect(() => {
+    const refresh = () => setColors(get());
+    const onSettings = (e) => {
+      if (e.detail?.scope === 'workspace' && e.detail?.key === 'brand') refresh();
+    };
+    window.addEventListener('st:settings-change', onSettings);
+    window.addEventListener('st:workspace-change', refresh);
+    return () => {
+      window.removeEventListener('st:settings-change', onSettings);
+      window.removeEventListener('st:workspace-change', refresh);
+    };
+  }, []);
+  return colors;
+}
+
 function ColorInput({ value='#000000', onChange }) {
+  const brandColors = useBrandColors();
   return (
-    <div style={{display:'flex',alignItems:'center',gap:6,background:'var(--surface-2)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'2px 4px 2px 2px'}}>
-      <label style={{
-        width:24, height:24, borderRadius:3,
-        background:value, cursor:'pointer',
-        border:'1px solid color-mix(in oklab, currentColor 10%, transparent)',
-        flexShrink:0,
-      }}>
-        <input type="color" value={value} onChange={e=>onChange(e.target.value)}
-          style={{opacity:0,width:0,height:0,pointerEvents:'auto'}}/>
-      </label>
-      <input
-        value={value} onChange={e=>onChange(e.target.value)}
-        style={{flex:1,minWidth:0,border:'none',background:'transparent',outline:'none',fontSize:11,fontFamily:'var(--font-mono)',textTransform:'uppercase'}}
-      />
+    <div style={{display:'flex',flexDirection:'column',gap:4}}>
+      <div style={{display:'flex',alignItems:'center',gap:6,background:'var(--surface-2)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',padding:'2px 4px 2px 2px'}}>
+        <label style={{
+          width:24, height:24, borderRadius:3,
+          background:value, cursor:'pointer',
+          border:'1px solid color-mix(in oklab, currentColor 10%, transparent)',
+          flexShrink:0,
+        }}>
+          <input type="color" value={value} onChange={e=>onChange(e.target.value)}
+            style={{opacity:0,width:0,height:0,pointerEvents:'auto'}}/>
+        </label>
+        <input
+          value={value} onChange={e=>onChange(e.target.value)}
+          style={{flex:1,minWidth:0,border:'none',background:'transparent',outline:'none',fontSize:11,fontFamily:'var(--font-mono)',textTransform:'uppercase'}}
+        />
+      </div>
+      {brandColors.length > 0 && (
+        <div style={{display:'flex',gap:4,flexWrap:'wrap',paddingLeft:2}}>
+          {brandColors.slice(0,8).map((c, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={()=>onChange(c)}
+              title={`Marca · ${c}`}
+              style={{
+                width:16, height:16, borderRadius:3,
+                background:c, cursor:'pointer',
+                border:value?.toLowerCase()===c.toLowerCase()
+                  ? '2px solid var(--accent)'
+                  : '1px solid color-mix(in oklab, currentColor 18%, transparent)',
+                padding:0,
+                outline:'none',
+              }}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

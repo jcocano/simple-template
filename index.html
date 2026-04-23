@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8" />
-<title>Mailcraft — Editor de plantillas de correo</title>
+<title>Simple Template — Editor de plantillas de correo</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -810,6 +810,12 @@
   .fade-in{animation:fade-in 220ms ease both}
   @keyframes pop{from{transform:scale(0.96);opacity:0}to{transform:none;opacity:1}}
   .pop{animation:pop 160ms ease both}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spin{animation:spin 900ms linear infinite}
+
+  /* Inline-editable text inside the canvas email blocks */
+  [data-eb-editable]:focus{outline:2px solid color-mix(in oklab, var(--accent) 40%, transparent); outline-offset:2px; border-radius:2px}
+  [data-eb-editable]{cursor:text; min-height:1em}
 </style>
 </head>
 <body>

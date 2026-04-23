@@ -16,6 +16,7 @@ const FOLDERS = [
   { id:'starred', name:'Mis favoritas', icon:'star', count:3 },
   { id:'recent', name:'Usadas recientemente', icon:'clock', count:8 },
   { id:'shared', name:'Compartidas conmigo', icon:'folder', count:5 },
+  { id:'trash', name:'Papelera', icon:'trash', count:0 },
 ];
 
 const CATS = [
@@ -86,7 +87,7 @@ const SAVED_BLOCKS = [
   { id:'sb10',name:'Aviso legal corto',        kind:'footer',    usedIn:14 },
 ];
 
-// Variables: etiquetas tipo @nombre — human-friendly keys
+// Variables: etiquetas tipo {{nombre}} — human-friendly keys
 const VARIABLES = [
   { key:'nombre',          label:'Nombre de la persona',      sample:'Carmen',              type:'texto' },
   { key:'correo',          label:'Su correo electrónico',     sample:'carmen@acme.com',     type:'correo' },

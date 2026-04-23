@@ -68,7 +68,7 @@ function Library({ onBack }) {
             secondaryAction={cat!=='Todos' && !q ? { label:'Ver todos', icon:'grid', onClick:()=>setCat('Todos') } : null}
             tips={!q && cat==='Todos' ? [
               'Tus bloques quedan disponibles en el editor bajo «Mis bloques».',
-              'Las variables @nombre se guardan y se rellenan solas al reusar el bloque.',
+              'Las variables {{nombre}} se guardan y se rellenan solas al reusar el bloque.',
             ] : []}
           />
         ) : (

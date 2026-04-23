@@ -199,10 +199,10 @@ function ReviewItem({ r, fixed, onFix, onGoSettings }) {
 // Mock checks — cubre categorías reales de email marketing
 const ALL_CHECKS = [
   // Contenido
-  { id:'c1', cat:'Contenido',      kind:'ok',    title:'Asunto no está vacío',              detail:'"Hola @nombre, novedades de noviembre" · 38 caracteres (bien)' },
+  { id:'c1', cat:'Contenido',      kind:'ok',    title:'Asunto no está vacío',              detail:'"Hola {{nombre}}, novedades de noviembre" · 38 caracteres (bien)' },
   { id:'c2', cat:'Contenido',      kind:'warn',  title:'Preview text corto',                 detail:'Solo 22 caracteres. Se recomienda entre 40 y 90 para que los clientes de correo lo muestren completo.', fixes:[{label:'Generar con IA'},{label:'Edité manualmente'}] },
   { id:'c3', cat:'Contenido',      kind:'ok',    title:'Hay al menos un botón CTA',          detail:'1 botón · "Ver colección"' },
-  { id:'c4', cat:'Contenido',      kind:'error', title:'Variable @nombre sin valor por defecto', detail:'Si un contacto no tiene nombre, aparecerá "Hola , novedades…".', fixes:[{label:'Poner "amigo" como default'},{label:'Ir a Variables',goSettings:'vars'}] },
+  { id:'c4', cat:'Contenido',      kind:'error', title:'Etiqueta {{nombre}} sin valor por defecto', detail:'Si un contacto no tiene nombre, aparecerá "Hola , novedades…".', fixes:[{label:'Poner "amigo" como default'},{label:'Ir a Etiquetas',goSettings:'vars'}] },
   { id:'c5', cat:'Contenido',      kind:'ok',    title:'Longitud total adecuada',            detail:'184 palabras · correos de 100-300 palabras tienen mejor engagement' },
 
   // Accesibilidad

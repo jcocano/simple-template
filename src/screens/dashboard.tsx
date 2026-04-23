@@ -277,6 +277,141 @@ function TplThumb({ t }) {
   return null;
 }
 
+// Display-only helpers. Kept inline — trivial formatters used by
+// Dashboard cards only; no need for a shared lib yet.
+function formatRelative(sqlDate) {
+  if (!sqlDate) return '';
+  // SQLite datetime('now') returns "YYYY-MM-DD HH:MM:SS" in UTC.
+  const d = new Date(String(sqlDate).replace(' ', 'T') + 'Z');
+  const diff = Date.now() - d.getTime();
+  if (diff < 60000) return 'hace un momento';
+  const m = Math.floor(diff / 60000);
+  if (m < 60) return `hace ${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `hace ${h} h`;
+  const dd = Math.floor(h / 24);
+  if (dd < 7) return `hace ${dd} d`;
+  const w = Math.floor(dd / 7);
+  if (w < 4) return `hace ${w} sem`;
+  const mo = Math.floor(dd / 30);
+  return `hace ${mo} mes${mo > 1 ? 'es' : ''}`;
+}
+
+const STATUS_LABEL = { draft: 'Borrador', published: 'Publicado' };
+
+function WorkspaceSwitcher({ onOpen }) {
+  const current = useCurrentWorkspace();
+  const workspaces = useWorkspaces();
+  const [open, setOpen] = React.useState(false);
+  const [creating, setCreating] = React.useState(false);
+  const [newName, setNewName] = React.useState('');
+  const [, setTick] = React.useState(0);
+  const ref = React.useRef(null);
+  const newInputRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (!open) { setCreating(false); setNewName(''); return; }
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    window.addEventListener('mousedown', h);
+    return () => window.removeEventListener('mousedown', h);
+  }, [open]);
+
+  React.useEffect(() => {
+    if (creating && newInputRef.current) newInputRef.current.focus();
+  }, [creating]);
+
+  const submitNew = async () => {
+    const nm = newName.trim();
+    if (!nm) { setCreating(false); return; }
+    const ws = await window.stWorkspaces.create(nm);
+    if (ws?.id) await window.stWorkspaces.switch(ws.id);
+    setCreating(false);
+    setNewName('');
+    setOpen(false);
+  };
+
+  React.useEffect(() => {
+    const h = (e) => {
+      if (e.detail?.scope === 'global' && e.detail?.key === 'account') {
+        setTick((n) => n + 1);
+      }
+    };
+    window.addEventListener('st:settings-change', h);
+    return () => window.removeEventListener('st:settings-change', h);
+  }, []);
+
+  const account = window.stStorage.getSetting('account', {}) || {};
+  const name = account.name || 'Sin nombre';
+
+  return (
+    <div ref={ref} style={{position:'relative'}}>
+      <div className="row" style={{gap:8,padding:6,borderRadius:'var(--r-md)',cursor:'pointer'}} onClick={()=>setOpen(v=>!v)}>
+        <Avatar name={name} size={28}/>
+        <div style={{minWidth:0,flex:1}}>
+          <div style={{fontSize:12,fontWeight:500,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{name}</div>
+          <div style={{fontSize:11,color:'var(--fg-3)',display:'flex',alignItems:'center',gap:4}}>
+            <span style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>Espacio {current?.name || '…'}</span>
+            <I.chevronD size={10} style={{flexShrink:0}}/>
+          </div>
+        </div>
+        <div style={{marginLeft:'auto',display:'flex',gap:4}} onClick={e=>e.stopPropagation()}>
+          <ThemeToggleBtn/>
+          <button className="btn icon sm ghost" title="Ajustes" onClick={()=>onOpen && onOpen('settings')}><I.settings size={13}/></button>
+        </div>
+      </div>
+
+      {open && (
+        <div style={{
+          position:'absolute',bottom:'calc(100% + 6px)',left:0,right:0,
+          padding:6,minWidth:240,
+          background:'var(--surface)',borderRadius:'var(--r-md)',
+          boxShadow:'0 12px 32px rgba(0,0,0,.18), 0 0 0 1px var(--line)',
+          zIndex:20,
+        }}>
+          <div style={{fontSize:10,color:'var(--fg-3)',padding:'6px 10px',textTransform:'uppercase',letterSpacing:'.06em'}}>Cambiar de espacio</div>
+          {workspaces.map(w => (
+            <button key={w.id} className="btn ghost sm"
+              style={{width:'100%',justifyContent:'flex-start',gap:8,fontWeight: w.id===current?.id ? 500 : 400}}
+              onClick={async ()=>{ setOpen(false); await window.stWorkspaces.switch(w.id); }}>
+              <span style={{width:14,display:'grid',placeItems:'center'}}>
+                {w.id===current?.id && <I.check size={12}/>}
+              </span>
+              <span style={{flex:1,textAlign:'left'}}>{w.name}</span>
+            </button>
+          ))}
+          <div style={{height:1,background:'var(--line)',margin:'4px 0'}}/>
+          {creating ? (
+            <div style={{display:'flex',gap:6,padding:'4px 6px',alignItems:'center'}}>
+              <I.plus size={12} style={{color:'var(--fg-3)',flexShrink:0}}/>
+              <input
+                ref={newInputRef}
+                value={newName}
+                onChange={e=>setNewName(e.target.value)}
+                onKeyDown={e=>{
+                  if (e.key === 'Enter') submitNew();
+                  if (e.key === 'Escape') { setCreating(false); setNewName(''); }
+                }}
+                placeholder="Nombre del espacio"
+                style={{flex:1,border:'1px solid var(--line)',background:'var(--surface-2)',padding:'4px 8px',borderRadius:'var(--r-sm)',fontSize:12,outline:'none'}}
+              />
+              <button className="btn sm" onClick={submitNew} disabled={!newName.trim()}>Crear</button>
+            </div>
+          ) : (
+            <button className="btn ghost sm" style={{width:'100%',justifyContent:'flex-start',gap:8}}
+              onClick={()=>setCreating(true)}>
+              <I.plus size={12}/><span>Crear nuevo espacio…</span>
+            </button>
+          )}
+          <button className="btn ghost sm" style={{width:'100%',justifyContent:'flex-start',gap:8}}
+            onClick={()=>{ setOpen(false); onOpen && onOpen('settings', 'workspace'); }}>
+            <I.settings size={12}/><span>Ajustes del espacio…</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Dashboard({ onOpen, onNew }) {
   const [folder, setFolder] = React.useState('all');
   const [view, setView] = React.useState('grid');
@@ -284,22 +419,44 @@ function Dashboard({ onOpen, onNew }) {
   const [sort, setSort] = React.useState('updated');
   const [aiOpen, setAiOpen] = React.useState(false);
 
-  const items = TEMPLATES.filter(t =>
-    (folder==='all' || (folder==='starred' && t.starred) || folder==='recent' || folder==='shared') &&
-    t.name.toLowerCase().includes(q.toLowerCase())
-  );
+  const rawItems = useTemplates();
+  const trashedItems = useTrashedTemplates();
+  const inTrash = folder === 'trash';
+
+  const items = React.useMemo(() => {
+    const source = inTrash ? trashedItems : rawItems;
+    const filtered = source.filter(t => {
+      if (inTrash) return (t.name || '').toLowerCase().includes(q.toLowerCase());
+      return (
+        (folder==='all' || (folder==='starred' && t.starred) || folder==='recent' || folder==='shared') &&
+        (t.name || '').toLowerCase().includes(q.toLowerCase())
+      );
+    });
+    if (sort === 'name') filtered.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+    else if (sort === 'status') filtered.sort((a,b) => (a.status||'').localeCompare(b.status||''));
+    // 'updated' is already the SQLite default (ORDER BY updated_at DESC).
+    return filtered;
+  }, [rawItems, trashedItems, inTrash, folder, q, sort]);
+
+  const folderCounts = React.useMemo(() => ({
+    all: rawItems.length,
+    starred: rawItems.filter(r => r.starred).length,
+    recent: rawItems.length,
+    shared: 0,
+    trash: trashedItems.length,
+  }), [rawItems, trashedItems]);
 
   return (
     <div className="editor" style={{flexDirection:'row'}}>
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">M</div>
-          <div className="brand-name">Mailcraft</div>
+          <div className="brand-mark">S</div>
+          <div className="brand-name">Simple Template</div>
           <button
             className="btn icon sm ghost"
             style={{marginLeft:'auto'}}
             title="Buscar cualquier cosa (⌘K)"
-            onClick={()=>window.dispatchEvent(new CustomEvent('mc:cmd-open'))}
+            onClick={()=>window.dispatchEvent(new CustomEvent('st:cmd-open'))}
           >
             <I.search size={13}/>
           </button>
@@ -308,11 +465,12 @@ function Dashboard({ onOpen, onNew }) {
           <div className="nav-label">Mi biblioteca</div>
           {FOLDERS.map(f => {
             const Ico = I[f.icon];
+            const count = folderCounts[f.id] ?? f.count;
             return (
               <div key={f.id} className={`nav-item ${folder===f.id?'active':''}`} onClick={()=>setFolder(f.id)}>
                 <Ico size={15}/>
                 <span>{f.name}</span>
-                <span className="count">{f.count}</span>
+                <span className="count">{count}</span>
               </div>
             );
           })}
@@ -357,17 +515,7 @@ function Dashboard({ onOpen, onNew }) {
           </div>
         </nav>
         <div style={{marginTop:'auto',padding:12,borderTop:'1px solid var(--line)'}}>
-          <div className="row" style={{gap:8,padding:6,borderRadius:'var(--r-md)'}}>
-            <Avatar name="Carmen Luna" size={28}/>
-            <div style={{minWidth:0}}>
-              <div style={{fontSize:12,fontWeight:500}}>Carmen Luna</div>
-              <div style={{fontSize:11,color:'var(--fg-3)'}}>Espacio Acme</div>
-            </div>
-            <div style={{marginLeft:'auto',display:'flex',gap:4}}>
-              <ThemeToggleBtn/>
-              <button className="btn icon sm ghost" onClick={()=>onOpen && onOpen('settings')}><I.settings size={13}/></button>
-            </div>
-          </div>
+          <WorkspaceSwitcher onOpen={onOpen}/>
         </div>
       </aside>
 
@@ -375,7 +523,10 @@ function Dashboard({ onOpen, onNew }) {
         <div className="dash-head">
           <div className="grow">
             <h1>Mis plantillas</h1>
-            <div className="sub">{items.length} plantillas · tocaste la última hace 2 horas</div>
+            <div className="sub">
+              {items.length} plantilla{items.length===1?'':'s'}
+              {rawItems[0]?.updated_at && <> · última edición {formatRelative(rawItems[0].updated_at)}</>}
+            </div>
           </div>
           <button className="btn" onClick={()=>onOpen('gallery')}>
             <I.grid size={14}/> Ver ejemplos listos
@@ -411,20 +562,24 @@ function Dashboard({ onOpen, onNew }) {
               illustration={q ? 'search' : 'no-templates'}
               title={q
                 ? `Nada que coincida con «${q}»`
+                : folder==='trash'   ? 'La papelera está vacía'
                 : folder==='starred' ? 'Aún no tienes favoritas'
                 : folder==='shared'  ? 'Nadie ha compartido plantillas contigo'
                 : folder==='recent'  ? 'Todavía no has abierto nada'
                 : 'Aquí irán tus plantillas'}
               msg={q
                 ? 'Prueba con otra palabra, o limpia el filtro para ver todo.'
+                : folder==='trash'   ? 'Las plantillas que elimines quedan aquí para que puedas restaurarlas. Después de vaciar la papelera se borran para siempre.'
                 : folder==='starred' ? 'Pulsa la estrella en cualquier plantilla para tenerla siempre a mano.'
                 : folder==='shared'  ? 'Cuando alguien de tu equipo te comparta algo aparecerá aquí con su avatar.'
                 : folder==='recent'  ? 'Las plantillas que abras aparecerán aquí en orden de uso.'
                 : 'Crea una desde cero o empieza con uno de los ejemplos de la galería. Todas quedan guardadas aquí.'}
               primaryAction={q
                 ? { label:'Limpiar búsqueda', icon:'x', onClick:()=>setQ('') }
-                : { label:'Crear plantilla nueva', icon:'plus', onClick:onNew }}
-              secondaryAction={!q ? { label:'Abrir galería', icon:'grid', onClick:()=>onOpen('gallery') } : null}
+                : folder==='trash'
+                  ? { label:'Volver a mis plantillas', icon:'chevronL', onClick:()=>setFolder('all') }
+                  : { label:'Crear plantilla nueva', icon:'plus', onClick:onNew }}
+              secondaryAction={!q && folder!=='trash' ? { label:'Abrir galería', icon:'grid', onClick:()=>onOpen('gallery') } : null}
               tips={!q && folder==='all' ? [
                 'Cada cambio se guarda solo, no hace falta pulsar guardar.',
                 'Pulsa ⌘K en cualquier momento para buscar acciones.',
@@ -433,30 +588,67 @@ function Dashboard({ onOpen, onNew }) {
           )}
           {items.length > 0 && (view==='grid' ? (
             <div className="grid-tpl">
-              <div className="tpl-new" onClick={onNew}>
-                <div className="plus"><I.plus size={18}/></div>
-                <div style={{fontSize:13,fontWeight:500}}>Crear plantilla nueva</div>
-                <div style={{fontSize:11,color:'var(--fg-3)'}}>En blanco, o partiendo de un ejemplo</div>
-              </div>
+              {!inTrash && (
+                <div className="tpl-new" onClick={onNew}>
+                  <div className="plus"><I.plus size={18}/></div>
+                  <div style={{fontSize:13,fontWeight:500}}>Crear plantilla nueva</div>
+                  <div style={{fontSize:11,color:'var(--fg-3)'}}>En blanco, o partiendo de un ejemplo</div>
+                </div>
+              )}
               {items.map(t => (
-                <div key={t.id} className="tpl-card" onClick={()=>onOpen('editor', t)}>
+                <div key={t.id} className="tpl-card" onClick={inTrash ? undefined : ()=>onOpen('editor', t)} style={inTrash?{cursor:'default',opacity:0.85}:undefined}>
                   <div className="tpl-thumb">
-                    {t.starred && <div className="badge"><div className="chip accent"><I.star size={10}/> Favorita</div></div>}
-                    {t.status==='Borrador' && !t.starred && <div className="badge"><div className="chip">Sin publicar</div></div>}
+                    {inTrash && <div className="badge"><div className="chip">En papelera</div></div>}
+                    {!inTrash && t.starred && <div className="badge"><div className="chip accent"><I.star size={10}/> Favorita</div></div>}
+                    {!inTrash && t.status==='draft' && !t.starred && <div className="badge"><div className="chip">Sin publicar</div></div>}
                     <div className="tpl-actions">
-                      <button className="btn icon sm" onClick={e=>e.stopPropagation()}><I.copy size={12}/></button>
-                      <button className="btn icon sm" onClick={e=>e.stopPropagation()}><I.dotsV size={12}/></button>
+                      {inTrash ? (
+                        <>
+                          <button className="btn icon sm" title="Restaurar"
+                            onClick={e=>{ e.stopPropagation(); window.stTemplates.restore(t.id); }}>
+                            <I.undo size={12}/>
+                          </button>
+                          <button className="btn icon sm" title="Eliminar para siempre"
+                            onClick={e=>{
+                              e.stopPropagation();
+                              if (window.confirm(`Eliminar «${t.name}» para siempre? No se puede recuperar.`)) {
+                                window.stTemplates.purge(t.id);
+                              }
+                            }}>
+                            <I.trash size={12}/>
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button className="btn icon sm" title={t.starred?'Quitar de favoritas':'Marcar como favorita'}
+                            onClick={e=>{ e.stopPropagation(); window.stTemplates.toggleStar(t.id); }}>
+                            {t.starred ? <I.star2 size={12}/> : <I.star size={12}/>}
+                          </button>
+                          <button className="btn icon sm" title="Duplicar"
+                            onClick={e=>{ e.stopPropagation(); window.stTemplates.duplicate(t.id); }}>
+                            <I.copy size={12}/>
+                          </button>
+                          <button className="btn icon sm" title="Mover a la papelera"
+                            onClick={e=>{ e.stopPropagation(); window.stTemplates.remove(t.id); }}>
+                            <I.trash size={12}/>
+                          </button>
+                        </>
+                      )}
                     </div>
                     <TplThumb t={t}/>
                   </div>
                   <div className="tpl-meta">
                     <div className="tpl-title">{t.name}</div>
                     <div className="tpl-sub">
-                      <span>{t.folder}</span>
+                      <span>{t.folder || 'Sin carpeta'}</span>
                       <span className="tpl-dot"/>
-                      <span className={t.status==='Publicado'?'ok':''}>{t.status}</span>
-                      <span className="tpl-dot"/>
-                      <span>{t.updated}</span>
+                      {inTrash
+                        ? <span>Borrada {formatRelative(t.deleted_at)}</span>
+                        : <>
+                            <span className={t.status==='published'?'ok':''}>{STATUS_LABEL[t.status] || 'Borrador'}</span>
+                            <span className="tpl-dot"/>
+                            <span>{formatRelative(t.updated_at)}</span>
+                          </>}
                     </div>
                   </div>
                 </div>
@@ -469,22 +661,48 @@ function Dashboard({ onOpen, onNew }) {
                 <span>Nombre</span><span>Ocasión</span><span>Estado</span><span>Última edición</span><span/>
               </div>
               {items.map(t => (
-                <div key={t.id} onClick={()=>onOpen('editor',t)} style={{display:'grid',gridTemplateColumns:'32px 1fr 160px 140px 120px 40px',padding:'12px 16px',borderBottom:'1px solid var(--line)',alignItems:'center',cursor:'pointer',fontSize:13}}
-                  onMouseEnter={e=>e.currentTarget.style.background='var(--surface-2)'}
-                  onMouseLeave={e=>e.currentTarget.style.background=''}>
-                  <div>{t.starred && <I.star2 size={14} style={{color:'var(--warn)'}}/>}</div>
+                <div key={t.id} onClick={inTrash ? undefined : ()=>onOpen('editor',t)}
+                  style={{display:'grid',gridTemplateColumns:'32px 1fr 160px 140px 120px 80px',padding:'12px 16px',borderBottom:'1px solid var(--line)',alignItems:'center',cursor:inTrash?'default':'pointer',fontSize:13,opacity:inTrash?0.85:1}}
+                  onMouseEnter={e=>{ if(!inTrash) e.currentTarget.style.background='var(--surface-2)'; }}
+                  onMouseLeave={e=>{ if(!inTrash) e.currentTarget.style.background=''; }}>
+                  <div>{!inTrash && t.starred && <I.star2 size={14} style={{color:'var(--warn)'}}/>}</div>
                   <div style={{fontWeight:500}}>{t.name}</div>
-                  <div style={{color:'var(--fg-2)'}}>{t.folder}</div>
-                  <div><span className={`chip ${t.status==='Publicado'?'ok':''}`}>{t.status}</span></div>
-                  <div style={{color:'var(--fg-3)',fontSize:12}}>{t.updated}</div>
-                  <div><I.dotsV size={14}/></div>
+                  <div style={{color:'var(--fg-2)'}}>{t.folder || 'Sin carpeta'}</div>
+                  <div>
+                    {inTrash
+                      ? <span className="chip">En papelera</span>
+                      : <span className={`chip ${t.status==='published'?'ok':''}`}>{STATUS_LABEL[t.status] || 'Borrador'}</span>}
+                  </div>
+                  <div style={{color:'var(--fg-3)',fontSize:12}}>
+                    {inTrash ? `Borrada ${formatRelative(t.deleted_at)}` : formatRelative(t.updated_at)}
+                  </div>
+                  <div style={{display:'flex',gap:4,justifyContent:'flex-end'}} onClick={e=>e.stopPropagation()}>
+                    {inTrash ? (
+                      <>
+                        <button className="btn icon sm ghost" title="Restaurar"
+                          onClick={()=>window.stTemplates.restore(t.id)}>
+                          <I.undo size={13}/>
+                        </button>
+                        <button className="btn icon sm ghost" title="Eliminar para siempre"
+                          onClick={()=>{
+                            if (window.confirm(`Eliminar «${t.name}» para siempre? No se puede recuperar.`)) {
+                              window.stTemplates.purge(t.id);
+                            }
+                          }}>
+                          <I.trash size={13}/>
+                        </button>
+                      </>
+                    ) : (
+                      <I.dotsV size={14}/>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
           ))}
         </div>
       </main>
-      {aiOpen && <AIGenerateModal onClose={()=>setAiOpen(false)} onGenerate={(prompt)=>{ setAiOpen(false); onNew && onNew({ai:true, prompt}); }}/>}
+      {aiOpen && <AIGenerateModal onClose={()=>setAiOpen(false)} onGenerated={(tpl)=>{ setAiOpen(false); onOpen && onOpen('editor', tpl); }}/>}
     </div>
   );
 }
@@ -492,14 +710,15 @@ function Dashboard({ onOpen, onNew }) {
 // ════════════════════════════════════════════════════════════════
 // AI Generate Modal — prompt para generar plantilla desde cero
 // ════════════════════════════════════════════════════════════════
-function AIGenerateModal({ onClose, onGenerate }) {
-  const aiCfg = JSON.parse(localStorage.getItem('mc:ai') || '{}');
-  const configured = aiCfg.enabled !== false && (aiCfg.key || aiCfg.provider === 'ollama');
+function AIGenerateModal({ onClose, onGenerated }) {
+  const aiCfg = window.stStorage.getSetting('ai', {});
+  const configured = aiCfg.enabled !== false && (aiCfg.keyConfigured || aiCfg.key || aiCfg.provider === 'ollama');
   const [prompt, setPrompt] = React.useState('');
   const [tone, setTone] = React.useState(aiCfg.tone || 'neutral');
   const [length, setLength] = React.useState('medio');
   const [blocks, setBlocks] = React.useState(['cabecera','titulo','texto','boton','footer']);
   const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState(null);
 
   const IDEAS = [
     { t:'Newsletter mensual', d:'Resumen de novedades, 3 artículos destacados, CTA a blog' },
@@ -526,11 +745,47 @@ function AIGenerateModal({ onClose, onGenerate }) {
 
   const toggleBlock = (id) => setBlocks(b => b.includes(id) ? b.filter(x=>x!==id) : [...b, id]);
 
-  const handleGen = () => {
+  const handleGen = async () => {
     if (!prompt.trim() || !configured) return;
     setLoading(true);
-    setTimeout(() => { setLoading(false); onGenerate(prompt); }, 1600);
+    setError(null);
+    const result = await window.stAI.generateTemplate({ prompt, tone, length, blocks });
+    if (!result.ok) {
+      setLoading(false);
+      setError(result.error || 'No se pudo generar la plantilla.');
+      return;
+    }
+    // Create a real template from the generated doc and open it in the editor.
+    try {
+      const newTpl = await window.stTemplates.create({
+        name: promptToName(prompt),
+        folder: 'Sin carpeta',
+        variant: 'newsletter',
+        color: '#e8e7fe',
+        status: 'draft',
+        starred: false,
+        doc: result.doc,
+      });
+      setLoading(false);
+      if (!newTpl) {
+        setError('No se pudo guardar la plantilla generada.');
+        return;
+      }
+      onGenerated && onGenerated(newTpl);
+    } catch (err) {
+      setLoading(false);
+      setError(err?.message || 'Error al crear la plantilla.');
+    }
   };
+
+  // Derive a short template name from the user's prompt. Trims to the first
+  // sentence / 60 chars and capitalizes, so the dashboard card has a label
+  // that's more descriptive than "Plantilla sin título".
+  function promptToName(p) {
+    const first = String(p).split(/[.\n]/)[0].trim();
+    const clipped = first.length > 60 ? first.slice(0, 57) + '…' : first;
+    return clipped.charAt(0).toUpperCase() + clipped.slice(1) || 'Plantilla con IA';
+  }
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -616,6 +871,19 @@ function AIGenerateModal({ onClose, onGenerate }) {
               );
             })}
           </div>
+
+          {error && (
+            <div style={{
+              marginTop:16,padding:12,
+              background:'color-mix(in oklab, var(--danger) 12%, transparent)',
+              borderRadius:'var(--r-md)',
+              fontSize:12,color:'var(--danger)',
+              display:'flex',gap:8,
+            }}>
+              <I.x size={14} style={{marginTop:1,flexShrink:0}}/>
+              <div><b>No pudimos generar la plantilla.</b> {error}</div>
+            </div>
+          )}
         </div>
         <div className="modal-foot">
           <div style={{fontSize:11,color:'var(--fg-3)',flex:1}}>

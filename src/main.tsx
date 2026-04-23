@@ -6,6 +6,14 @@ const ua = navigator.userAgent;
 const platform = ua.includes("Mac") ? "darwin" : ua.includes("Win") ? "win32" : "linux";
 document.documentElement.setAttribute("data-platform", platform);
 
+import "./lib/storage.tsx";
+import "./lib/workspaces.tsx";
+import "./lib/templates.tsx";
+import "./lib/export.tsx";
+import "./lib/oauth.tsx";
+import "./lib/test-send.tsx";
+import "./lib/ai.tsx";
+import "./lib/cdn.tsx";
 import "./icons.tsx";
 import "./data.tsx";
 import "./ui.tsx";
@@ -23,12 +31,14 @@ import "./review-panel.tsx";
 import "./command-palette.tsx";
 import "./editor-tour.tsx";
 import "./toasts.tsx";
-import "./ai-improve.tsx";
 import "./empty-state.tsx";
 import "./smtp-modal.tsx";
 import "./settings-panel.tsx";
 import "./tweaks.tsx";
 import "./app.tsx";
 
-const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(<window.App />);
+(async () => {
+  await window.stStorage.boot();
+  const root = ReactDOM.createRoot(document.getElementById("root"));
+  root.render(<window.App />);
+})();

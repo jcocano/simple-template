@@ -1,8 +1,32 @@
 // Vista previa — un solo correo, 2 switches (dispositivo y tema)
 
-function Preview({ onBack }) {
+function Preview({ template, onBack }) {
   const [device, setDevice] = React.useState('desktop'); // desktop | mobile
   const [theme, setTheme]   = React.useState('light');   // light | dark
+  const [doc, setDoc] = React.useState([]);
+  const [tplMeta, setTplMeta] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!template?.id) { setDoc([]); return; }
+    let cancelled = false;
+    (async () => {
+      const tpl = await window.stTemplates.read(template.id);
+      if (cancelled) return;
+      setDoc(Array.isArray(tpl?.doc?.sections) ? tpl.doc.sections : []);
+      setTplMeta(tpl || null);
+    })();
+    return () => { cancelled = true; };
+  }, [template?.id]);
+
+  // Expose this template's vars so email-blocks' renderForDisplay can
+  // substitute {{nombre}} → "Carmen" etc. Set synchronously in the render
+  // body (NOT inside useEffect) so the value is available BEFORE the children
+  // run their renderForDisplay — otherwise the first render uses stale data
+  // from the previous mount and newly added vars don't appear until a
+  // forced re-render. Cleared on unmount so the editor keeps the
+  // {{var}} highlight behaviour.
+  window.__stPreviewVars = Array.isArray(tplMeta?.vars) ? tplMeta.vars : (window.VARIABLES || []);
+  React.useEffect(() => () => { window.__stPreviewVars = null; }, []);
 
   const isMobile = device === 'mobile';
   const isDark   = theme === 'dark';
@@ -76,7 +100,7 @@ function Preview({ onBack }) {
             fontFamily:'var(--font-display)',
             fontSize: isMobile?14:15,fontWeight:600,color:chromeFg,
             whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',
-          }}>Newsletter de Noviembre</div>
+          }}>{tplMeta?.meta?.subject || tplMeta?.name || template?.name || 'Vista previa'}</div>
           <div style={{fontSize:11.5,color:chromeSub,marginTop:2,display:'flex',alignItems:'center',gap:6}}>
             <span style={{fontWeight:500,color:chromeFg}}>Acme Studio</span>
             <span>&lt;hola@acme.com&gt;</span>
@@ -118,7 +142,7 @@ function Preview({ onBack }) {
       <div className="editor-top">
         <button className="btn ghost sm" onClick={onBack}><I.chevronL size={14}/> Editor</button>
         <div style={{fontFamily:'var(--font-display)',fontSize:15,fontWeight:600,letterSpacing:-0.2}}>Vista previa</div>
-        <span className="chip">Newsletter de Noviembre</span>
+        <span className="chip">{tplMeta?.name || template?.name || 'Plantilla'}</span>
 
         <div className="grow"/>
 
@@ -206,7 +230,9 @@ function Preview({ onBack }) {
               fontFamily:'var(--font-sans)',
               boxShadow: isDark ? '0 8px 32px -12px rgba(0,0,0,.8)' : 'none',
             }}>
-              {DEFAULT_DOC.map(renderSection)}
+              {doc.length === 0
+                ? <div style={{padding:'40px 24px',textAlign:'center',color:'#8e8b7e',fontSize:13}}>Esta plantilla aún no tiene contenido.</div>
+                : doc.map(renderSection)}
             </div>
           </div>
         </div>

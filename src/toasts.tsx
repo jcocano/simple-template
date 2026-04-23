@@ -1,6 +1,27 @@
 // Toast system — API global window.toast({kind, title, msg, action})
 // Renderiza una pila en esquina inferior derecha, auto-cierre a los 3.5s
 
+// Default per-topic ON/OFF for notif preferences. Mirrors the defaults used
+// in NotifSection's <Switch def={...}> so an unconfigured workspace behaves
+// the same as the form shows.
+const NOTIF_DEFAULTS = {
+  saved: false,      // off by default — autosave is mostly silent
+  heavyImg: true,
+  exportDone: true,
+  testDone: true,
+  sound: false,
+  updates: true,
+  beta: false,
+};
+
+function notifEnabled(topic) {
+  const cfg = window.stStorage?.getWSSetting('notif', {}) || {};
+  if (cfg[topic] === false) return false;
+  if (cfg[topic] === true) return true;
+  // Undefined → fall back to defaults.
+  return NOTIF_DEFAULTS[topic] !== false;
+}
+
 function Toasts() {
   const [list, setList] = React.useState([]);
 
@@ -15,7 +36,19 @@ function Toasts() {
       return id;
     };
     window.toast.dismiss = (id) => setList(l => l.filter(x => x.id !== id));
-    return () => { delete window.toast; };
+
+    // window.notify(topic, opts) — gated wrapper around window.toast for
+    // toasts that the user can mute via Settings → Notificaciones. Always
+    // pass a topic from NOTIF_DEFAULTS; unmapped topics fall through.
+    window.notify = (topic, opts) => {
+      if (!notifEnabled(topic)) return null;
+      return window.toast(opts);
+    };
+
+    return () => {
+      delete window.toast;
+      delete window.notify;
+    };
   }, []);
 
   const kindMap = {

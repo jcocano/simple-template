@@ -4,8 +4,8 @@ function Onboarding({ onDone }) {
     <div className="onboard fade-in">
       <div className="card">
         <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
-          <div className="brand-mark" style={{width:32,height:32,fontSize:15}}>M</div>
-          <div style={{fontSize:13,color:'var(--fg-3)'}}>Mailcraft</div>
+          <div className="brand-mark" style={{width:32,height:32,fontSize:15}}>S</div>
+          <div style={{fontSize:13,color:'var(--fg-3)'}}>Simple Template</div>
         </div>
         <h1>Haz correos bonitos, sin saber de código.</h1>
         <div className="lede">Arrastra bloques, cambia colores y textos, y envía correos que se vean igual de bien en Gmail, Outlook y en el celular. Nada de HTML, nada de complicaciones.</div>
@@ -21,7 +21,7 @@ function Onboarding({ onDone }) {
             <div className="step-n">2</div>
             <div>
               <div className="step-t">Personaliza con el nombre de cada persona</div>
-              <div className="step-d">Escribe <code style={{fontFamily:'var(--font-mono)',fontSize:12,background:'var(--surface-3)',padding:'1px 5px',borderRadius:3}}>@nombre</code> y cada destinatario verá el suyo. Nosotros nos encargamos del resto.</div>
+              <div className="step-d">Escribe <code style={{fontFamily:'var(--font-mono)',fontSize:12,background:'var(--surface-3)',padding:'1px 5px',borderRadius:3}}>{`{{nombre}}`}</code> y cada destinatario verá el suyo. Nosotros nos encargamos del resto.</div>
             </div>
           </li>
           <li>

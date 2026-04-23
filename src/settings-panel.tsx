@@ -2,12 +2,15 @@
 // Section 3 (Envío de pruebas) reuses DeliveryInner from smtp-modal.jsx
 
 const SETTINGS_SECTIONS = [
+  { id:'workspace',  label:'Espacios',                    icon:'layers',   desc:'Crea, renombra o borra espacios de trabajo' },
   { id:'account',    label:'Perfil',                      icon:'user',     desc:'Tu nombre y cómo apareces en las plantillas' },
   { id:'brand',      label:'Marca',                       icon:'palette',  desc:'Colores, fuentes, logo, footer legal' },
   { id:'appearance', label:'Apariencia',                  icon:'sun',      desc:'Tema, densidad, esquinas y tipografía de la app' },
+  { id:'editor',     label:'Editor',                      icon:'edit',     desc:'Autoguardado, grid y regla del canvas' },
   { id:'storage',    label:'Almacenamiento de imágenes',  icon:'image',    desc:'Dónde se alojan las imágenes de tus correos' },
   { id:'delivery',   label:'Envío de pruebas',            icon:'send',     desc:'Cuenta desde la que envías pruebas' },
-  { id:'variables',  label:'Variables globales',          icon:'braces',   desc:'Valores de ejemplo para el preview' },
+  { id:'variables',  label:'Variables por defecto',       icon:'braces',   desc:'Etiquetas que se copian a las plantillas nuevas' },
+  { id:'export',     label:'Exportación',                 icon:'download', desc:'Formato por defecto al exportar el correo' },
   { id:'ai',         label:'Inteligencia artificial',     icon:'sparkles', desc:'Proveedor, API key y modelo para generar o mejorar plantillas' },
   { id:'notif',      label:'Notificaciones',              icon:'bell',     desc:'Avisos internos de la app: guardado, exportación, pruebas, actualizaciones' },
 ];
@@ -15,6 +18,7 @@ const SETTINGS_SECTIONS = [
 function SettingsPanel({ onClose, initialSection='account' }) {
   const [section, setSection] = React.useState(initialSection);
   const [saved, setSaved] = React.useState(false);
+  const currentWorkspace = useCurrentWorkspace();
 
   // Flash "Guardado" on any field change
   const flashSaved = () => {
@@ -68,7 +72,9 @@ function SettingsPanel({ onClose, initialSection='account' }) {
             }}>A</div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:12.5,fontWeight:500}}>Ajustes</div>
-              <div style={{fontSize:10.5,color:'var(--fg-3)'}}>Espacio Acme</div>
+              <div style={{fontSize:10.5,color:'var(--fg-3)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                Espacio {currentWorkspace?.name || '…'}
+              </div>
             </div>
           </div>
 
@@ -103,7 +109,7 @@ function SettingsPanel({ onClose, initialSection='account' }) {
           </div>
 
           <div style={{marginTop:'auto',padding:'12px 10px 4px',fontSize:10.5,color:'var(--fg-3)',lineHeight:1.55}}>
-            Mailcraft v0.4.2 · <span style={{color:'var(--accent)',cursor:'pointer'}}>Cambios</span>
+            Simple Template v0.4.2 · <span style={{color:'var(--accent)',cursor:'pointer'}}>Cambios</span>
           </div>
         </aside>
 
@@ -136,15 +142,19 @@ function SettingsPanel({ onClose, initialSection='account' }) {
 
           {/* Body */}
           <div style={{flex:1,overflow:'auto',padding:'24px 28px 32px'}}>
+            {section==='workspace'   && <WorkspaceSection onChange={flashSaved}/>}
             {section==='account'     && <AccountSection onChange={flashSaved}/>}
-            {section==='brand'       && <BrandSection onChange={flashSaved}/>}
             {section==='appearance'  && <AppearanceSection onChange={flashSaved}/>}
-            {section==='storage'     && <StorageSection onChange={flashSaved}/>}
-            {section==='delivery'    && <DeliveryInner/>}
-            {section==='editor'      && <EditorSection onChange={flashSaved}/>}
-            {section==='variables'   && <VariablesSection onChange={flashSaved}/>}
             {section==='ai'          && <AISection onChange={flashSaved}/>}
-            {section==='notif'       && <NotifSection onChange={flashSaved}/>}
+            {/* Per-workspace sections: key bump forces remount on workspace switch
+                so each section re-reads its state from the new workspace. */}
+            {section==='brand'       && <BrandSection key={currentWorkspace?.id} onChange={flashSaved}/>}
+            {section==='storage'     && <StorageSection key={currentWorkspace?.id} onChange={flashSaved}/>}
+            {section==='delivery'    && <div key={currentWorkspace?.id}><DeliveryInner/></div>}
+            {section==='editor'      && <EditorSection key={currentWorkspace?.id} onChange={flashSaved}/>}
+            {section==='variables'   && <VariablesSection key={currentWorkspace?.id} onChange={flashSaved}/>}
+            {section==='export'      && <ExportSection key={currentWorkspace?.id} onChange={flashSaved}/>}
+            {section==='notif'       && <NotifSection key={currentWorkspace?.id} onChange={flashSaved}/>}
           </div>
         </section>
       </div>
@@ -186,16 +196,267 @@ function SGroup({ title, children }) {
   );
 }
 
+// Banner used by sections whose values persist correctly per-workspace but
+// don't have a consumer wired yet. Promised to the user as P1 work.
+function SoonBanner({ msg }) {
+  return (
+    <div style={{
+      padding:'10px 14px',marginBottom:18,
+      borderRadius:'var(--r-md)',
+      background:'color-mix(in oklab, #f0b042 12%, transparent)',
+      border:'1px solid color-mix(in oklab, #f0b042 40%, var(--line))',
+      display:'flex',gap:10,alignItems:'flex-start',
+      fontSize:12,lineHeight:1.55,color:'var(--fg-2)',
+    }}>
+      <I.info size={14} style={{color:'#b87a18',flexShrink:0,marginTop:1}}/>
+      <div>
+        <b style={{color:'var(--fg-1)'}}>Pronto en una versión próxima.</b> {msg || 'Tus cambios se guardan en el espacio actual, pero la app aún no los está aplicando.'}
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────────── Workspace ─────────────────────────────
+function WorkspaceSection({ onChange }) {
+  const workspaces = useWorkspaces();
+  const current = useCurrentWorkspace();
+  const [creating, setCreating] = React.useState(false);
+  const [newName, setNewName] = React.useState('');
+  const [renaming, setRenaming] = React.useState(null); // {id, name}
+  const [counts, setCounts] = React.useState({});
+  const [confirmDelete, setConfirmDelete] = React.useState(null); // {id, name, count}
+  const [deleteWord, setDeleteWord] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+
+  // Template counts per workspace, refreshed when the workspace list or any
+  // template mutates.
+  React.useEffect(() => {
+    let alive = true;
+    const refresh = async () => {
+      const entries = await Promise.all(
+        workspaces.map(async (w) => [w.id, await window.stWorkspaces.countTemplates(w.id)])
+      );
+      if (alive) setCounts(Object.fromEntries(entries));
+    };
+    refresh();
+    window.addEventListener('st:template-change', refresh);
+    return () => {
+      alive = false;
+      window.removeEventListener('st:template-change', refresh);
+    };
+  }, [workspaces]);
+
+  const submitCreate = async () => {
+    const nm = newName.trim();
+    if (!nm) { setCreating(false); return; }
+    const ws = await window.stWorkspaces.create(nm);
+    if (ws?.id) await window.stWorkspaces.switch(ws.id);
+    setCreating(false);
+    setNewName('');
+    onChange && onChange();
+  };
+
+  const submitRename = async () => {
+    if (!renaming) return;
+    const nm = renaming.name.trim();
+    const currentName = workspaces.find((w) => w.id === renaming.id)?.name;
+    if (nm && nm !== currentName) {
+      await window.stWorkspaces.rename(renaming.id, nm);
+      onChange && onChange();
+    }
+    setRenaming(null);
+  };
+
+  const openDelete = async (w) => {
+    const count = await window.stWorkspaces.countTemplates(w.id);
+    setConfirmDelete({ id: w.id, name: w.name, count });
+    setDeleteWord('');
+  };
+
+  const runDelete = async () => {
+    if (!confirmDelete || deleteWord !== 'BORRAR') return;
+    setBusy(true);
+    try {
+      const result = await window.stWorkspaces.remove(confirmDelete.id);
+      if (!result || !result.error) {
+        onChange && onChange();
+        setConfirmDelete(null);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const isLast = workspaces.length <= 1;
+
+  return (
+    <>
+      <SGroup title={`Mis espacios · ${workspaces.length}`}>
+        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+          {workspaces.map((w) => {
+            const isCurrent = w.id === current?.id;
+            const count = counts[w.id];
+            const isRenaming = renaming?.id === w.id;
+            return (
+              <div key={w.id} style={{
+                display:'flex',alignItems:'center',gap:12,
+                padding:'12px 14px',
+                borderRadius:'var(--r-md)',
+                border:'1px solid var(--line)',
+                background: isCurrent ? 'color-mix(in oklab, var(--accent) 6%, var(--surface))' : 'var(--surface)',
+              }}>
+                <div style={{
+                  width:32,height:32,borderRadius:'var(--r-sm)',
+                  background:'var(--accent-soft)',color:'var(--accent)',
+                  display:'grid',placeItems:'center',
+                  fontFamily:'var(--font-display)',fontWeight:600,fontSize:14,
+                  flexShrink:0,
+                }}>
+                  {(w.name || '?').slice(0,1).toUpperCase()}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  {isRenaming ? (
+                    <input
+                      autoFocus
+                      className="field"
+                      value={renaming.name}
+                      onChange={e=>setRenaming({...renaming, name:e.target.value})}
+                      onKeyDown={e=>{
+                        if (e.key === 'Enter') submitRename();
+                        if (e.key === 'Escape') setRenaming(null);
+                      }}
+                      onBlur={submitRename}
+                      style={{fontSize:13,padding:'4px 8px'}}
+                    />
+                  ) : (
+                    <div style={{fontSize:13,fontWeight:500,display:'flex',alignItems:'center',gap:6}}>
+                      <span style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{w.name}</span>
+                      {isCurrent && <span className="chip" style={{fontSize:10,background:'var(--accent-soft)',color:'var(--accent)',flexShrink:0}}>Activo</span>}
+                    </div>
+                  )}
+                  <div style={{fontSize:11,color:'var(--fg-3)',marginTop:2}}>
+                    {count == null ? '…' : `${count} plantilla${count===1?'':'s'}`}
+                  </div>
+                </div>
+                <div style={{display:'flex',gap:4,flexShrink:0}}>
+                  {!isCurrent && !isRenaming && (
+                    <button className="btn sm ghost" onClick={()=>window.stWorkspaces.switch(w.id)}>Cambiar aquí</button>
+                  )}
+                  {!isRenaming && (
+                    <button className="btn icon sm ghost" title="Renombrar"
+                      onClick={()=>setRenaming({id:w.id, name:w.name})}>
+                      <I.edit size={12}/>
+                    </button>
+                  )}
+                  <button
+                    className="btn icon sm ghost"
+                    title={isLast ? 'No puedes borrar tu único espacio — crea otro antes.' : 'Eliminar'}
+                    disabled={isLast}
+                    onClick={()=>openDelete(w)}
+                    style={{
+                      opacity: isLast ? 0.4 : 1,
+                      color: isLast ? undefined : 'var(--err, #e04f4f)',
+                      cursor: isLast ? 'not-allowed' : 'pointer',
+                    }}>
+                    <I.trash size={12}/>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </SGroup>
+
+      <SGroup title="Crear espacio nuevo">
+        {creating ? (
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            <input
+              autoFocus
+              className="field"
+              value={newName}
+              onChange={e=>setNewName(e.target.value)}
+              onKeyDown={e=>{
+                if (e.key === 'Enter') submitCreate();
+                if (e.key === 'Escape') { setCreating(false); setNewName(''); }
+              }}
+              placeholder="Ej. Marca B, Cliente X, Personal…"
+              style={{flex:1}}
+            />
+            <button className="btn primary sm" onClick={submitCreate} disabled={!newName.trim()}>Crear</button>
+            <button className="btn ghost sm" onClick={()=>{ setCreating(false); setNewName(''); }}>Cancelar</button>
+          </div>
+        ) : (
+          <button className="btn" onClick={()=>setCreating(true)}><I.plus size={13}/> Crear espacio nuevo</button>
+        )}
+      </SGroup>
+
+      <SGroup title="Cómo funcionan los espacios">
+        <div style={{fontSize:12.5,color:'var(--fg-2)',lineHeight:1.6,padding:12,background:'var(--surface-2)',border:'1px solid var(--line)',borderRadius:'var(--r-md)'}}>
+          Cada espacio tiene sus propias plantillas, marca, variables, envío de pruebas y preferencias.
+          Los ajustes globales (tu perfil, apariencia de la app, clave de IA) se comparten entre todos.
+          Borrar un espacio elimina sus plantillas para siempre — incluidas las que estén en la papelera.
+        </div>
+      </SGroup>
+
+      {confirmDelete && (
+        <div className="modal-backdrop" onClick={busy ? undefined : ()=>setConfirmDelete(null)}>
+          <div className="modal pop" onClick={e=>e.stopPropagation()} style={{maxWidth:460}}>
+            <div className="modal-head">
+              <div style={{
+                width:32,height:32,borderRadius:'var(--r-sm)',
+                background:'color-mix(in oklab, #e04f4f 15%, transparent)',
+                color:'#e04f4f',display:'grid',placeItems:'center',flexShrink:0,
+              }}>
+                <I.trash size={15}/>
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <h3>Eliminar «{confirmDelete.name}»</h3>
+                <div className="sub">
+                  Vas a borrar este espacio{confirmDelete.count>0 ? ` y sus ${confirmDelete.count} plantilla${confirmDelete.count===1?'':'s'}` : ''}. No se puede deshacer.
+                </div>
+              </div>
+            </div>
+            <div className="modal-body">
+              <div style={{fontSize:12.5,color:'var(--fg-2)',marginBottom:10}}>
+                Para confirmar, escribe <b style={{fontFamily:'var(--font-mono)'}}>BORRAR</b> abajo:
+              </div>
+              <input
+                autoFocus
+                className="field"
+                value={deleteWord}
+                onChange={e=>setDeleteWord(e.target.value)}
+                onKeyDown={e=>{ if (e.key === 'Enter' && deleteWord === 'BORRAR') runDelete(); }}
+                placeholder="BORRAR"
+                style={{fontFamily:'var(--font-mono)',letterSpacing:'0.08em'}}
+              />
+            </div>
+            <div className="modal-foot">
+              <button className="btn ghost" onClick={()=>setConfirmDelete(null)} disabled={busy}>Cancelar</button>
+              <button
+                className="btn primary"
+                onClick={runDelete}
+                disabled={busy || deleteWord !== 'BORRAR'}
+                style={{
+                  background: deleteWord==='BORRAR' ? '#e04f4f' : undefined,
+                  borderColor: deleteWord==='BORRAR' ? '#e04f4f' : undefined,
+                }}>
+                {busy ? 'Eliminando…' : 'Eliminar definitivamente'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ───────────────────────────── Appearance ─────────────────────────────
 function AppearanceSection({ onChange }) {
-  const [tw, setTw] = React.useState(() => {
-    try { return {...window.TWEAKS, ...JSON.parse(localStorage.getItem('mc:tweaks')||'{}')}; }
-    catch { return {...window.TWEAKS}; }
-  });
+  const [tw, setTw] = React.useState(() => ({...window.TWEAKS, ...window.stStorage.getSetting('tweaks', {})}));
   const set = (k, v) => {
     const next = {...tw, [k]: v};
     setTw(next);
-    localStorage.setItem('mc:tweaks', JSON.stringify(next));
+    window.stStorage.setSetting('tweaks', next);
     if (window.__mcSetTweaks) window.__mcSetTweaks(next);
     onChange();
   };
@@ -368,8 +629,8 @@ function AppearanceSection({ onChange }) {
       <SGroup title="Recorrido guiado">
         <SRow label="Volver a ver el tour del editor" hint="Te llevamos de nuevo por las partes principales del editor. Dura menos de un minuto.">
           <button className="btn" onClick={()=>{
-            try { localStorage.removeItem('mc:tour-seen'); } catch(e) {}
-            window.dispatchEvent(new CustomEvent('mc:start-tour'));
+            window.stStorage.removeSetting('tour-seen');
+            window.dispatchEvent(new CustomEvent('st:start-tour'));
             onChange();
           }}><I.sparkles size={12}/> Iniciar tour</button>
         </SRow>
@@ -380,8 +641,8 @@ function AppearanceSection({ onChange }) {
 
 // ───────────────────────────── Account (perfil local) ─────────────────────────────
 function AccountSection({ onChange }) {
-  const [acc, setAcc] = React.useState(() => JSON.parse(localStorage.getItem('mc:account') || '{}'));
-  const set = (k,v) => { const next = {...acc, [k]:v}; setAcc(next); localStorage.setItem('mc:account', JSON.stringify(next)); onChange(); };
+  const [acc, setAcc] = React.useState(() => window.stStorage.getSetting('account', {}));
+  const set = (k,v) => { const next = {...acc, [k]:v}; setAcc(next); window.stStorage.setSetting('account', next); onChange(); };
 
   const stats = [
     { k:'Plantillas guardadas', v:'24', icon:'mail' },
@@ -393,10 +654,16 @@ function AccountSection({ onChange }) {
     <>
       <SGroup title="Tu perfil">
         <SRow label="Nombre" hint="Aparece como remitente por defecto en los correos de prueba.">
-          <input className="field" value={acc.name||'Carmen Luna'} onChange={e=>set('name',e.target.value)}/>
+          <input className="field"
+            value={acc.name||''}
+            placeholder="Tu nombre"
+            onChange={e=>set('name',e.target.value)}/>
         </SRow>
         <SRow label="Correo" hint="Se usa como remitente por defecto en pruebas.">
-          <input className="field" type="email" value={acc.email||'carmen@estudio.com'} onChange={e=>set('email',e.target.value)}/>
+          <input className="field" type="email"
+            value={acc.email||''}
+            placeholder="tu@correo.com"
+            onChange={e=>set('email',e.target.value)}/>
         </SRow>
         <SRow label="Avatar" hint="Imagen local. Se muestra solo dentro de la app.">
           <div style={{display:'flex',gap:12,alignItems:'center'}}>
@@ -405,7 +672,7 @@ function AccountSection({ onChange }) {
               background:'linear-gradient(135deg,#5b5bf0,#8b5cf6)',
               color:'#fff',display:'grid',placeItems:'center',
               fontFamily:'var(--font-display)',fontWeight:700,fontSize:22,
-            }}>{(acc.name||'CL').split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase()}</div>
+            }}>{((acc.name||'').split(' ').map(s=>s[0]).slice(0,2).join('').toUpperCase()) || '?'}</div>
             <div className="col" style={{gap:4}}>
               <button className="btn sm"><I.upload size={12}/> Subir imagen</button>
               <button className="btn sm ghost" style={{color:'var(--fg-3)'}}>Quitar</button>
@@ -414,7 +681,7 @@ function AccountSection({ onChange }) {
         </SRow>
       </SGroup>
 
-      <SGroup title="Sobre Mailcraft">
+      <SGroup title="Sobre Simple Template">
         <div style={{
           padding:14, borderRadius:'var(--r-md)',
           background:'var(--surface-2)', border:'1px solid var(--line)',
@@ -430,7 +697,7 @@ function AccountSection({ onChange }) {
               Aplicación local, de código abierto
             </div>
             <p style={{fontSize:12.5,color:'var(--fg-2)',lineHeight:1.55,margin:0}}>
-              Mailcraft se ejecuta 100 % en tu equipo. Toda la información — plantillas, marca, credenciales — se guarda localmente.
+              Simple Template se ejecuta 100 % en tu equipo. Toda la información — plantillas, marca, credenciales — se guarda localmente.
               No hay planes, ni roles, ni servidores centrales: todas las personas que usan la app tienen acceso completo a todas las funciones.
             </p>
             <div style={{display:'flex',gap:8,marginTop:10,flexWrap:'wrap'}}>
@@ -473,20 +740,102 @@ function AccountSection({ onChange }) {
 }
 
 // ───────────────────────────── Storage ─────────────────────────────
+
+// Hook: loads a sensitive CDN field from workspace secrets on mount. If the
+// field is missing from secrets but present in the legacy plaintext config,
+// migrates it transparently. Mirrors the `AISection` API-key pattern.
+function useCDNSecret(provider, field) {
+  const [value, setValue] = React.useState('');
+  const [loaded, setLoaded] = React.useState(false);
+  React.useEffect(() => {
+    let alive = true;
+    setLoaded(false);
+    (async () => {
+      const wsKey = window.stStorage.secrets.wsKey(`cdn:${provider}:${field}`);
+      try {
+        const stored = await window.stStorage.secrets.get(wsKey);
+        if (!alive) return;
+        if (stored) { setValue(stored); setLoaded(true); return; }
+        // Legacy: older builds kept this inside the storage settings JSON.
+        // Move it to secrets and wipe the plaintext copy.
+        const legacy = (window.stStorage.getWSSetting('storage', {}) || {})?.[provider]?.[field];
+        if (legacy) {
+          try { await window.stStorage.secrets.set(wsKey, legacy); } catch {}
+          if (!alive) return;
+          setValue(legacy);
+          const cur = window.stStorage.getWSSetting('storage', {}) || {};
+          const next = { ...cur, [provider]: { ...(cur[provider] || {}) } };
+          delete next[provider][field];
+          window.stStorage.setWSSetting('storage', next);
+        }
+      } catch {}
+      if (alive) setLoaded(true);
+    })();
+    return () => { alive = false; };
+  }, [provider, field]);
+
+  const save = async (v) => {
+    setValue(v);
+    const wsKey = window.stStorage.secrets.wsKey(`cdn:${provider}:${field}`);
+    try {
+      if (v) await window.stStorage.secrets.set(wsKey, v);
+      else await window.stStorage.secrets.remove(wsKey);
+    } catch (err) {
+      console.error(`[cdn] save secret ${provider}.${field}`, err);
+    }
+  };
+
+  return [value, save, loaded];
+}
+
 function StorageSection({ onChange }) {
   const [s, setS] = React.useState(() => ({
     mode: 'base64',
-    s3: { endpoint:'https://s3.amazonaws.com', region:'us-east-1', bucket:'', key:'', secret:'', publicUrl:'' },
-    r2: { accountId:'', bucket:'', key:'', secret:'', publicUrl:'' },
-    cloudinary: { cloudName:'', uploadPreset:'', apiKey:'' },
-    imgbb: { apiKey:'' },
-    github: { repo:'', branch:'main', token:'', path:'assets/' },
-    ftp: { host:'', port:'21', user:'', password:'', path:'/public_html/img/', publicUrl:'' },
-    ...JSON.parse(localStorage.getItem('mc:storage') || '{}'),
+    s3: { endpoint:'https://s3.amazonaws.com', region:'us-east-1', bucket:'', key:'', publicUrl:'' },
+    r2: { accountId:'', bucket:'', key:'', publicUrl:'' },
+    cloudinary: { cloudName:'', uploadPreset:'' },
+    imgbb: {},
+    github: { repo:'', branch:'main', path:'assets/' },
+    ftp: { host:'', port:'21', user:'', path:'/public_html/img/', publicUrl:'' },
+    ...window.stStorage.getWSSetting('storage', {}),
   }));
-  const save = (next) => { setS(next); localStorage.setItem('mc:storage', JSON.stringify(next)); onChange(); };
+  const save = (next) => { setS(next); window.stStorage.setWSSetting('storage', next); onChange(); };
   const setMode = (mode) => save({...s, mode});
   const setField = (provider, k, v) => save({...s, [provider]: {...s[provider], [k]:v}});
+
+  // Sensitive fields live in safeStorage-encrypted secrets, one per (provider, field).
+  const [s3Secret, setS3Secret] = useCDNSecret('s3', 'secret');
+  const [imgbbKey, setImgbbKey] = useCDNSecret('imgbb', 'apiKey');
+  const [cloudinaryKey, setCloudinaryKey] = useCDNSecret('cloudinary', 'apiKey');
+  const [githubToken, setGithubToken] = useCDNSecret('github', 'token');
+  const [ftpPassword, setFtpPassword] = useCDNSecret('ftp', 'password');
+
+  // "Probar conexión" state per provider: idle | testing | ok | err (+ message).
+  const [testState, setTestState] = React.useState({});
+  const doTest = async (providerId) => {
+    setTestState(t => ({ ...t, [providerId]: { state: 'testing' } }));
+    try {
+      // Persist config first so stCDN can read fresh values.
+      const result = await window.stCDN.testConnection(providerId);
+      setTestState(t => ({
+        ...t,
+        [providerId]: result.ok
+          ? { state: 'ok', url: result.url }
+          : { state: 'err', msg: result.error || 'Falló la prueba.' },
+      }));
+    } catch (err) {
+      setTestState(t => ({ ...t, [providerId]: { state: 'err', msg: err?.message || 'Error desconocido.' } }));
+    }
+  };
+
+  const testIndicator = (providerId) => {
+    const t = testState[providerId];
+    if (!t) return null;
+    if (t.state === 'testing') return <span style={{fontSize:11,color:'var(--fg-3)'}}>Probando…</span>;
+    if (t.state === 'ok') return <span className="chip ok" style={{fontSize:10.5}}><I.check size={10}/> Subida OK</span>;
+    if (t.state === 'err') return <span style={{fontSize:11,color:'var(--danger)',lineHeight:1.4,flex:1}}>{t.msg}</span>;
+    return null;
+  };
 
   const providers = [
     { id:'base64',     name:'Base64 embebido',  tag:'Por defecto', icon:'code',     desc:'Incrusta las imágenes dentro del HTML del correo. Funciona sin configurar nada, pero algunos clientes las bloquean o limitan el tamaño.' },
@@ -522,7 +871,7 @@ function StorageSection({ onChange }) {
           <div style={{flex:1,minWidth:0}}>
             <p style={{fontSize:12.5,lineHeight:1.55,margin:0,color:'var(--fg-2)'}}>
               Los clientes de correo (Gmail, Outlook, Apple Mail) no muestran imágenes locales: necesitan una URL pública.
-              Elige dónde se subirán las imágenes de tus plantillas. Si no configuras nada, Mailcraft las incrustará en Base64 — funciona, pero con limitaciones.
+              Elige dónde se subirán las imágenes de tus plantillas. Si no configuras nada, Simple Template las incrustará en Base64 — funciona, pero con limitaciones.
             </p>
           </div>
         </div>
@@ -585,7 +934,7 @@ function StorageSection({ onChange }) {
         <SGroup title="Configuración · Base64">
           <div style={{padding:14,background:'var(--surface-2)',border:'1px solid var(--line)',borderRadius:'var(--r-md)'}}>
             <div style={{fontSize:12.5,color:'var(--fg-2)',lineHeight:1.6,marginBottom:10}}>
-              No hay nada que configurar. Mailcraft embeberá automáticamente cada imagen como un string Base64 dentro del HTML.
+              No hay nada que configurar. Simple Template embeberá automáticamente cada imagen como un string Base64 dentro del HTML.
             </div>
             <div style={{fontSize:11.5,color:'var(--fg-3)',lineHeight:1.6}}>
               <strong style={{color:'var(--fg-1)'}}>Limitaciones conocidas:</strong><br/>
@@ -594,7 +943,7 @@ function StorageSection({ onChange }) {
               · El peso total del correo aumenta ~33 % por la codificación.
             </div>
           </div>
-          <SRow label="Tamaño máximo por imagen" hint="Mailcraft te avisará antes de embeber imágenes más grandes que este límite.">
+          <SRow label="Tamaño máximo por imagen" hint="Simple Template te avisará antes de embeber imágenes más grandes que este límite.">
             <div style={{display:'flex',gap:8,alignItems:'center'}}>
               <input type="range" min="50" max="500" defaultValue="150" style={{flex:1}}/>
               <span className="chip" style={{minWidth:60,textAlign:'center'}}>150 KB</span>
@@ -628,14 +977,16 @@ function StorageSection({ onChange }) {
             <input className="field" value={s.s3.key} onChange={e=>setField('s3','key',e.target.value)} placeholder="AKIA…"/>
           </SRow>
           <SRow label="Secret Access Key" hint="Se guarda cifrada en tu equipo. Nunca sale de tu disco.">
-            <input className="field" type="password" value={s.s3.secret} onChange={e=>setField('s3','secret',e.target.value)} placeholder="••••••••••••••••"/>
+            <input className="field" type="password" value={s3Secret} onChange={e=>setS3Secret(e.target.value)} placeholder="••••••••••••••••"/>
           </SRow>
           <SRow label="URL pública base" hint="Opcional. Dominio desde el que se servirán las imágenes (ej: cdn.tudominio.com).">
             <input className="field" value={s.s3.publicUrl} onChange={e=>setField('s3','publicUrl',e.target.value)} placeholder="https://cdn.tudominio.com"/>
           </SRow>
-          <div style={{display:'flex',gap:8,marginTop:4}}>
-            <button className="btn"><I.check size={12}/> Probar conexión</button>
-            <button className="btn ghost"><I.external size={12}/> Ver guía</button>
+          <div style={{display:'flex',gap:8,marginTop:4,alignItems:'center',flexWrap:'wrap'}}>
+            <button className="btn" onClick={() => doTest('s3')} disabled={testState.s3?.state === 'testing'}>
+              <I.check size={12}/> Probar conexión
+            </button>
+            {testIndicator('s3')}
           </div>
         </SGroup>
       )}
@@ -646,14 +997,16 @@ function StorageSection({ onChange }) {
             <input className="field" value={s.cloudinary.cloudName} onChange={e=>setField('cloudinary','cloudName',e.target.value)} placeholder="mi-cuenta"/>
           </SRow>
           <SRow label="Upload preset" hint="Preset sin firma (Unsigned) configurado en Settings → Upload.">
-            <input className="field" value={s.cloudinary.uploadPreset} onChange={e=>setField('cloudinary','uploadPreset',e.target.value)} placeholder="mailcraft_unsigned"/>
+            <input className="field" value={s.cloudinary.uploadPreset} onChange={e=>setField('cloudinary','uploadPreset',e.target.value)} placeholder="simple_template_unsigned"/>
           </SRow>
           <SRow label="API key" hint="Opcional. Solo necesario si usas presets firmados.">
-            <input className="field" value={s.cloudinary.apiKey} onChange={e=>setField('cloudinary','apiKey',e.target.value)} placeholder="1234567890"/>
+            <input className="field" type="password" value={cloudinaryKey} onChange={e=>setCloudinaryKey(e.target.value)} placeholder="1234567890"/>
           </SRow>
-          <div style={{display:'flex',gap:8,marginTop:4}}>
-            <button className="btn"><I.check size={12}/> Probar conexión</button>
-            <button className="btn ghost"><I.external size={12}/> Crear cuenta gratuita</button>
+          <div style={{display:'flex',gap:8,marginTop:4,alignItems:'center',flexWrap:'wrap'}}>
+            <button className="btn" onClick={() => doTest('cloudinary')} disabled={testState.cloudinary?.state === 'testing'}>
+              <I.check size={12}/> Probar conexión
+            </button>
+            {testIndicator('cloudinary')}
           </div>
         </SGroup>
       )}
@@ -661,19 +1014,13 @@ function StorageSection({ onChange }) {
       {s.mode==='imgbb' && (
         <SGroup title="Configuración · imgbb">
           <SRow label="API key" hint="Obtén una clave gratuita en api.imgbb.com. Se guarda cifrada en tu equipo.">
-            <input className="field" type="password" value={s.imgbb.apiKey} onChange={e=>setField('imgbb','apiKey',e.target.value)} placeholder="••••••••••••••••"/>
+            <input className="field" type="password" value={imgbbKey} onChange={e=>setImgbbKey(e.target.value)} placeholder="••••••••••••••••"/>
           </SRow>
-          <SRow label="Expiración" hint="Tiempo antes de que las imágenes se eliminen automáticamente. 'Nunca' es lo recomendado para correos.">
-            <select className="field">
-              <option>Nunca expirar</option>
-              <option>180 días</option>
-              <option>90 días</option>
-              <option>30 días</option>
-            </select>
-          </SRow>
-          <div style={{display:'flex',gap:8,marginTop:4}}>
-            <button className="btn"><I.check size={12}/> Probar conexión</button>
-            <button className="btn ghost"><I.external size={12}/> Obtener API key</button>
+          <div style={{display:'flex',gap:8,marginTop:4,alignItems:'center',flexWrap:'wrap'}}>
+            <button className="btn" onClick={() => doTest('imgbb')} disabled={testState.imgbb?.state === 'testing'}>
+              <I.check size={12}/> Probar conexión
+            </button>
+            {testIndicator('imgbb')}
           </div>
         </SGroup>
       )}
@@ -681,7 +1028,7 @@ function StorageSection({ onChange }) {
       {s.mode==='github' && (
         <SGroup title="Configuración · GitHub Pages">
           <SRow label="Repositorio" hint="Formato usuario/repo. Debe tener GitHub Pages habilitado.">
-            <input className="field" value={s.github.repo} onChange={e=>setField('github','repo',e.target.value)} placeholder="mi-usuario/mailcraft-assets"/>
+            <input className="field" value={s.github.repo} onChange={e=>setField('github','repo',e.target.value)} placeholder="mi-usuario/simple-template-assets"/>
           </SRow>
           <SRow label="Rama" hint="Rama donde se harán los commits.">
             <input className="field" value={s.github.branch} onChange={e=>setField('github','branch',e.target.value)} placeholder="main"/>
@@ -689,51 +1036,56 @@ function StorageSection({ onChange }) {
           <SRow label="Carpeta destino" hint="Ruta relativa dentro del repo donde se subirán las imágenes.">
             <input className="field" value={s.github.path} onChange={e=>setField('github','path',e.target.value)} placeholder="assets/img/"/>
           </SRow>
-          <SRow label="Personal Access Token" hint="Token con permiso 'repo'. Se guarda cifrado en tu equipo.">
-            <input className="field" type="password" value={s.github.token} onChange={e=>setField('github','token',e.target.value)} placeholder="ghp_••••••••••••"/>
+          <SRow label="Personal Access Token" hint="Token con permiso 'repo' (o fine-grained 'contents:write'). Se guarda cifrado en tu equipo.">
+            <input className="field" type="password" value={githubToken} onChange={e=>setGithubToken(e.target.value)} placeholder="ghp_••••••••••••"/>
           </SRow>
-          <div style={{display:'flex',gap:8,marginTop:4}}>
-            <button className="btn"><I.check size={12}/> Probar conexión</button>
-            <button className="btn ghost"><I.external size={12}/> Generar token</button>
+          <SRow label="URL pública base (opcional)" hint="Dominio desde el que se servirán las imágenes. Si no lo pones, se usa la URL cruda de GitHub.">
+            <input className="field" value={s.github.publicUrl||''} onChange={e=>setField('github','publicUrl',e.target.value)} placeholder="https://miusuario.github.io/mi-repo/assets"/>
+          </SRow>
+          <div style={{display:'flex',gap:8,marginTop:4,alignItems:'center',flexWrap:'wrap'}}>
+            <button className="btn" onClick={() => doTest('github')} disabled={testState.github?.state === 'testing'}>
+              <I.check size={12}/> Probar conexión
+            </button>
+            {testIndicator('github')}
           </div>
         </SGroup>
       )}
 
       {s.mode==='ftp' && (
-        <SGroup title="Configuración · FTP / SFTP">
-          <SRow label="Host" hint="Dirección del servidor (ej: ftp.tudominio.com).">
+        <SGroup title="Configuración · FTP / FTPS">
+          <SRow label="Host" hint="Dirección del servidor (ej: ftp.tudominio.com). SFTP (SSH) no está soportado — usá FTP o FTPS.">
             <input className="field" value={s.ftp.host} onChange={e=>setField('ftp','host',e.target.value)} placeholder="ftp.tudominio.com"/>
           </SRow>
-          <SRow label="Puerto" hint="21 para FTP, 22 para SFTP.">
+          <SRow label="Puerto" hint="21 para FTP normal, 990 para FTPS implícito.">
             <input className="field" value={s.ftp.port} onChange={e=>setField('ftp','port',e.target.value)} placeholder="21"/>
+          </SRow>
+          <SRow label="Usar FTPS (TLS)" hint="Activá si el servidor requiere conexión cifrada.">
+            <Switch checked={!!s.ftp.secure} onChange={v=>setField('ftp','secure',v)}/>
           </SRow>
           <SRow label="Usuario" hint="Nombre de usuario con permiso de escritura en la carpeta destino.">
             <input className="field" value={s.ftp.user} onChange={e=>setField('ftp','user',e.target.value)} placeholder="mi-usuario"/>
           </SRow>
           <SRow label="Contraseña" hint="Se guarda cifrada en tu equipo.">
-            <input className="field" type="password" value={s.ftp.password} onChange={e=>setField('ftp','password',e.target.value)} placeholder="••••••••••••"/>
+            <input className="field" type="password" value={ftpPassword} onChange={e=>setFtpPassword(e.target.value)} placeholder="••••••••••••"/>
           </SRow>
           <SRow label="Carpeta destino" hint="Ruta absoluta en el servidor donde se subirán las imágenes.">
             <input className="field" value={s.ftp.path} onChange={e=>setField('ftp','path',e.target.value)} placeholder="/public_html/img/"/>
           </SRow>
-          <SRow label="URL pública base" hint="Dominio desde el que se servirán las imágenes.">
+          <SRow label="URL pública base" hint="Dominio desde el que se servirán las imágenes. Requerido.">
             <input className="field" value={s.ftp.publicUrl} onChange={e=>setField('ftp','publicUrl',e.target.value)} placeholder="https://tudominio.com/img/"/>
           </SRow>
-          <div style={{display:'flex',gap:8,marginTop:4}}>
-            <button className="btn"><I.check size={12}/> Probar conexión</button>
+          <div style={{display:'flex',gap:8,marginTop:4,alignItems:'center',flexWrap:'wrap'}}>
+            <button className="btn" onClick={() => doTest('ftp')} disabled={testState.ftp?.state === 'testing'}>
+              <I.check size={12}/> Probar conexión
+            </button>
+            {testIndicator('ftp')}
           </div>
         </SGroup>
       )}
 
       <SGroup title="Comportamiento">
-        <SRow label="Optimizar imágenes antes de subir" hint="Convierte a WebP y reduce resolución a máx 1440px de ancho.">
-          <label className="switch"><input type="checkbox" defaultChecked/><span/></label>
-        </SRow>
-        <SRow label="Reemplazar imágenes locales al exportar" hint="Al exportar el HTML, las rutas file:// se reemplazan por las URLs públicas.">
-          <label className="switch"><input type="checkbox" defaultChecked/><span/></label>
-        </SRow>
-        <SRow label="Limpiar imágenes no usadas" hint="Busca y elimina del CDN imágenes que ya no están referenciadas en ninguna plantilla.">
-          <button className="btn sm"><I.trash size={12}/> Limpiar ahora</button>
+        <SRow label="Optimizar imágenes antes de subir" hint="Reduce a máx 2000px y re-comprime a WebP (o mantiene PNG si tiene transparencia). Ahorra ancho de banda y tamaño del correo.">
+          <Switch checked={s.optimize === true} onChange={v => save({...s, optimize: v})}/>
         </SRow>
       </SGroup>
     </>
@@ -741,36 +1093,100 @@ function StorageSection({ onChange }) {
 }
 
 // ───────────────────────────── Brand ─────────────────────────────
+// Single swatch with native color picker + remove-on-hover. Used by BrandSection.
+function ColorSwatch({ value, onChange, onRemove }) {
+  const inputRef = React.useRef(null);
+  const [hover, setHover] = React.useState(false);
+  return (
+    <div
+      style={{position:'relative'}}
+      onMouseEnter={()=>setHover(true)}
+      onMouseLeave={()=>setHover(false)}
+    >
+      <div
+        onClick={()=>inputRef.current?.click()}
+        title="Cambiar color"
+        style={{
+          width:40,height:40,borderRadius:'var(--r-sm)',
+          background:value,
+          border:'1px solid var(--line)',
+          cursor:'pointer',
+        }}
+      />
+      <input
+        ref={inputRef}
+        type="color"
+        value={value}
+        onChange={e=>onChange(e.target.value)}
+        style={{position:'absolute',inset:0,opacity:0,pointerEvents:'none',width:0,height:0}}
+        aria-hidden="true"
+      />
+      <div style={{fontSize:10,color:'var(--fg-3)',fontFamily:'var(--font-mono)',textAlign:'center',marginTop:4}}>{value}</div>
+      {onRemove && hover && (
+        <button
+          onClick={(e)=>{ e.stopPropagation(); onRemove(); }}
+          title="Eliminar color"
+          aria-label="Eliminar color"
+          style={{
+            position:'absolute',top:-6,right:-6,
+            width:18,height:18,borderRadius:'50%',
+            background:'#e04f4f',color:'#fff',border:'none',
+            display:'grid',placeItems:'center',cursor:'pointer',
+            fontSize:12,lineHeight:1,padding:0,
+            boxShadow:'0 1px 4px rgba(0,0,0,.25)',
+          }}>×</button>
+      )}
+    </div>
+  );
+}
+
 function BrandSection({ onChange }) {
-  const [brand, setBrand] = React.useState(() => JSON.parse(localStorage.getItem('mc:brand') || '{}'));
-  const set = (k,v) => { const n = {...brand, [k]:v}; setBrand(n); localStorage.setItem('mc:brand', JSON.stringify(n)); onChange(); };
+  const [brand, setBrand] = React.useState(() => window.stStorage.getWSSetting('brand', {}));
+  const set = (k,v) => { const n = {...brand, [k]:v}; setBrand(n); window.stStorage.setWSSetting('brand', n); onChange(); };
 
   const colors = brand.colors || ['#5b5bf0','#1a1a2e','#f6f5f1','#e8eddd','#d97757'];
   const fonts  = ['Inter','Söhne','Fraunces','DM Serif Display','Instrument Serif','Playfair Display','Space Grotesk','IBM Plex Sans'];
 
+  const addRef = React.useRef(null);
+  const setColors = (next) => set('colors', next);
+  const updateColorAt = (i, v) => setColors(colors.map((c, ci) => ci===i ? v : c));
+  const removeColorAt = (i) => setColors(colors.filter((_, ci) => ci !== i));
+  const appendColor = (v) => setColors([...colors, v]);
+
   return (
     <>
       <SGroup title="Identidad visual">
-        <SRow label="Paleta de colores" hint="Los primeros 5 aparecen en el editor como accesos rápidos.">
-          <div style={{display:'flex',flexWrap:'wrap',gap:8,alignItems:'center'}}>
-            {colors.map((c,i) => (
-              <div key={i} style={{position:'relative'}}>
-                <div style={{
-                  width:40,height:40,borderRadius:'var(--r-sm)',
-                  background:c,
-                  border:'1px solid var(--line)',
-                  cursor:'pointer',
-                }}/>
-                <div style={{fontSize:10,color:'var(--fg-3)',fontFamily:'var(--font-mono)',textAlign:'center',marginTop:4}}>{c}</div>
-              </div>
+        <SRow label="Paleta de colores" hint="Los primeros 5 aparecen en el editor como accesos rápidos. Pasa el mouse sobre uno para borrarlo, o haz clic para cambiarlo.">
+          <div style={{display:'flex',flexWrap:'wrap',gap:10,alignItems:'flex-start',paddingTop:6}}>
+            {colors.map((c, i) => (
+              <ColorSwatch
+                key={i}
+                value={c}
+                onChange={(v)=>updateColorAt(i, v)}
+                onRemove={colors.length > 1 ? ()=>removeColorAt(i) : null}
+              />
             ))}
-            <button style={{
-              width:40,height:40,borderRadius:'var(--r-sm)',
-              border:'1px dashed var(--line)',
-              background:'transparent',
-              color:'var(--fg-3)',cursor:'pointer',
-              display:'grid',placeItems:'center',
-            }}><I.plus size={14}/></button>
+            <div style={{position:'relative'}}>
+              <button
+                onClick={()=>addRef.current?.click()}
+                title="Añadir color"
+                aria-label="Añadir color"
+                style={{
+                  width:40,height:40,borderRadius:'var(--r-sm)',
+                  border:'1px dashed var(--line)',
+                  background:'transparent',
+                  color:'var(--fg-3)',cursor:'pointer',
+                  display:'grid',placeItems:'center',
+                }}><I.plus size={14}/></button>
+              <input
+                ref={addRef}
+                type="color"
+                defaultValue="#888888"
+                onChange={e=>appendColor(e.target.value)}
+                style={{position:'absolute',inset:0,opacity:0,pointerEvents:'none',width:0,height:0}}
+                aria-hidden="true"
+              />
+            </div>
           </div>
         </SRow>
 
@@ -805,13 +1221,22 @@ function BrandSection({ onChange }) {
 
       <SGroup title="Footer legal (requerido por ley)">
         <SRow label="Dirección física" hint="CAN-SPAM / RGPD exigen una dirección postal real en todos los correos comerciales.">
-          <textarea className="field" rows="2" placeholder="Ej. Acme SA · Av. Reforma 123, CDMX 06600, México" defaultValue={brand.address||'Acme SA · Av. Reforma 123, CDMX 06600'}/>
+          <textarea className="field" rows="2"
+            placeholder="Ej. Acme SA · Av. Reforma 123, CDMX 06600, México"
+            value={brand.address || ''}
+            onChange={e=>set('address', e.target.value)}/>
         </SRow>
         <SRow label="Enlace de baja" hint="URL a la que lleva el botón 'Darme de baja' en el footer.">
-          <input className="field" placeholder="https://acme.com/unsubscribe" defaultValue={brand.unsubscribe||'https://acme.com/baja'}/>
+          <input className="field"
+            placeholder="https://acme.com/unsubscribe"
+            value={brand.unsubscribe || ''}
+            onChange={e=>set('unsubscribe', e.target.value)}/>
         </SRow>
         <SRow label="Texto del footer" hint="Aparece debajo del botón de baja en todos los envíos.">
-          <textarea className="field" rows="3" defaultValue={brand.footer||'Recibes este correo porque te suscribiste en acme.com. Puedes actualizar tus preferencias o darte de baja cuando quieras.'}/>
+          <textarea className="field" rows="3"
+            placeholder="Recibes este correo porque te suscribiste en acme.com. Puedes actualizar tus preferencias o darte de baja cuando quieras."
+            value={brand.footer || ''}
+            onChange={e=>set('footer', e.target.value)}/>
         </SRow>
       </SGroup>
     </>
@@ -826,8 +1251,8 @@ function DeliveryInner() {
 
 // ───────────────────────────── Editor ─────────────────────────────
 function EditorSection({ onChange }) {
-  const [ed, setEd] = React.useState(() => JSON.parse(localStorage.getItem('mc:editor') || '{}'));
-  const set = (k,v) => { const n = {...ed, [k]:v}; setEd(n); localStorage.setItem('mc:editor', JSON.stringify(n)); onChange(); };
+  const [ed, setEd] = React.useState(() => window.stStorage.getWSSetting('editor', {}));
+  const set = (k,v) => { const n = {...ed, [k]:v}; setEd(n); window.stStorage.setWSSetting('editor', n); onChange(); };
 
   const Seg = ({value, options, onPick}) => (
     <div style={{display:'inline-flex',background:'var(--surface-2)',padding:3,borderRadius:'var(--r-sm)',gap:2,border:'1px solid var(--line)'}}>
@@ -850,6 +1275,7 @@ function EditorSection({ onChange }) {
 
   return (
     <>
+      <SoonBanner msg="Las preferencias del editor se guardan en este espacio, pero el editor aún no las consulta. Está en cola para una próxima versión."/>
       <SGroup title="Apariencia">
         <SRow label="Tema" hint="Claro, oscuro o sincronizado con el sistema operativo.">
           <Seg value={ed.theme||'system'} onPick={v=>set('theme',v)} options={[
@@ -930,15 +1356,28 @@ function EditorSection({ onChange }) {
 
 // ───────────────────────────── Variables ─────────────────────────────
 function VariablesSection({ onChange }) {
-  const [vars, setVars] = React.useState(() => JSON.parse(localStorage.getItem('mc:vars') || 'null') || VARIABLES);
-  const save = (next) => { setVars(next); localStorage.setItem('mc:vars', JSON.stringify(next)); onChange(); };
+  const [vars, setVars] = React.useState(() => window.stStorage.getWSSetting('vars', null) || VARIABLES);
+  const save = (next) => { setVars(next); window.stStorage.setWSSetting('vars', next); onChange(); };
   const setVal = (i,v) => save(vars.map((x,j)=>j===i?{...x,sample:v}:x));
 
   return (
     <>
-      <SGroup title="Valores de ejemplo para el preview">
+      <div style={{
+        padding:'10px 14px',marginBottom:18,
+        borderRadius:'var(--r-md)',
+        background:'var(--accent-soft)',
+        border:'1px solid color-mix(in oklab, var(--accent) 30%, var(--line))',
+        display:'flex',gap:10,alignItems:'flex-start',
+        fontSize:12,lineHeight:1.55,color:'var(--fg-2)',
+      }}>
+        <I.info size={14} style={{color:'var(--accent)',flexShrink:0,marginTop:1}}/>
+        <div>
+          <b style={{color:'var(--fg-1)'}}>Defaults para plantillas nuevas.</b> Cada plantilla nueva hereda esta lista. Cambiarla aquí NO afecta a las que ya existen — esas se editan con el botón «Etiquetas» del editor.
+        </div>
+      </div>
+      <SGroup title="Etiquetas que heredan las plantillas nuevas">
         <div style={{fontSize:12.5,color:'var(--fg-2)',lineHeight:1.55,paddingBottom:16}}>
-          Estos valores sustituyen las variables <code style={{fontFamily:'var(--font-mono)',fontSize:11.5,background:'var(--surface-2)',padding:'1px 6px',borderRadius:4}}>{'{{nombre}}'}</code> cuando ves el preview o envías una prueba. En envíos reales se reemplazan por los datos de cada destinatario.
+          Cuando creas una plantilla, se le copia esta lista. Desde ahí cada plantilla evoluciona independiente.
         </div>
         <div style={{border:'1px solid var(--line)',borderRadius:'var(--r-md)',overflow:'hidden'}}>
           {vars.map((v,i) => (
@@ -962,11 +1401,12 @@ function VariablesSection({ onChange }) {
 
 // ───────────────────────────── Export ─────────────────────────────
 function ExportSection({ onChange }) {
-  const [ex, setEx] = React.useState(() => JSON.parse(localStorage.getItem('mc:export') || '{}'));
-  const set = (k,v) => { const n = {...ex, [k]:v}; setEx(n); localStorage.setItem('mc:export', JSON.stringify(n)); onChange(); };
+  const [ex, setEx] = React.useState(() => window.stStorage.getWSSetting('export', {}));
+  const set = (k,v) => { const n = {...ex, [k]:v}; setEx(n); window.stStorage.setWSSetting('export', n); onChange(); };
 
   return (
     <>
+      <SoonBanner msg="La preferencia de formato de exportación se guarda en este espacio, pero el flujo de exportar todavía es mock. Está en cola para una próxima versión."/>
       <SGroup title="Formato por defecto">
         <SRow label="Formato de descarga" hint="Se usa al elegir 'Exportar' sin abrir el modal.">
           <div className="col" style={{gap:6}}>
@@ -1015,8 +1455,8 @@ function ExportSection({ onChange }) {
 
 // ───────────────────────────── Notifications ─────────────────────────────
 function NotifSection({ onChange }) {
-  const [n, setN] = React.useState(() => JSON.parse(localStorage.getItem('mc:notif') || '{}'));
-  const set = (k,v) => { const nn = {...n, [k]:v}; setN(nn); localStorage.setItem('mc:notif', JSON.stringify(nn)); onChange(); };
+  const [n, setN] = React.useState(() => window.stStorage.getWSSetting('notif', {}));
+  const set = (k,v) => { const nn = {...n, [k]:v}; setN(nn); window.stStorage.setWSSetting('notif', nn); onChange(); };
 
   const Switch = ({k, def=true}) => (
     <label className="switch"><input type="checkbox" defaultChecked={n[k]!==false && (n[k]===undefined?def:n[k])} onChange={e=>set(k,e.target.checked)}/><span/></label>
@@ -1024,9 +1464,10 @@ function NotifSection({ onChange }) {
 
   return (
     <>
+      <SoonBanner msg="«Recordar autoguardado», «Aviso de exportación lista» y «Resultado del envío de prueba» ya respetan tu preferencia. El resto (imagen pesada, sonidos, actualizaciones, beta) se guardan en este espacio pero todavía no se aplican."/>
       <SGroup title="Avisos dentro de la app">
-        <SRow label="Recordar autoguardado" hint="Te avisa en la esquina inferior cada vez que Mailcraft guarda tu trabajo automáticamente.">
-          <Switch k="saved"/>
+        <SRow label="Recordar autoguardado" hint="Te avisa en la esquina inferior cada vez que Simple Template guarda tu trabajo automáticamente. Apagado por defecto porque puede ser ruidoso si editas mucho.">
+          <Switch k="saved" def={false}/>
         </SRow>
         <SRow label="Aviso de imagen muy pesada" hint="Cuando arrastras una imagen mayor al límite recomendado para correo.">
           <Switch k="heavyImg"/>
@@ -1049,7 +1490,7 @@ function NotifSection({ onChange }) {
       </SGroup>
 
       <SGroup title="Actualizaciones">
-        <SRow label="Avisarme cuando haya una versión nueva" hint="Mailcraft revisa GitHub una vez al día. La descarga es siempre manual.">
+        <SRow label="Avisarme cuando haya una versión nueva" hint="Simple Template revisa GitHub una vez al día. La descarga es siempre manual.">
           <Switch k="updates"/>
         </SRow>
         <SRow label="Incluir versiones beta" hint="Recibe avisos de releases con el tag 'beta' o 'rc'. Pueden tener errores.">
@@ -1062,18 +1503,117 @@ function NotifSection({ onChange }) {
 
 // ───────────────────────────── IA ─────────────────────────────
 function AISection({ onChange }) {
-  const [ai, setAi] = React.useState(() => JSON.parse(localStorage.getItem('mc:ai') || '{}'));
-  const set = (k,v) => { const next = {...ai, [k]:v}; setAi(next); localStorage.setItem('mc:ai', JSON.stringify(next)); onChange(); };
+  const [ai, setAi] = React.useState(() => window.stStorage.getSetting('ai', {}));
+  const set = (k,v) => { const next = {...ai, [k]:v}; setAi(next); window.stStorage.setSetting('ai', next); onChange(); };
 
+  // Model lists intentionally not hardcoded — they rot. Models are fetched
+  // live from each provider's /models endpoint (or Ollama's /api/tags) via
+  // stAI.listModels, with a free-text input so the user can always type a
+  // newly-released model name we don't know about yet.
   const PROVIDERS = [
-    { id:'anthropic', name:'Anthropic Claude', models:['claude-sonnet-4-5','claude-opus-4-1','claude-haiku-4-5'], hint:'Mejores resultados para copy y HTML.', url:'https://console.anthropic.com' },
-    { id:'openai',    name:'OpenAI',           models:['gpt-5','gpt-5-mini','gpt-4.1'],                          hint:'Versátil y con buen ecosistema.',       url:'https://platform.openai.com' },
-    { id:'google',    name:'Google Gemini',    models:['gemini-2.5-pro','gemini-2.5-flash'],                     hint:'Generoso con tokens; rápido.',         url:'https://aistudio.google.com' },
-    { id:'ollama',    name:'Ollama (local)',   models:['llama3.3','qwen2.5-coder','mistral-nemo'],               hint:'Corre en tu máquina. Sin API key.',    url:'http://localhost:11434' },
+    { id:'anthropic', name:'Anthropic Claude', hint:'Mejores resultados para copy y HTML.', url:'https://console.anthropic.com' },
+    { id:'openai',    name:'OpenAI',           hint:'Versátil y con buen ecosistema.',       url:'https://platform.openai.com' },
+    { id:'google',    name:'Google Gemini',    hint:'Generoso con tokens; rápido.',          url:'https://aistudio.google.com' },
+    { id:'ollama',    name:'Ollama (local)',   hint:'Corre en tu máquina. Sin API key.',     url:'http://localhost:11434' },
   ];
   const provider = PROVIDERS.find(p => p.id === (ai.provider||'anthropic'));
   const enabled = ai.enabled !== false;
-  const keyOk = !!ai.key && ai.key.length > 15;
+
+  // API key lives in workspace secrets (encrypted via safeStorage), keyed per
+  // provider so switching providers doesn't clobber another's key. The flag
+  // `ai.keyConfigured` is the public signal other UIs (dashboard, editor)
+  // read to decide whether to enable the AI buttons — the actual key never
+  // leaves this section unless explicitly loaded.
+  const [apiKey, setApiKey] = React.useState('');
+  const [apiKeyLoaded, setApiKeyLoaded] = React.useState(false);
+  const keyOk = !!apiKey && apiKey.length > 15;
+
+  React.useEffect(() => {
+    let alive = true;
+    setApiKeyLoaded(false);
+    (async () => {
+      const secretKey = `ai:${provider.id}:key`;
+      try {
+        const stored = await window.stStorage.secrets.get(secretKey);
+        if (!alive) return;
+        // Legacy migration: if older builds left the key inside ai.key, move
+        // it to secrets the first time we see it.
+        if (!stored && ai.key) {
+          await window.stStorage.secrets.set(secretKey, ai.key);
+          if (!alive) return;
+          setApiKey(ai.key);
+          const next = { ...ai };
+          delete next.key;
+          next.keyConfigured = ai.key.length > 15;
+          setAi(next);
+          window.stStorage.setSetting('ai', next);
+        } else {
+          setApiKey(stored || '');
+        }
+      } catch {}
+      if (alive) setApiKeyLoaded(true);
+    })();
+    return () => { alive = false; };
+  }, [provider.id]);
+
+  const setApiKeyValue = async (value) => {
+    setApiKey(value);
+    const secretKey = `ai:${provider.id}:key`;
+    try {
+      if (value) await window.stStorage.secrets.set(secretKey, value);
+      else await window.stStorage.secrets.remove(secretKey);
+    } catch (err) {
+      console.error('[ai] save key', err);
+    }
+    const next = { ...ai, keyConfigured: !!value && value.length > 15 };
+    setAi(next);
+    window.stStorage.setSetting('ai', next);
+    onChange();
+  };
+
+  // Live-fetched models from the provider's /models endpoint. We never
+  // hardcode a list because providers (Anthropic, OpenAI, Google) ship new
+  // models constantly and Ollama models are whatever the user has pulled
+  // locally. The input is free-text so the user can always type a model
+  // name we don't know about yet.
+  const [models, setModels] = React.useState([]);
+  const [modelsLoading, setModelsLoading] = React.useState(false);
+  const [modelsError, setModelsError] = React.useState(null);
+
+  const refreshModels = async () => {
+    setModelsLoading(true);
+    setModelsError(null);
+    try {
+      const result = await window.stAI.listModels(provider.id);
+      if (result.ok) {
+        setModels(result.models || []);
+        if ((result.models || []).length === 0 && provider.id === 'ollama') {
+          setModelsError('No hay modelos instalados. Descargá uno con "ollama pull llama3.3" en tu terminal.');
+        }
+      } else {
+        setModels([]);
+        setModelsError(result.error);
+      }
+    } catch (err) {
+      setModels([]);
+      setModelsError(err?.message || 'Error inesperado al listar modelos.');
+    } finally {
+      setModelsLoading(false);
+    }
+  };
+
+  // Auto-fetch when provider or key availability changes. Only after the
+  // initial key load settles — avoids duplicate fetches on first mount.
+  React.useEffect(() => {
+    if (!apiKeyLoaded) return;
+    const canFetch = provider.id === 'ollama' || !!apiKey;
+    if (!canFetch) {
+      setModels([]);
+      setModelsError(null);
+      return;
+    }
+    refreshModels();
+  }, [provider.id, apiKeyLoaded]);
 
   const Switch = ({checked, onChange:oc}) => (
     <label className="switch"><input type="checkbox" checked={!!checked} onChange={e=>oc(e.target.checked)}/><span/></label>
@@ -1094,7 +1634,7 @@ function AISection({ onChange }) {
         <div>
           <div style={{fontSize:13,fontWeight:500}}>Generar y mejorar plantillas con IA</div>
           <div style={{fontSize:11.5,color:'var(--fg-3)',marginTop:2,lineHeight:1.5}}>
-            {enabled && keyOk ? <>Activo con <b style={{color:'var(--fg)'}}>{provider.name}</b> · modelo <b style={{color:'var(--fg)'}}>{ai.model||provider.models[0]}</b></> :
+            {enabled && keyOk ? <>Activo con <b style={{color:'var(--fg)'}}>{provider.name}</b>{ai.model ? <> · modelo <b style={{color:'var(--fg)'}}>{ai.model}</b></> : null}</> :
              enabled && !keyOk ? <>Te falta añadir la API key de <b style={{color:'var(--fg)'}}>{provider.name}</b> para poder usarla.</> :
              <>Desactivada. Activa el interruptor para usar “✨ Generar con IA” y “✨ Mejorar”.</>}
           </div>
@@ -1102,7 +1642,7 @@ function AISection({ onChange }) {
         <Switch checked={enabled} onChange={v=>set('enabled',v)}/>
       </div>
 
-      <SGroup title="Proveedor y modelo">
+      <SGroup title="Proveedor">
         <SRow label="Proveedor" hint="Elige el servicio que quieres usar. Puedes cambiarlo cuando quieras; las API keys se guardan por separado.">
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
             {PROVIDERS.map(p => {
@@ -1125,18 +1665,20 @@ function AISection({ onChange }) {
             })}
           </div>
         </SRow>
-        <SRow label="Modelo" hint={`Modelos disponibles en ${provider.name}. Los más grandes dan mejor copy; los pequeños son más rápidos y baratos.`}>
-          <select className="field" value={ai.model||provider.models[0]} onChange={e=>set('model', e.target.value)}>
-            {provider.models.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-        </SRow>
       </SGroup>
 
       <SGroup title="Credenciales">
         {provider.id !== 'ollama' && (
           <SRow label="API key" hint={<>Se guarda cifrada en tu disco local. Nunca se envía a ningún servidor salvo al del propio proveedor. <a href={provider.url} target="_blank" rel="noreferrer" style={{color:'var(--accent)'}}>Conseguir una en {provider.name} →</a></>}>
             <div style={{display:'flex',gap:6,alignItems:'center'}}>
-              <input className="field" type="password" value={ai.key||''} onChange={e=>set('key',e.target.value)} placeholder={provider.id==='anthropic'?'sk-ant-…':provider.id==='openai'?'sk-…':'AIza…'} style={{flex:1,fontFamily:'var(--font-mono)',fontSize:12}}/>
+              <input
+                className="field"
+                type="password"
+                value={apiKey}
+                onChange={e=>setApiKeyValue(e.target.value)}
+                disabled={!apiKeyLoaded}
+                placeholder={provider.id==='anthropic'?'sk-ant-…':provider.id==='openai'?'sk-…':'AIza…'}
+                style={{flex:1,fontFamily:'var(--font-mono)',fontSize:12}}/>
               {keyOk && <span className="chip ok" style={{fontSize:10.5}}><I.check size={10}/> Válida</span>}
             </div>
           </SRow>
@@ -1154,6 +1696,70 @@ function AISection({ onChange }) {
           </div>
         </SRow>
       </SGroup>
+
+      {/* Model picker hidden until credentials are in place. For password
+          providers we gate on keyOk (len > 15); Ollama has no key so always
+          shows once the group renders. Avoids showing an empty/failing
+          picker before the user has set up access. */}
+      {(keyOk || provider.id === 'ollama') && (
+        <SGroup title="Modelo">
+          <SRow label="Modelo" hint={`Los modelos disponibles se actualizan contra ${provider.name}. Podés tipear el nombre de uno nuevo aunque no aparezca en la lista.`}>
+            <div>
+              <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                <input
+                  className="field"
+                  list={`ai-models-${provider.id}`}
+                  value={ai.model || ''}
+                  onChange={e => set('model', e.target.value)}
+                  placeholder={provider.id === 'ollama' ? 'llama3.3' : provider.id === 'anthropic' ? 'claude-sonnet-4-5' : provider.id === 'openai' ? 'gpt-4.1' : 'gemini-2.5-flash'}
+                  style={{flex:1, fontFamily:'var(--font-mono)', fontSize:12}}/>
+                <button
+                  type="button"
+                  className="btn sm ghost"
+                  onClick={refreshModels}
+                  disabled={modelsLoading}
+                  title="Refrescar lista de modelos">
+                  {modelsLoading ? 'Cargando…' : 'Refrescar'}
+                </button>
+              </div>
+              <datalist id={`ai-models-${provider.id}`}>
+                {models.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}{m.createdAt ? ` · ${String(m.createdAt).slice(0,10)}` : ''}
+                  </option>
+                ))}
+              </datalist>
+              {modelsError && (
+                <div style={{fontSize:11,color:'var(--fg-3)',marginTop:6,lineHeight:1.4}}>
+                  {modelsError} Podés tipear el nombre igual si ya lo conocés.
+                </div>
+              )}
+              {!modelsError && !modelsLoading && models.length > 0 && (
+                <div style={{marginTop:8,display:'flex',flexWrap:'wrap',gap:4}}>
+                  {models.map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => set('model', m.id)}
+                      title={m.createdAt ? `Disponible desde ${String(m.createdAt).slice(0,10)}` : m.id}
+                      style={{
+                        fontSize:10.5,padding:'3px 8px',
+                        fontFamily:'var(--font-mono)',
+                        border: ai.model === m.id ? '1px solid var(--accent)' : '1px solid var(--line)',
+                        borderRadius:999,
+                        background: ai.model === m.id ? 'var(--accent-soft)' : 'var(--surface)',
+                        color: ai.model === m.id ? 'var(--accent)' : 'var(--fg-2)',
+                        cursor:'pointer',
+                      }}>
+                      {m.id}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </SRow>
+        </SGroup>
+      )}
 
       <SGroup title="¿Para qué usarla?">
         <SRow label="Generar plantillas desde un prompt" hint="Activa el botón ✨ Generar con IA en la galería. Describes el correo en lenguaje natural y la IA arma los bloques por ti.">
@@ -1199,14 +1805,182 @@ function AISection({ onChange }) {
         <SRow label="No mandar mi contenido si contiene datos sensibles" hint="Detecta patrones de tarjetas, RFC, CURP, correos privados, y bloquea el envío automáticamente.">
           <Switch checked={ai.pii!==false} onChange={v=>set('pii',v)}/>
         </SRow>
-        <SRow label="Registrar las conversaciones con la IA" hint="Guarda el prompt y la respuesta en un historial local, por si quieres revisarlos. Nunca se suben a la nube.">
+        <SRow label="Registrar las conversaciones con la IA" hint="Guarda el prompt y la respuesta en un historial local por espacio, por si querés revisarlos. Nunca se suben a la nube.">
           <Switch checked={!!ai.log} onChange={v=>set('log',v)}/>
         </SRow>
-        <SRow label="Borrar historial de IA" hint="Elimina todos los prompts y respuestas guardados. No afecta las plantillas generadas." danger>
-          <button className="btn sm" style={{color:'var(--danger)'}}><I.trash size={12}/> Borrar 14 conversaciones</button>
-        </SRow>
       </SGroup>
+
+      {ai.log && <AIHistoryGroup/>}
     </>
+  );
+}
+
+// Workspace-scoped AI history viewer. Only renders when ai.log is on.
+// Keeps the last 500 prompts+responses per workspace in SQLite (pruned
+// automatically on insert). Never touches the network.
+function AIHistoryGroup() {
+  const [entries, setEntries] = React.useState([]);
+  const [count, setCount] = React.useState(0);
+  const [loading, setLoading] = React.useState(false);
+  const [expanded, setExpanded] = React.useState(null);
+  const [confirmClear, setConfirmClear] = React.useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [rows, total] = await Promise.all([
+        window.stAI.log.list({ limit: 50 }),
+        window.stAI.log.count(),
+      ]);
+      setEntries(rows);
+      setCount(total);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => { load(); }, []);
+
+  const doClear = async () => {
+    await window.stAI.log.clear();
+    setConfirmClear(false);
+    await load();
+  };
+
+  const doExport = () => {
+    const json = JSON.stringify(entries, null, 2);
+    const ts = new Date().toISOString().slice(0, 10);
+    window.stExport.downloadFile(`ai-history-${ts}.json`, json, 'application/json');
+  };
+
+  return (
+    <SGroup title={`Historial de IA${count ? ` · ${count}` : ''}`}>
+      <SRow
+        label="Conversaciones guardadas"
+        hint={`${count === 0 ? 'Todavía no hay ninguna.' : count === 1 ? '1 conversación local.' : `${count} conversaciones locales.`} Se guardan las últimas 500 por espacio; las viejas se borran automáticamente.`}>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+          <button type="button" className="btn sm ghost" onClick={load} disabled={loading}>
+            {loading ? 'Cargando…' : 'Refrescar'}
+          </button>
+          <button type="button" className="btn sm ghost" onClick={doExport} disabled={entries.length === 0}>
+            <I.download size={12}/> Exportar JSON
+          </button>
+          {!confirmClear ? (
+            <button
+              type="button"
+              className="btn sm"
+              style={{color:'var(--danger)'}}
+              onClick={() => setConfirmClear(true)}
+              disabled={count === 0}>
+              <I.trash size={12}/> Borrar todo
+            </button>
+          ) : (
+            <>
+              <button type="button" className="btn sm ghost" onClick={() => setConfirmClear(false)}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn sm"
+                style={{background:'var(--danger)',color:'#fff'}}
+                onClick={doClear}>
+                Sí, borrar {count}
+              </button>
+            </>
+          )}
+        </div>
+      </SRow>
+
+      {entries.length > 0 && (
+        <div style={{padding:'12px 0 4px'}}>
+          <div style={{display:'flex',flexDirection:'column',gap:6}}>
+            {entries.map(e => (
+              <AIHistoryEntry
+                key={e.id}
+                entry={e}
+                expanded={expanded === e.id}
+                onToggle={() => setExpanded(expanded === e.id ? null : e.id)}
+              />
+            ))}
+          </div>
+          {count > entries.length && (
+            <div style={{fontSize:11,color:'var(--fg-3)',padding:'8px 0 0',textAlign:'center'}}>
+              Mostrando {entries.length} de {count}. Exportá el JSON para ver todas.
+            </div>
+          )}
+        </div>
+      )}
+    </SGroup>
+  );
+}
+
+function AIHistoryEntry({ entry, expanded, onToggle }) {
+  const when = new Date(entry.createdAt).toLocaleString('es-MX', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  });
+  const opLabel = entry.op === 'improve' ? 'Mejorar texto'
+    : entry.op === 'generate' ? 'Generar plantilla'
+    : entry.op;
+  const providerShort = entry.provider === 'anthropic' ? 'Claude'
+    : entry.provider === 'openai' ? 'OpenAI'
+    : entry.provider === 'google' ? 'Gemini'
+    : entry.provider === 'ollama' ? 'Ollama'
+    : entry.provider;
+
+  return (
+    <div style={{
+      border:'1px solid var(--line)',borderRadius:'var(--r-sm)',
+      background:'var(--surface)',
+      overflow:'hidden',
+    }}>
+      <button
+        type="button"
+        onClick={onToggle}
+        style={{
+          width:'100%',padding:'8px 12px',
+          background:'transparent',border:'none',cursor:'pointer',
+          display:'flex',alignItems:'center',gap:10,
+          textAlign:'left',
+        }}>
+        <div style={{
+          width:18,height:18,borderRadius:4,flexShrink:0,
+          background: entry.ok ? 'color-mix(in oklab, var(--ok) 15%, transparent)' : 'color-mix(in oklab, var(--danger) 15%, transparent)',
+          color: entry.ok ? 'var(--ok)' : 'var(--danger)',
+          display:'grid',placeItems:'center',
+        }}>
+          {entry.ok ? <I.check size={11}/> : <I.x size={11}/>}
+        </div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:12,fontWeight:500,display:'flex',gap:6,alignItems:'center'}}>
+            <span>{opLabel}</span>
+            <span style={{color:'var(--fg-3)',fontWeight:400}}>·</span>
+            <span style={{color:'var(--fg-3)',fontWeight:400}}>{providerShort}{entry.model ? ` · ${entry.model}` : ''}</span>
+          </div>
+          <div style={{fontSize:10.5,color:'var(--fg-3)',marginTop:2}}>{when}</div>
+        </div>
+        <div style={{fontSize:10.5,color:'var(--fg-3)'}}>{expanded ? '▾' : '▸'}</div>
+      </button>
+      {expanded && (
+        <div style={{padding:'0 12px 12px',borderTop:'1px solid var(--line)'}}>
+          <div style={{fontSize:10.5,color:'var(--fg-3)',textTransform:'uppercase',letterSpacing:'.06em',margin:'10px 0 4px'}}>Prompt</div>
+          <pre style={{margin:0,padding:10,background:'var(--surface-2)',borderRadius:'var(--r-sm)',fontSize:11,fontFamily:'var(--font-mono)',whiteSpace:'pre-wrap',wordBreak:'break-word',maxHeight:240,overflow:'auto'}}>
+            {entry.prompt || '(vacío)'}
+          </pre>
+          <div style={{fontSize:10.5,color:'var(--fg-3)',textTransform:'uppercase',letterSpacing:'.06em',margin:'12px 0 4px'}}>
+            {entry.ok ? 'Respuesta' : 'Error'}
+          </div>
+          <pre style={{margin:0,padding:10,background:'var(--surface-2)',borderRadius:'var(--r-sm)',fontSize:11,fontFamily:'var(--font-mono)',whiteSpace:'pre-wrap',wordBreak:'break-word',maxHeight:240,overflow:'auto',color: entry.ok ? undefined : 'var(--danger)'}}>
+            {entry.ok ? (entry.response || '(vacío)') : (entry.error || 'Sin detalle')}
+          </pre>
+          {entry.usage && (
+            <div style={{marginTop:8,fontSize:10.5,color:'var(--fg-3)'}}>
+              Tokens: {Object.entries(entry.usage).map(([k,v]) => `${k}=${v}`).join(' · ')}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

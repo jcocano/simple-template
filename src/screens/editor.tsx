@@ -173,6 +173,93 @@ function HistoryPanel() {
   );
 }
 
+// Pixel ruler that sits above the canvas. Renders tick marks every 50px and
+// numbered labels every 100px. Honors editor.ruler per workspace.
+function CanvasRuler() {
+  const ticks = [];
+  for (let x = 0; x <= 1200; x += 10) {
+    const major = x % 100 === 0;
+    const mid = x % 50 === 0;
+    ticks.push(
+      <div key={x} style={{
+        position:'absolute',
+        left:`calc(50% + ${x - 600}px)`,
+        bottom:0,
+        width:1,
+        height: major ? 10 : mid ? 6 : 3,
+        background:'var(--fg-3)',
+        opacity: major ? 0.7 : mid ? 0.45 : 0.25,
+      }}/>
+    );
+    if (major && x > 0) {
+      ticks.push(
+        <div key={'l'+x} style={{
+          position:'absolute',
+          left:`calc(50% + ${x - 600}px)`,
+          bottom:11,
+          fontSize:9,
+          color:'var(--fg-3)',
+          fontFamily:'var(--font-mono)',
+          transform:'translateX(-50%)',
+        }}>{x}</div>
+      );
+    }
+  }
+  return (
+    <div style={{
+      position:'relative',
+      height:24,
+      borderBottom:'1px solid var(--line)',
+      background:'var(--surface-2)',
+      overflow:'hidden',
+      flexShrink:0,
+    }}>
+      {ticks}
+    </div>
+  );
+}
+
+// Quick chips for the workspace's brand display/body fonts. Falls back to
+// nothing if the workspace hasn't configured any brand fonts.
+function BrandFontsGroup({ current, onPick }) {
+  const [brand, setBrand] = React.useState(() => window.stStorage?.getWSSetting('brand', {}) || {});
+  React.useEffect(() => {
+    const refresh = () => setBrand(window.stStorage?.getWSSetting('brand', {}) || {});
+    const onSettings = (e) => {
+      if (e.detail?.scope === 'workspace' && e.detail?.key === 'brand') refresh();
+    };
+    window.addEventListener('st:settings-change', onSettings);
+    window.addEventListener('st:workspace-change', refresh);
+    return () => {
+      window.removeEventListener('st:settings-change', onSettings);
+      window.removeEventListener('st:workspace-change', refresh);
+    };
+  }, []);
+
+  const items = [];
+  if (brand.fontDisplay) items.push({ label: brand.fontDisplay, role: 'Título de marca' });
+  if (brand.fontBody) items.push({ label: brand.fontBody, role: 'Cuerpo de marca' });
+  if (items.length === 0) return null;
+
+  return (
+    <div className="prop-group">
+      <div className="prop-label">Fuentes de marca</div>
+      <div style={{display:'grid',gap:4}}>
+        {items.map((it) => (
+          <button
+            key={it.label+'_'+it.role}
+            className={`btn ${current===it.label?'primary':''}`}
+            style={{justifyContent:'space-between',fontFamily:it.label}}
+            onClick={()=>onPick(it.label)}>
+            <span>{it.label}</span>
+            <span style={{fontSize:10.5,opacity:0.7,fontFamily:'var(--font-sans)'}}>{it.role}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SectionProps({ section, onChange }) {
   const [tab,setTab] = React.useState('style');
   if (!section) return null;
@@ -214,20 +301,14 @@ function SectionProps({ section, onChange }) {
               <div className="prop-label">Fondo</div>
               <div className="prop-row">
                 <label>Color</label>
-                <div className="color-field">
-                  <div className="color-swatch" style={{background:section.style.bg}}/>
-                  <input value={section.style.bg} onChange={e=>updStyle('bg',e.target.value)}/>
-                </div>
+                <ColorInput value={section.style.bg} onChange={v=>updStyle('bg',v)}/>
               </div>
             </div>
             <div className="prop-group">
               <div className="prop-label">Texto</div>
               <div className="prop-row">
                 <label>Color</label>
-                <div className="color-field">
-                  <div className="color-swatch" style={{background:section.style.text}}/>
-                  <input value={section.style.text} onChange={e=>updStyle('text',e.target.value)}/>
-                </div>
+                <ColorInput value={section.style.text} onChange={v=>updStyle('text',v)}/>
               </div>
               <div className="prop-row">
                 <label>Alineación</label>
@@ -270,6 +351,7 @@ function SectionProps({ section, onChange }) {
         )}
         {tab==='type' && (
           <>
+            <BrandFontsGroup current={section.style.font} onPick={v=>updStyle('font',v)}/>
             <div className="prop-group">
               <div className="prop-label">Familia tipográfica</div>
               <div style={{display:'grid',gap:4}}>
@@ -287,9 +369,78 @@ function SectionProps({ section, onChange }) {
   );
 }
 
+function SaveBtn({ saveState, onClick }) {
+  const base = { display:'inline-flex', alignItems:'center', gap:6, whiteSpace:'nowrap' };
+  if (saveState === 'idle') {
+    return (
+      <div className="btn ghost sm" title="Todo guardado"
+        style={{...base, color:'#2bb07f', cursor:'default', pointerEvents:'none'}}>
+        <I.check size={13}/>
+        <span>Todo guardado</span>
+      </div>
+    );
+  }
+  if (saveState === 'saving') {
+    return (
+      <div className="btn ghost sm" title="Guardando…"
+        style={{...base, color:'var(--fg-3)', opacity:0.85, pointerEvents:'none'}}>
+        <I.loader size={13} className="spin"/>
+        <span>Guardando…</span>
+      </div>
+    );
+  }
+  if (saveState === 'error') {
+    return (
+      <button className="btn primary sm" onClick={onClick} title="No se pudo guardar — clic para reintentar"
+        style={{...base, background:'#e04f4f', borderColor:'#e04f4f', color:'#fff'}}>
+        <I.info size={13}/>
+        <span>Reintentar</span>
+      </button>
+    );
+  }
+  // dirty
+  return (
+    <button className="btn primary sm" onClick={onClick} title="Guardar ahora"
+      style={base}>
+      <I.upload size={13}/>
+      <span>Guardar</span>
+    </button>
+  );
+}
+
+// Editor preferences pulled from the current workspace's editor settings.
+// Defaults match the <Switch> defaults in EditorSection (ruler/autosave on,
+// grid 16px). Refreshes when the user changes the prefs in Settings or
+// switches workspace.
+function useEditorPrefs() {
+  const get = () => {
+    const e = window.stStorage?.getWSSetting('editor', {}) || {};
+    return {
+      autosave: e.autosave !== false,
+      grid: typeof e.grid === 'number' && e.grid > 0 ? e.grid : 16,
+      ruler: e.ruler !== false,
+    };
+  };
+  const [prefs, setPrefs] = React.useState(get);
+  React.useEffect(() => {
+    const refresh = () => setPrefs(get());
+    const onSettings = (e) => {
+      if (e.detail?.scope === 'workspace' && e.detail?.key === 'editor') refresh();
+    };
+    window.addEventListener('st:settings-change', onSettings);
+    window.addEventListener('st:workspace-change', refresh);
+    return () => {
+      window.removeEventListener('st:settings-change', onSettings);
+      window.removeEventListener('st:workspace-change', refresh);
+    };
+  }, []);
+  return prefs;
+}
+
 function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars, onReview }) {
-  const initialDoc = template?.blank ? BLANK_DOC.map(s=>({...s,columns:s.columns.map(c=>({...c,blocks:[...c.blocks]}))})) : DEFAULT_DOC;
-  const [doc, setDoc] = React.useState(initialDoc);
+  const [doc, setDoc] = React.useState([]);
+  const [vars, setVars] = React.useState([]);
+  const [loaded, setLoaded] = React.useState(false);
   const [sel, setSel] = React.useState({type:'section',id:'s1'});
   const [device, setDevice] = React.useState('desktop');
   const [leftTab, setLeftTab] = React.useState('content');
@@ -297,19 +448,140 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
   const [name, setName] = React.useState(template?.name || 'Plantilla sin título');
   const [zoom, setZoom] = React.useState(100);
   const [improveBlock, setImproveBlock] = React.useState(null);
+  const [saveState, setSaveState] = React.useState('idle'); // idle | dirty | saving | error
   const [showTour, setShowTour] = React.useState(() => {
-    try { return !localStorage.getItem('mc:tour-seen'); } catch(e) { return false; }
+    try { return !window.stStorage.getSetting('tour-seen', false); } catch(e) { return false; }
   });
+  const editorPrefs = useEditorPrefs();
+
+  const templateIdRef = React.useRef(template?.id || null);
+  const templateJsonRef = React.useRef(null);
+  const saveTimerRef = React.useRef(null);
+  const savingRef = React.useRef(false);
+  const skipNextSaveRef = React.useRef(true);
+  // Ref mirrors of doc/name/vars so flushSave always reads the latest content —
+  // even when called from outside (workspace-switch guard, onBack, etc.).
+  const nameRef = React.useRef(name);
+  const docRef = React.useRef(doc);
+  const varsRef = React.useRef(vars);
+  nameRef.current = name;
+  docRef.current = doc;
+  varsRef.current = vars;
 
   React.useEffect(() => {
     const h = (e) => setImproveBlock(e.detail.block);
-    window.addEventListener('mc:improve', h);
+    window.addEventListener('st:improve', h);
     const t = () => setShowTour(true);
-    window.addEventListener('mc:start-tour', t);
+    window.addEventListener('st:start-tour', t);
     return () => {
-      window.removeEventListener('mc:improve', h);
-      window.removeEventListener('mc:start-tour', t);
+      window.removeEventListener('st:improve', h);
+      window.removeEventListener('st:start-tour', t);
     };
+  }, []);
+
+  // ─── Load doc from storage when the template id changes ──────────
+  React.useEffect(() => {
+    if (!template?.id) { setLoaded(true); return; }
+    let cancelled = false;
+    templateIdRef.current = template.id;
+    skipNextSaveRef.current = true;
+    (async () => {
+      const tpl = await window.stTemplates.read(template.id);
+      if (cancelled) return;
+      templateJsonRef.current = tpl;
+      const sections = tpl?.doc?.sections;
+      setDoc(Array.isArray(sections) ? sections : []);
+      // Backward-compat: pre-Bundle G.1 templates don't have a `vars` field.
+      // Inherit from workspace defaults so they're not blank — the next save
+      // will persist the inherited list into this template.
+      const loadedVars = Array.isArray(tpl?.vars)
+        ? tpl.vars
+        : (window.stStorage.getWSSetting('vars', null) || window.VARIABLES || []);
+      setVars(loadedVars);
+      setName(tpl?.name || template.name || 'Plantilla sin título');
+      // Reset selection to the first section (or clear if empty)
+      const firstId = Array.isArray(sections) && sections[0]?.id;
+      setSel(firstId ? { type:'section', id:firstId } : null);
+      setLoaded(true);
+      setSaveState('idle');
+    })();
+    return () => { cancelled = true; };
+  }, [template?.id]);
+
+  // ─── Debounced save ──────────────────────────────────────────────
+  // Serialized: if a save is in flight, a new flush waits for it to complete
+  // before starting — so workspace-switch → confirm.flush never returns
+  // before the pending IPC resolves against the old workspace.
+  const flushSave = React.useCallback(async () => {
+    if (!templateIdRef.current) return;
+    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+    while (savingRef.current) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    savingRef.current = true;
+    setSaveState('saving');
+    try {
+      const patched = {
+        ...(templateJsonRef.current || {}),
+        id: templateIdRef.current,
+        schemaVersion: 1,
+        name: nameRef.current,
+        doc: { sections: docRef.current },
+        vars: varsRef.current,
+      };
+      const result = await window.stTemplates.write(templateIdRef.current, patched);
+      if (result) {
+        templateJsonRef.current = patched;
+        setSaveState('idle');
+        // Optional notification, gated by notif.saved (off by default).
+        window.notify && window.notify('saved', {
+          kind: 'ok',
+          title: 'Se guardó la plantilla',
+          msg: nameRef.current,
+          ttl: 1800,
+        });
+      } else {
+        setSaveState('error');
+      }
+    } catch (err) {
+      console.error('[Editor] save failed', err);
+      setSaveState('error');
+    } finally {
+      savingRef.current = false;
+    }
+  }, []);
+
+  const flushSaveRef = React.useRef(flushSave);
+  React.useEffect(() => { flushSaveRef.current = flushSave; }, [flushSave]);
+
+  // Schedule a save whenever doc/name/vars changes (except on initial hydration).
+  // Honors editor.autosave per workspace: if disabled, leaves the editor in
+  // 'dirty' state until the user clicks Guardar manually.
+  React.useEffect(() => {
+    if (!loaded) return;
+    if (skipNextSaveRef.current) { skipNextSaveRef.current = false; return; }
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    setSaveState('dirty');
+    if (!editorPrefs.autosave) return;
+    saveTimerRef.current = setTimeout(() => { flushSaveRef.current(); }, 800);
+  }, [doc, name, vars, loaded, editorPrefs.autosave]);
+
+  // Expose contract for the workspace-switch guard in src/lib/workspaces.tsx
+  // and for VariablesModal / TestSendModal which read template vars.
+  React.useEffect(() => {
+    window.__stEditor = {
+      isDirty: () => saveState === 'dirty' || savingRef.current || !!saveTimerRef.current,
+      flush: () => flushSaveRef.current(),
+      getTemplateId: () => templateIdRef.current,
+      getVars: () => varsRef.current,
+      setVars: (next) => setVars(next || []),
+    };
+  }, [saveState]);
+
+  // On unmount: flush pending write and release the global.
+  React.useEffect(() => () => {
+    if (flushSaveRef.current) flushSaveRef.current();
+    if (window.__stEditor) delete window.__stEditor;
   }, []);
 
   const selSection = sel?.type==='section' ? doc.find(s=>s.id===sel.id) : doc.find(s=>s.id===sel?.sectionId);
@@ -318,6 +590,24 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
   const updateSection = (updated) => setDoc(d => d.map(s => s.id===updated.id ? updated : s));
   const updateBlock = (updated) => setDoc(d => d.map(s => s.id===sel.sectionId ? {
     ...s, columns: s.columns.map(col => ({...col, blocks: col.blocks.map(b => b.id===updated.id ? updated : b)}))
+  } : s));
+  // Inline-canvas edit: deep-merge a content patch into the block's data.
+  // Called by each block renderer via `onEdit(patch)` on blur. Doesn't need
+  // the block to be pre-selected — sectionId comes from the SectionView.
+  const editBlockContent = (sectionId, block, patch) => setDoc(d => d.map(s => s.id===sectionId ? {
+    ...s, columns: s.columns.map(col => ({...col, blocks: col.blocks.map(b => {
+      if (b.id !== block.id) return b;
+      const nextData = { ...(b.data || {}) };
+      for (const k of Object.keys(patch || {})) {
+        const v = patch[k];
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          nextData[k] = { ...(nextData[k] || {}), ...v };
+        } else {
+          nextData[k] = v;
+        }
+      }
+      return { ...b, data: nextData };
+    })}))
   } : s));
   const deleteBlock = (sectionId, blockId) => {
     setDoc(d => d.map(s => s.id===sectionId ? {
@@ -421,10 +711,12 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
     <div className="editor" data-view={device}>
       <div className="editor-top">
         {/* Zone A — context */}
-        <button className="btn icon ghost sm" onClick={onBack} title="Volver a mis plantillas" aria-label="Volver"><I.chevronL size={14}/></button>
+        <button className="btn icon ghost sm" onClick={async ()=>{ await flushSaveRef.current(); onBack(); }} title="Volver a mis plantillas" aria-label="Volver"><I.chevronL size={14}/></button>
         <div className="name">
           <input value={name} onChange={e=>setName(e.target.value)}/>
-          <div className="meta"><span className="save-dot"/> Guardado automático · {template?.folder || 'Newsletter'} · {doc.length} secciones</div>
+          <div className="meta">
+            {template?.folder || templateJsonRef.current?.folder || 'Sin carpeta'} · {doc.length} secciones
+          </div>
         </div>
 
         {/* Zone B — view mode (centered) */}
@@ -439,13 +731,14 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
         <div className="icon-cluster">
           <button className="btn icon ghost sm" title="Deshacer (⌘Z)" aria-label="Deshacer"><I.undo size={13}/></button>
           <button className="btn icon ghost sm" title="Rehacer (⌘⇧Z)" aria-label="Rehacer"><I.redo size={13}/></button>
+          <SaveBtn saveState={saveState} onClick={()=>flushSaveRef.current()}/>
           <ThemeToggleBtn/>
-          <button className="btn icon ghost sm" onClick={()=>window.dispatchEvent(new CustomEvent('mc:cmd-open'))} title="Buscar (⌘K)" aria-label="Buscar"><I.search size={13}/></button>
+          <button className="btn icon ghost sm" onClick={()=>window.dispatchEvent(new CustomEvent('st:cmd-open'))} title="Buscar (⌘K)" aria-label="Buscar"><I.search size={13}/></button>
         </div>
 
         {/* Zone D — actions */}
         <button className="btn ghost sm" onClick={onOpenVars}><I.braces size={13}/> Etiquetas</button>
-        <button className="btn ghost sm" onClick={onPreview}><I.eye size={13}/> Vista previa</button>
+        <button className="btn ghost sm" onClick={async ()=>{ await flushSaveRef.current(); onPreview(); }}><I.eye size={13}/> Vista previa</button>
         <button className="btn ghost sm" onClick={onReview} title="Revisar antes de enviar (⌘⇧R)" data-tour="review-btn"><I.check size={13}/> Revisar</button>
         <button className="btn sm" onClick={onTestSend}><I.send size={13}/> Enviar prueba</button>
         <button className="btn primary sm" onClick={onExport} data-tour="export-btn"><I.download size={13}/> Exportar</button>
@@ -464,7 +757,12 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
         </aside>
 
         <div className="canvas-col" data-tour="canvas">
-          <div className="canvas-rulers">
+          {editorPrefs.ruler && <CanvasRuler/>}
+          <div className="canvas-rulers" style={{
+            // editor.grid (per-workspace) overrides the CSS-default 24px grid.
+            backgroundImage: `repeating-linear-gradient(0deg, transparent 0 ${editorPrefs.grid-1}px, color-mix(in oklab, var(--line) 40%, transparent) ${editorPrefs.grid-1}px ${editorPrefs.grid}px), repeating-linear-gradient(90deg, transparent 0 ${editorPrefs.grid-1}px, color-mix(in oklab, var(--line) 40%, transparent) ${editorPrefs.grid-1}px ${editorPrefs.grid}px)`,
+            backgroundColor: 'var(--bg)',
+          }}>
             <div className="canvas-frame" style={{transform:`scale(${zoom/100})`,transformOrigin:'top center'}}>
               {doc.length === 0 ? (
                 <div
@@ -516,6 +814,7 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
                     onDeleteBlock={(blockId)=>deleteBlock(s.id,blockId)}
                     onAddBlankBlock={(colIdx,atIdx)=>addBlankBlockInColumn(s.id,colIdx,atIdx)}
                     onDropBlock={(colIdx, atIdx, blockType)=>addBlankBlockInColumn(s.id, colIdx, atIdx, blockType)}
+                    onEditBlock={(block, patch)=>editBlockContent(s.id, block, patch)}
                   />
                   <SectionInsertBtn
                     onClick={()=>addBlankSection(si+1)}
@@ -556,11 +855,12 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
 // Improve AI Modal — reescribe el texto de un bloque seleccionado
 // ════════════════════════════════════════════════════════════════
 function ImproveAIModal({ block, onClose, onApply }) {
-  const aiCfg = JSON.parse(localStorage.getItem('mc:ai') || '{}');
+  const aiCfg = window.stStorage.getSetting('ai', {});
   const [action, setAction] = React.useState('rewrite');
   const [extra, setExtra] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [variants, setVariants] = React.useState([]);
+  const [error, setError] = React.useState(null);
 
   const ACTIONS = [
     {id:'rewrite', t:'Reescribir', d:'Manteniendo el sentido, con otras palabras', icon:'wand'},
@@ -573,17 +873,20 @@ function ImproveAIModal({ block, onClose, onApply }) {
 
   const currentText = block.data?.content?.text || block.data?.content?.label || block.data?.text || block.data?.label || '(sin texto)';
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     setLoading(true);
-    setTimeout(() => {
-      // mock variantes
-      setVariants([
-        {t: currentText.replace(/\./g,' de verdad.') + ' ✨', label:'Variante 1'},
-        {t: currentText.split(' ').slice(0, Math.max(5, Math.floor(currentText.split(' ').length*0.7))).join(' ')+'.', label:'Variante 2 (más corta)'},
-        {t: currentText + ' Te va a encantar.', label:'Variante 3 (más cálida)'},
-      ]);
-      setLoading(false);
-    }, 1400);
+    setError(null);
+    const result = await window.stAI.improveText({ block, action, extra });
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.error || 'No se pudo generar variantes.');
+      setVariants([]);
+      return;
+    }
+    setVariants(result.variants.map((t, i) => ({
+      t,
+      label: `Variante ${i + 1}`,
+    })));
   };
 
   const applyVariant = (t) => {
@@ -638,6 +941,19 @@ function ImproveAIModal({ block, onClose, onApply }) {
 
           <div className="prop-label" style={{marginBottom:6}}>Instrucción extra (opcional)</div>
           <input className="field" value={extra} onChange={e=>setExtra(e.target.value)} placeholder={action==='tone'?'Ej.: más cálido, como un amigo':action==='translate'?'Ej.: al portugués':'Ej.: mencionar envío gratis'}/>
+
+          {error && (
+            <div style={{
+              marginTop:14,padding:12,
+              background:'color-mix(in oklab, var(--danger) 12%, transparent)',
+              borderRadius:'var(--r-md)',
+              fontSize:12,color:'var(--danger)',
+              display:'flex',gap:8,
+            }}>
+              <I.x size={14} style={{marginTop:1,flexShrink:0}}/>
+              <div><b>No pudimos generar.</b> {error}</div>
+            </div>
+          )}
 
           {variants.length > 0 && (
             <>
@@ -739,7 +1055,7 @@ function BlockInsertBtn({ onClick, onDropBlock }) {
   );
 }
 
-function SectionView({ section, selected, selectedBlockId, onSelectSection, onSelectBlock, onMoveUp, onMoveDown, onDuplicate, onDelete, onMoveBlock, onDeleteBlock, onAddBlankBlock, onDropBlock }) {
+function SectionView({ section, selected, selectedBlockId, onSelectSection, onSelectBlock, onMoveUp, onMoveDown, onDuplicate, onDelete, onMoveBlock, onDeleteBlock, onAddBlankBlock, onDropBlock, onEditBlock }) {
   const font = FONT_OPTIONS.find(f => f.id===section.style.font) || FONT_OPTIONS[0];
   const [hover, setHover] = React.useState(false);
   const showChrome = selected || hover;
@@ -803,6 +1119,7 @@ function SectionView({ section, selected, selectedBlockId, onSelectSection, onSe
             onDeleteBlock={onDeleteBlock}
             onAddBlankBlock={(atIdx)=>onAddBlankBlock(ci, atIdx)}
             onDropBlock={(atIdx, blockType)=>onDropBlock(ci, atIdx, blockType)}
+            onEditBlock={onEditBlock}
           />
         ))}
       </div>
@@ -810,7 +1127,7 @@ function SectionView({ section, selected, selectedBlockId, onSelectSection, onSe
   );
 }
 
-function ColumnView({ column, colIdx, totalBlocks, selectedBlockId, onSelectBlock, onMoveBlock, onDeleteBlock, onAddBlankBlock, onDropBlock }) {
+function ColumnView({ column, colIdx, totalBlocks, selectedBlockId, onSelectBlock, onMoveBlock, onDeleteBlock, onAddBlankBlock, onDropBlock, onEditBlock }) {
   const [dragOver, setDragOver] = React.useState(false);
   return (
     <div
@@ -875,7 +1192,9 @@ function ColumnView({ column, colIdx, totalBlocks, selectedBlockId, onSelectBloc
                 borderRadius:2,
               }}
             >
-              {R ? <R data={b.data}/> : <div style={{padding:12,opacity:0.5,fontFamily:'var(--font-mono)',fontSize:11}}>&lt;{b.type}/&gt;</div>}
+              {R
+                ? <R data={b.data} onEdit={onEditBlock ? (patch)=>onEditBlock(b, patch) : undefined}/>
+                : <div style={{padding:12,opacity:0.5,fontFamily:'var(--font-mono)',fontSize:11}}>&lt;{b.type}/&gt;</div>}
               <div className="elem-actions block-actions" style={{opacity:isSel?1:undefined}}>
                 <button disabled={bi===0} onClick={e=>{e.stopPropagation(); onMoveBlock(b.id,-1);}} title="Subir"><I.chevronD size={11} style={{transform:'rotate(180deg)'}}/></button>
                 <button disabled={bi===column.blocks.length-1} onClick={e=>{e.stopPropagation(); onMoveBlock(b.id,1);}} title="Bajar"><I.chevronD size={11}/></button>
@@ -901,7 +1220,7 @@ function DesignPanel() {
       </div>
         <div className="prop-group">
         <div className="prop-label">Datos del correo</div>
-        <div className="prop-row"><label>Asunto</label><input className="field" defaultValue="Hola @nombre"/></div>
+        <div className="prop-row"><label>Asunto</label><input className="field" defaultValue="Hola {{nombre}}"/></div>
         <div className="prop-row"><label>Vista previa</label><input className="field" defaultValue="3 novedades de noviembre"/></div>
         <div className="prop-row"><label>Remitente</label><input className="field" defaultValue="Acme <hola@acme.com>"/></div>
       </div>

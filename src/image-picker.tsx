@@ -31,6 +31,24 @@ const IMG_FOLDERS = [
 ];
 
 function ImageThumb({ item, large=false }) {
+  // Real uploaded image — render the actual bytes. Otherwise fall back to
+  // the mock pattern placeholders used for seed data.
+  if (item?.url) {
+    return (
+      <div style={{
+        width:'100%', aspectRatio: large ? '4/3' : '1/1',
+        background:'var(--surface-2)', overflow:'hidden',
+        borderRadius: large ? 'var(--r-md)' : 'var(--r-sm)',
+      }}>
+        <img
+          src={item.url}
+          alt={item.name || ''}
+          style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}
+          loading="lazy"
+        />
+      </div>
+    );
+  }
   const patterns = {
     wave: (
       <svg viewBox="0 0 100 60" style={{width:'100%',height:'100%',display:'block'}}>
@@ -78,14 +96,67 @@ function ImagePickerModal({ open, onClose, onSelect }) {
   const [q, setQ] = React.useState('');
   const [sel, setSel] = React.useState(null);
   const [urlInput, setUrlInput] = React.useState('');
+  const [uploading, setUploading] = React.useState(false);
+  const [uploadError, setUploadError] = React.useState(null);
+  const [recentUploads, setRecentUploads] = React.useState([]);
+  const [dragOver, setDragOver] = React.useState(false);
+  const fileInputRef = React.useRef(null);
 
   if (!open) return null;
 
-  const items = IMG_LIB_MOCK
-    .filter(i => folder==='all' || i.folder===folder)
-    .filter(i => i.name.toLowerCase().includes(q.toLowerCase()));
+  const cdnConfig = window.stStorage.getWSSetting('storage', {}).mode || 'base64';
 
-  const cdnConfig = (JSON.parse(localStorage.getItem('mc:storage')||'{}').mode) || 'base64';
+  // Upload any file through stCDN. On success, push into the in-memory
+  // recent-uploads list so it's visible in the grid and pre-selected.
+  // Scope: no persistence yet — the list resets when the modal closes.
+  const handleFile = async (file) => {
+    if (!file) return;
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const result = await window.stCDN.upload(file);
+      if (!result.ok) {
+        setUploadError(result.error || 'No se pudo subir la imagen.');
+        return;
+      }
+      const entry = {
+        id: `up-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        name: file.name || 'imagen',
+        url: result.url,
+        folder: 'Subidas',
+        w: '?', h: '?',
+        size: `${Math.round((file.size || 0) / 1024)} KB`,
+        uploaded: true,
+      };
+      setRecentUploads((r) => [entry, ...r]);
+      setSel(entry);
+    } catch (err) {
+      setUploadError(err?.message || 'Error inesperado al subir.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const onInputChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (file) await handleFile(file);
+    e.target.value = ''; // let user re-select the same file
+  };
+
+  const onDropFile = async (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) await handleFile(file);
+  };
+
+  const items = [
+    ...recentUploads.filter((i) => folder === 'all' || i.folder === folder)
+      .filter((i) => i.name.toLowerCase().includes(q.toLowerCase())),
+    ...IMG_LIB_MOCK
+      .filter((i) => folder === 'all' || i.folder === folder)
+      .filter((i) => i.name.toLowerCase().includes(q.toLowerCase())),
+  ];
 
   return (
     <div style={{
@@ -197,8 +268,33 @@ function ImagePickerModal({ open, onClose, onSelect }) {
                     <span className="si"><I.search size={13}/></span>
                     <input placeholder="Buscar imágenes…" value={q} onChange={e=>setQ(e.target.value)}/>
                   </div>
-                  <button className="btn sm"><I.upload size={12}/> Subir</button>
+                  <button
+                    type="button"
+                    className="btn sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}>
+                    {uploading ? <>Subiendo…</> : <><I.upload size={12}/> Subir</>}
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={onInputChange}
+                    style={{display:'none'}}/>
                 </div>
+
+                {uploadError && (
+                  <div style={{
+                    margin:'0 16px',padding:'10px 12px',
+                    background:'color-mix(in oklab, var(--danger) 12%, transparent)',
+                    borderRadius:'var(--r-sm)',
+                    fontSize:12,color:'var(--danger)',
+                    display:'flex',gap:8,alignItems:'flex-start',
+                  }}>
+                    <I.x size={14} style={{marginTop:1,flexShrink:0}}/>
+                    <div><b>No pudimos subir.</b> {uploadError}</div>
+                  </div>
+                )}
 
                 {/* Drop zone + Grid */}
                 <div style={{flex:1,overflow:'auto',padding:16}}>
@@ -208,12 +304,22 @@ function ImagePickerModal({ open, onClose, onSelect }) {
                     gap:10,
                   }}>
                     {/* Drop zone tile */}
-                    <button style={{
-                      aspectRatio:'1/1',background:'var(--surface-2)',
-                      border:'1.5px dashed var(--line-2)',borderRadius:'var(--r-sm)',
-                      display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,
-                      color:'var(--fg-3)',cursor:'pointer',padding:12,fontSize:11,
-                    }}>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                      onDragLeave={() => setDragOver(false)}
+                      onDrop={onDropFile}
+                      disabled={uploading}
+                      style={{
+                        aspectRatio:'1/1',
+                        background: dragOver ? 'var(--accent-soft)' : 'var(--surface-2)',
+                        border: `1.5px dashed ${dragOver ? 'var(--accent)' : 'var(--line-2)'}`,
+                        borderRadius:'var(--r-sm)',
+                        display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,
+                        color:'var(--fg-3)',cursor: uploading ? 'wait' : 'pointer',padding:12,fontSize:11,
+                        transition:'background 120ms, border-color 120ms',
+                      }}>
                       <div style={{
                         width:34,height:34,borderRadius:'50%',
                         background:'var(--surface)',display:'grid',placeItems:'center',
@@ -221,8 +327,14 @@ function ImagePickerModal({ open, onClose, onSelect }) {
                       }}>
                         <I.upload size={16}/>
                       </div>
-                      <div style={{fontWeight:500,color:'var(--fg-2)'}}>Arrastra aquí</div>
-                      <div style={{textAlign:'center',lineHeight:1.3}}>o haz click para subir · PNG, JPG, SVG · máx 5 MB</div>
+                      <div style={{fontWeight:500,color:'var(--fg-2)'}}>
+                        {uploading ? 'Subiendo…' : 'Arrastra aquí'}
+                      </div>
+                      <div style={{textAlign:'center',lineHeight:1.3}}>
+                        {cdnConfig === 'base64'
+                          ? 'Se embeberá en Base64 · máx 500 KB'
+                          : `Se subirá a ${cdnConfig.toUpperCase()}`}
+                      </div>
                     </button>
 
                     {items.map(it => (
@@ -282,7 +394,7 @@ function ImagePickerModal({ open, onClose, onSelect }) {
               <div style={{maxWidth:500,margin:'0 auto'}}>
                 <div style={{fontFamily:'var(--font-display)',fontSize:18,fontWeight:600,marginBottom:6}}>Cargar desde URL</div>
                 <p style={{fontSize:13,color:'var(--fg-3)',lineHeight:1.6,marginBottom:20}}>
-                  Pega el enlace directo de la imagen. Mailcraft la referenciará tal cual en el correo — asegúrate de que la URL sea pública y permanente.
+                  Pega el enlace directo de la imagen. Simple Template la referenciará tal cual en el correo — asegúrate de que la URL sea pública y permanente.
                 </p>
                 <label style={{fontSize:11.5,color:'var(--fg-3)',fontWeight:500}}>URL de la imagen</label>
                 <input

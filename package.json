@@ -1,5 +1,6 @@
 {
-  "name": "mailcraft-desktop",
+  "name": "simple-template-desktop",
+  "productName": "Simple Template",
   "version": "0.1.0",
   "private": true,
   "main": "electron/main.js",
@@ -11,10 +12,14 @@
     "build:web": "vite build"
   },
   "dependencies": {
+    "basic-ftp": "^5.3.0",
+    "better-sqlite3": "^12.9.0",
+    "nodemailer": "^8.0.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
     "@vitejs/plugin-react": "^6.0.1",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",

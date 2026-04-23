@@ -1,5 +1,5 @@
 // Command Palette — atajo ⌘K / Ctrl+K
-// API: window.dispatchEvent(new CustomEvent('mc:cmd-open'))
+// API: window.dispatchEvent(new CustomEvent('st:cmd-open'))
 // Comandos registrados desde fuera vía window.registerCommands([...])
 
 function CommandPalette({ onNavigate, onClose }) {
@@ -26,7 +26,7 @@ function CommandPalette({ onNavigate, onClose }) {
       { id:'ai-gen',  t:'Generar plantilla con IA',     s:'Describe el correo y la IA lo arma',       g:'Acciones', icon:'sparkles',  run:()=>onNavigate('ai-generate') },
       { id:'review',  t:'Revisar antes de enviar',      s:'Checklist pre-envío: alt-text, contraste, links…', g:'Acciones', icon:'eye', run:()=>onNavigate('review') },
       { id:'export',  t:'Exportar o enviar prueba',     s:'HTML, MJML o correo de prueba',            g:'Acciones', icon:'send',      run:()=>onNavigate('export') },
-      { id:'vars',    t:'Variables globales',           s:'Editar las @etiquetas del preview',         g:'Acciones', icon:'braces',    run:()=>onNavigate('vars') },
+      { id:'vars',    t:'Etiquetas de la plantilla',    s:'Editar las {{etiquetas}} de este correo',   g:'Acciones', icon:'braces',    run:()=>onNavigate('vars') },
       // Navegación
       { id:'n-dash',  t:'Ir a Mis plantillas',          s:'Biblioteca principal',                      g:'Ir a',    icon:'grid',      run:()=>onNavigate('dashboard') },
       { id:'n-gal',   t:'Ir a Galería de ejemplos',     s:'Plantillas listas por ocasión',             g:'Ir a',    icon:'layers',    run:()=>onNavigate('gallery') },

@@ -1,6 +1,15 @@
 const electron = require("electron");
 const { app, BrowserWindow } = electron;
 const path = require("path");
+const db = require("./storage/db");
+const seed = require("./storage/seed");
+const storageIpc = require("./ipc/storage");
+const secretsIpc = require("./ipc/secrets");
+const smtpIpc = require("./ipc/smtp");
+const shellIpc = require("./ipc/shell");
+const oauthIpc = require("./ipc/oauth");
+const aiIpc = require("./ipc/ai");
+const cdnIpc = require("./ipc/cdn");
 
 if (!app || !BrowserWindow) {
   console.error(
@@ -33,7 +42,9 @@ function createWindow() {
       : {}),
     webPreferences: {
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      sandbox: true,
+      preload: path.join(__dirname, "preload.js")
     }
   });
 
@@ -49,6 +60,15 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  db.init();
+  seed.ensureFirstWorkspace();
+  storageIpc.register();
+  secretsIpc.register();
+  smtpIpc.register();
+  shellIpc.register();
+  oauthIpc.register();
+  aiIpc.register();
+  cdnIpc.register();
   createWindow();
 
   app.on("activate", () => {

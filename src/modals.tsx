@@ -1,5 +1,50 @@
 // Modals — Enviar/Exportar, Enviar prueba, Etiquetas
 
+// Variables now live INSIDE each template (see Bundle G.1 / template.vars).
+// Resolution order:
+//   1. If the editor is mounted, read/write its current template's vars via
+//      window.__stEditor.{getVars,setVars}.
+//   2. Otherwise (modal opened from dashboard / no template open), fall back
+//      to the workspace defaults so the user can still browse them — but the
+//      modal becomes read-only and points to Settings for edits.
+function useTemplateVars() {
+  const fromEditor = () => {
+    const ed = window.__stEditor;
+    return ed && typeof ed.getVars === 'function' ? ed.getVars() : null;
+  };
+  const fromWorkspace = () => window.stStorage.getWSSetting('vars', null) || VARIABLES;
+  const get = () => fromEditor() || fromWorkspace();
+  const [list, setList] = React.useState(get);
+  const [hasEditor, setHasEditor] = React.useState(() => !!fromEditor());
+
+  React.useEffect(() => {
+    const refresh = () => {
+      const ed = !!fromEditor();
+      setHasEditor(ed);
+      setList(get());
+    };
+    refresh();
+    window.addEventListener('st:template-change', refresh);
+    window.addEventListener('st:workspace-change', refresh);
+    window.addEventListener('st:settings-change', refresh);
+    return () => {
+      window.removeEventListener('st:template-change', refresh);
+      window.removeEventListener('st:workspace-change', refresh);
+      window.removeEventListener('st:settings-change', refresh);
+    };
+  }, []);
+
+  const setVars = (next) => {
+    const ed = window.__stEditor;
+    if (ed && typeof ed.setVars === 'function') {
+      ed.setVars(next);
+      setList(next);
+    }
+  };
+
+  return { vars: list, setVars, editable: hasEditor };
+}
+
 function Modal({ title, sub, onClose, children, footer, size }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -65,8 +110,28 @@ function ModalTab({ label, icon, active, onClick, sub }) {
 // ─── TAB 1: SEND TO PEOPLE ──────────────────────────────────────
 function SendTab({ onClose }) {
   const [action, setAction] = React.useState('test');  // test | copy
-  const [emails, setEmails] = React.useState(['carmen@acme.com']);
+  const [emails, setEmails] = React.useState(() => {
+    // Seed from the workspace account email so the user doesn't have to
+    // re-type their own address every time.
+    const account = window.stStorage.getSetting('account', {}) || {};
+    return account.email ? [account.email] : [];
+  });
   const [input, setInput] = React.useState('');
+  const [sending, setSending] = React.useState(false);
+  const [error, setError] = React.useState(null);
+  const [cfgError, setCfgError] = React.useState(null);
+  const [cfgLoading, setCfgLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
+      const result = await window.stTestSend.checkConfig();
+      if (!alive) return;
+      setCfgError(result.ok ? null : result.error);
+      setCfgLoading(false);
+    })();
+    return () => { alive = false; };
+  }, []);
 
   const ACTIONS = [
     { id:'test',     t:'Enviar prueba',        d:'Mándate el correo a ti o a tu equipo para revisarlo', icon:'send'},
@@ -75,6 +140,23 @@ function SendTab({ onClose }) {
 
   const addEmail = () => {
     if (input && input.includes('@')) { setEmails(e=>[...e, input.trim()]); setInput(''); }
+  };
+
+  const sendTest = async () => {
+    setSending(true);
+    setError(null);
+    const result = await window.stTestSend.sendFromEditor(emails);
+    setSending(false);
+    if (result.ok) {
+      window.notify && window.notify('testDone', {
+        kind: 'ok',
+        title: `Prueba enviada a ${emails.length} correo${emails.length>1?'s':''}`,
+        msg: 'Suele tardar un par de minutos en llegar.',
+      });
+      onClose();
+    } else {
+      setError(result.error || 'Error desconocido al enviar.');
+    }
   };
 
   return (
@@ -105,6 +187,19 @@ function SendTab({ onClose }) {
         })}
       </div>
 
+      {action==='test' && cfgError && (
+        <div style={{
+          padding:12,
+          background:'color-mix(in oklab, var(--warn, #d97757) 14%, transparent)',
+          borderRadius:'var(--r-md)',
+          fontSize:12,color:'var(--warn, #d97757)',lineHeight:1.5,
+          display:'flex',gap:8,
+        }}>
+          <I.info size={14} style={{marginTop:1,flexShrink:0}}/>
+          <div><b>No podés enviar aún.</b> {cfgError}</div>
+        </div>
+      )}
+
       {action==='test' && (
         <div className="col" style={{gap:12,padding:16,background:'var(--surface-2)',borderRadius:'var(--r-md)'}}>
           <div className="prop-label">¿A qué correos lo enviamos?</div>
@@ -122,7 +217,7 @@ function SendTab({ onClose }) {
             Añadir <b>[PRUEBA]</b> al asunto para distinguirlo
           </label>
           <div style={{fontSize:11,color:'var(--fg-3)',lineHeight:1.5}}>
-            Usa la cuenta SMTP configurada en Ajustes → Envío de pruebas. Las etiquetas <code style={{fontFamily:'var(--font-mono)'}}>@nombre</code> aparecen con los valores de ejemplo.
+            Usa la cuenta SMTP configurada en Ajustes → Envío de pruebas. Las etiquetas <code style={{fontFamily:'var(--font-mono)'}}>{`{{nombre}}`}</code> aparecen con los valores de ejemplo.
           </div>
         </div>
       )}
@@ -131,9 +226,9 @@ function SendTab({ onClose }) {
         <div className="col" style={{gap:12,padding:16,background:'var(--surface-2)',borderRadius:'var(--r-md)'}}>
           <div className="prop-label">Tu link privado</div>
           <div className="row">
-            <input className="field" readOnly value="https://mailcraft.app/v/k7h2-39pq" style={{flex:1,fontFamily:'var(--font-mono)',fontSize:12}}/>
+            <input className="field" readOnly value="https://simple-template.app/v/k7h2-39pq" style={{flex:1,fontFamily:'var(--font-mono)',fontSize:12}}/>
             <button className="btn" onClick={()=>{
-              try { navigator.clipboard?.writeText('https://mailcraft.app/v/k7h2-39pq'); } catch(e){}
+              try { navigator.clipboard?.writeText('https://simple-template.app/v/k7h2-39pq'); } catch(e){}
               window.toast && window.toast({ kind:'ok', title:'Link copiado', msg:'Pégalo donde lo quieras compartir.' });
             }}><I.copy size={13}/> Copiar</button>
           </div>
@@ -142,18 +237,30 @@ function SendTab({ onClose }) {
           </div>
           <label style={{display:'flex',gap:8,alignItems:'center',fontSize:12}}>
             <input type="checkbox" defaultChecked/>
-            Los datos de etiquetas aparecen con ejemplos (@nombre → "Carmen")
+            Los datos de etiquetas aparecen con ejemplos ({`{{nombre}}`} → "Carmen")
           </label>
+        </div>
+      )}
+
+      {error && action==='test' && (
+        <div style={{
+          padding:12,
+          background:'color-mix(in oklab, var(--danger) 12%, transparent)',
+          borderRadius:'var(--r-md)',
+          fontSize:12,color:'var(--danger)',
+          display:'flex',gap:8,
+        }}>
+          <I.x size={14} style={{marginTop:1,flexShrink:0}}/>
+          <div><b>No pudimos enviar.</b> {error}</div>
         </div>
       )}
 
       {/* Footer */}
       <div className="row" style={{justifyContent:'flex-end',paddingTop:8,borderTop:'1px solid var(--line)',marginTop:4}}>
-        <button className="btn ghost" onClick={onClose}>Cancelar</button>
-        {action==='test' && <button className="btn primary" onClick={()=>{
-          window.toast && window.toast({ kind:'ok', title:`Prueba enviada a ${emails.length} correo${emails.length>1?'s':''}`, msg:'Suele tardar un par de minutos en llegar.' });
-          onClose();
-        }}><I.send size={13}/> Mandar {emails.length} prueba{emails.length>1?'s':''}</button>}
+        <button className="btn ghost" onClick={onClose} disabled={sending}>Cancelar</button>
+        {action==='test' && <button className="btn primary" onClick={sendTest} disabled={sending || emails.length===0 || cfgLoading || !!cfgError}>
+          {sending ? <><I.loader size={13}/> Enviando…</> : <><I.send size={13}/> Mandar {emails.length} prueba{emails.length!==1?'s':''}</>}
+        </button>}
         {action==='copy' && <button className="btn primary" onClick={onClose}><I.check size={13}/> Listo</button>}
       </div>
     </div>
@@ -163,59 +270,73 @@ function SendTab({ onClose }) {
 // ─── TAB 2: FOR DEVELOPERS ──────────────────────────────────────
 function DevsTab({ onClose }) {
   const [fmt, setFmt] = React.useState('html');
-  const [inline, setInline] = React.useState(true);
-  const [minify, setMinify] = React.useState(true);
+  const [minify, setMinify] = React.useState(false);
+  const [includeTxt, setIncludeTxt] = React.useState(false);
+  const [template, setTemplate] = React.useState(null);
 
-  const samples = {
-    html: `<!doctype html>
-<html lang="es">
-<head><meta charset="utf-8"/>
-<title>Novedades de noviembre</title>
-</head>
-<body style="background:#f6f5f1;margin:0;padding:0;">
-<table role="presentation" width="100%" cellspacing="0"...
-  ...
-</body>
-</html>`,
-    mjml: `<mjml>
-  <mj-head>
-    <mj-title>Novedades de noviembre</mj-title>
-    <mj-preview>3 novedades de noviembre</mj-preview>
-  </mj-head>
-  <mj-body background-color="#f6f5f1">
-    <mj-section background-color="#e8eddd" padding="40px 32px">
-      <mj-column>
-        <mj-text font-size="28px" font-weight="600">
-          Hola, @nombre 👋
-        </mj-text>
-        <mj-text>Gracias por ser parte de @empresa.</mj-text>
-      </mj-column>
-    </mj-section>
-    ...
-  </mj-body>
-</mjml>`,
-    txt: `Hola, @nombre
+  // Pull the currently-open template so the renderers have real sections + vars.
+  // If no editor is mounted (modal opened from dashboard via command palette),
+  // we still want to show something — fall back to a minimal seed so the user
+  // can see what the output will look like.
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
+      const ed = window.__stEditor;
+      const id = ed && typeof ed.getTemplateId === 'function' ? ed.getTemplateId() : null;
+      // Flush any pending autosave so the renderer sees the latest edits.
+      if (ed && typeof ed.flush === 'function') {
+        try { await ed.flush(); } catch {}
+      }
+      if (id && window.stTemplates) {
+        const tpl = await window.stTemplates.read(id);
+        if (alive) setTemplate(tpl || null);
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
 
-Gracias por ser parte de @empresa.
+  const output = React.useMemo(() => {
+    if (!template) return null;
+    const ex = window.stExport;
+    if (!ex) return null;
+    try {
+      return {
+        html: ex.renderHTML(template, { minify, includeTxt }),
+        mjml: ex.renderMJML(template),
+        txt:  ex.renderTXT(template),
+      };
+    } catch (err) {
+      return { error: err?.message || String(err) };
+    }
+  }, [template, minify, includeTxt]);
 
-Estas son 3 novedades de noviembre:
-1. ...
-2. ...
-3. ...
+  const current = output && !output.error ? (output[fmt] || '') : '';
+  const sizeKB = current ? Math.max(1, Math.round(new Blob([current]).size / 1024)) : 0;
 
-Desuscribir: @link_baja`,
-    amp: `<!doctype html>
-<html ⚡4email>
-<head><meta charset="utf-8">
-<script async src="https://cdn.ampproject.org/v0.js"></script>
-...`,
-  };
   const FORMATS = [
-    { id:'html', label:'HTML compilado',     d:'Pégalo en Mailchimp, Sendgrid, Klaviyo, Brevo' },
-    { id:'mjml', label:'MJML (código fuente)', d:'Para editar con herramientas MJML' },
-    { id:'txt',  label:'Texto plano',         d:'Versión alternativa, sin formato' },
-    { id:'amp',  label:'AMP for Email',       d:'Interactivo — Gmail y Yahoo únicamente' },
+    { id:'html', label:'HTML compilado',       d:'Pégalo en Mailchimp, Sendgrid, Klaviyo, Brevo', ext:'html', mime:'text/html' },
+    { id:'mjml', label:'MJML (código fuente)', d:'Para editar con herramientas MJML',              ext:'mjml', mime:'text/plain' },
+    { id:'txt',  label:'Texto plano',           d:'Versión alternativa, sin formato',              ext:'txt',  mime:'text/plain' },
   ];
+  const currentFormat = FORMATS.find(f => f.id === fmt) || FORMATS[0];
+
+  const doCopy = async () => {
+    if (!current) return;
+    try {
+      await navigator.clipboard.writeText(current);
+      window.toast && window.toast({ kind:'ok', title:`${fmt.toUpperCase()} copiado al portapapeles`, msg:'Ya lo puedes pegar donde quieras.' });
+    } catch (err) {
+      window.toast && window.toast({ kind:'error', title:'No se pudo copiar', msg: err?.message || 'Revisa los permisos del portapapeles.' });
+    }
+  };
+
+  const doDownload = () => {
+    if (!current) return;
+    const base = window.stExport.safeFilename(template?.name);
+    const filename = `${base}.${currentFormat.ext}`;
+    window.stExport.downloadFile(filename, current, currentFormat.mime);
+    window.notify && window.notify('exportDone', { kind:'ok', title:'Descarga iniciada', msg: filename });
+  };
 
   return (
     <div style={{display:'grid',gridTemplateColumns:'240px 1fr',gap:20}}>
@@ -239,45 +360,46 @@ Desuscribir: @link_baja`,
         </div>
         <div className="divider"/>
         <div className="prop-label">Opciones</div>
-        <label style={{display:'flex',gap:8,alignItems:'center',fontSize:12}}>
-          <input type="checkbox" checked={inline} onChange={e=>setInline(e.target.checked)}/>
-          Estilos dentro de cada etiqueta (recomendado)
-        </label>
-        <label style={{display:'flex',gap:8,alignItems:'center',fontSize:12}}>
-          <input type="checkbox" checked={minify} onChange={e=>setMinify(e.target.checked)}/>
+        <label style={{display:'flex',gap:8,alignItems:'center',fontSize:12,opacity: fmt==='html'?1:0.5}}>
+          <input type="checkbox" checked={minify} onChange={e=>setMinify(e.target.checked)} disabled={fmt!=='html'}/>
           Comprimir código
         </label>
-        <label style={{display:'flex',gap:8,alignItems:'center',fontSize:12}}>
-          <input type="checkbox"/>
+        <label style={{display:'flex',gap:8,alignItems:'center',fontSize:12,opacity: fmt==='html'?1:0.5}}>
+          <input type="checkbox" checked={includeTxt} onChange={e=>setIncludeTxt(e.target.checked)} disabled={fmt!=='html'}/>
           Incluir versión de solo texto
         </label>
         <div className="divider"/>
         <div className="prop-label">Resultado</div>
-        <div className="row"><div className="chip ok"><I.check size={10}/> Válido</div></div>
+        <div className="row">
+          {template ? (
+            output?.error
+              ? <div className="chip" style={{color:'var(--err,#e04f4f)'}}><I.x size={10}/> Error</div>
+              : <div className="chip ok"><I.check size={10}/> Válido</div>
+          ) : (
+            <div className="chip"><I.clock size={10}/> Sin plantilla</div>
+          )}
+        </div>
         <div style={{fontSize:12,color:'var(--fg-3)',lineHeight:1.5}}>
-          Tamaño: <b style={{color:'var(--fg)'}}>48 KB</b><br/>
-          Imágenes: <b style={{color:'var(--fg)'}}>5</b><br/>
+          {template ? <>Tamaño: <b style={{color:'var(--fg)'}}>{sizeKB} KB</b><br/></> : null}
           Compatible con: Gmail, Outlook 2019+, iOS, Android
         </div>
       </div>
       <div style={{background:'var(--surface-2)',borderRadius:'var(--r-md)',overflow:'hidden',display:'flex',flexDirection:'column'}}>
         <div style={{padding:'8px 12px',borderBottom:'1px solid var(--line)',display:'flex',alignItems:'center',gap:8,fontSize:12}}>
           <I.code size={13}/>
-          <span style={{fontFamily:'var(--font-mono)'}}>correo.{fmt}</span>
+          <span style={{fontFamily:'var(--font-mono)'}}>{template ? window.stExport.safeFilename(template.name) : 'correo'}.{currentFormat.ext}</span>
           <div className="grow"/>
-          <button className="btn icon sm ghost"><I.copy size={12}/></button>
+          <button className="btn icon sm ghost" onClick={doCopy} disabled={!current} title="Copiar"><I.copy size={12}/></button>
         </div>
-        <pre style={{margin:0,padding:14,fontFamily:'var(--font-mono)',fontSize:11.5,lineHeight:1.6,overflow:'auto',maxHeight:340,color:'var(--fg-2)'}}>
-          {samples[fmt]}
+        <pre style={{margin:0,padding:14,fontFamily:'var(--font-mono)',fontSize:11.5,lineHeight:1.6,overflow:'auto',maxHeight:340,color:'var(--fg-2)',whiteSpace:'pre-wrap',wordBreak:'break-word'}}>
+          {output?.error
+            ? `⚠ No se pudo generar: ${output.error}`
+            : (current || 'Abre una plantilla en el editor para ver el código exportado aquí.')}
         </pre>
         <div className="row" style={{padding:'10px 12px',borderTop:'1px solid var(--line)',justifyContent:'flex-end'}}>
           <button className="btn ghost" onClick={onClose}>Cerrar</button>
-          <button className="btn" onClick={()=>{
-            window.toast && window.toast({ kind:'ok', title:`${fmt.toUpperCase()} copiado al portapapeles`, msg:'Ya lo puedes pegar donde quieras.' });
-          }}><I.copy size={13}/> Copiar</button>
-          <button className="btn primary" onClick={()=>{
-            window.toast && window.toast({ kind:'ok', title:`Descarga iniciada`, msg:`correo-noviembre.${fmt}` });
-          }}><I.download size={13}/> Descargar {fmt.toUpperCase()}</button>
+          <button className="btn" onClick={doCopy} disabled={!current}><I.copy size={13}/> Copiar</button>
+          <button className="btn primary" onClick={doDownload} disabled={!current}><I.download size={13}/> Descargar {fmt.toUpperCase()}</button>
         </div>
       </div>
     </div>
@@ -288,24 +410,70 @@ Desuscribir: @link_baja`,
 // TEST SEND MODAL
 // ════════════════════════════════════════════════════════════════
 function TestSendModal({ onClose }) {
-  const [emails, setEmails] = React.useState(['carmen@acme.com']);
+  const [emails, setEmails] = React.useState(() => {
+    const account = window.stStorage.getSetting('account', {}) || {};
+    return account.email ? [account.email] : [];
+  });
   const [input, setInput] = React.useState('');
+  const [sending, setSending] = React.useState(false);
+  const [error, setError] = React.useState(null);
+  const [cfgError, setCfgError] = React.useState(null);
+  const [cfgLoading, setCfgLoading] = React.useState(true);
+  const { vars } = useTemplateVars();
+
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
+      const result = await window.stTestSend.checkConfig();
+      if (!alive) return;
+      setCfgError(result.ok ? null : result.error);
+      setCfgLoading(false);
+    })();
+    return () => { alive = false; };
+  }, []);
   const add = () => {
     if (input && input.includes('@')) {
       setEmails(e => [...e, input.trim()]);
       setInput('');
     }
   };
+  const sendTest = async () => {
+    setSending(true);
+    setError(null);
+    const result = await window.stTestSend.sendFromEditor(emails);
+    setSending(false);
+    if (result.ok) {
+      window.notify && window.notify('testDone', {
+        kind: 'ok',
+        title: `Prueba enviada a ${emails.length} correo${emails.length>1?'s':''}`,
+        msg: 'Suele tardar un par de minutos en llegar.',
+      });
+      onClose();
+    } else {
+      setError(result.error || 'Error desconocido al enviar.');
+    }
+  };
   return (
     <Modal title="Enviar una prueba a ti mismo" sub="Mándate este correo para ver cómo se verá en tu bandeja de entrada" onClose={onClose}
       footer={<>
-        <button className="btn ghost" onClick={onClose}>Cancelar</button>
-        <button className="btn primary" onClick={()=>{
-          window.toast && window.toast({ kind:'ok', title:`Prueba enviada a ${emails.length} correo${emails.length>1?'s':''}`, msg:'Suele tardar un par de minutos en llegar.' });
-          onClose();
-        }}><I.send size={13}/> Mandar {emails.length} prueba{emails.length>1?'s':''}</button>
+        <button className="btn ghost" onClick={onClose} disabled={sending}>Cancelar</button>
+        <button className="btn primary" onClick={sendTest} disabled={sending || emails.length===0 || cfgLoading || !!cfgError}>
+          {sending ? <><I.loader size={13}/> Enviando…</> : <><I.send size={13}/> Mandar {emails.length} prueba{emails.length!==1?'s':''}</>}
+        </button>
       </>}>
       <div className="col">
+        {cfgError && (
+          <div style={{
+            padding:12,
+            background:'color-mix(in oklab, var(--warn, #d97757) 14%, transparent)',
+            borderRadius:'var(--r-md)',
+            fontSize:12,color:'var(--warn, #d97757)',lineHeight:1.5,
+            display:'flex',gap:8,marginBottom:4,
+          }}>
+            <I.info size={14} style={{marginTop:1,flexShrink:0}}/>
+            <div><b>No podés enviar aún.</b> {cfgError}</div>
+          </div>
+        )}
         <div className="prop-label">¿A qué correos lo enviamos?</div>
         <div style={{display:'flex',gap:6,flexWrap:'wrap',padding:6,border:'1px solid var(--line)',borderRadius:'var(--r-md)',background:'var(--surface)',minHeight:44}}>
           {emails.map((em,i) => (
@@ -318,11 +486,11 @@ function TestSendModal({ onClose }) {
         </div>
         <div className="divider"/>
         <div className="prop-label">Datos de ejemplo para las etiquetas</div>
-        <div style={{fontSize:11,color:'var(--fg-3)',marginBottom:6}}>Los valores que aparecerán en lugar de @nombre, @empresa, etc.</div>
+        <div style={{fontSize:11,color:'var(--fg-3)',marginBottom:6}}>Los valores que aparecerán en lugar de {`{{nombre}}`}, {`{{empresa}}`}, etc.</div>
         <div style={{background:'var(--surface-2)',padding:12,borderRadius:'var(--r-md)',display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-          {VARIABLES.slice(0,6).map(v => (
+          {vars.slice(0,6).map(v => (
             <div key={v.key} style={{display:'flex',flexDirection:'column',gap:2}}>
-              <div style={{fontSize:11,color:'var(--fg-3)'}}><b style={{color:'var(--accent)',fontWeight:600}}>@{v.key}</b> — {v.label}</div>
+              <div style={{fontSize:11,color:'var(--fg-3)'}}><b style={{color:'var(--accent)',fontWeight:600,fontFamily:'var(--font-mono)'}}>{`{{${v.key}}}`}</b> — {v.label}</div>
               <input className="field" defaultValue={v.sample} style={{height:28,fontSize:12}}/>
             </div>
           ))}
@@ -334,6 +502,18 @@ function TestSendModal({ onClose }) {
             Añadir <b>[PRUEBA]</b> al asunto para distinguirlo
           </label>
         </div>
+        {error && (
+          <div style={{
+            padding:12,
+            background:'color-mix(in oklab, var(--danger) 12%, transparent)',
+            borderRadius:'var(--r-md)',
+            fontSize:12,color:'var(--danger)',
+            display:'flex',gap:8,
+          }}>
+            <I.x size={14} style={{marginTop:1,flexShrink:0}}/>
+            <div><b>No pudimos enviar.</b> {error}</div>
+          </div>
+        )}
         <div style={{padding:12,background:'var(--accent-soft)',borderRadius:'var(--r-md)',fontSize:12,color:'var(--accent)',display:'flex',gap:8}}>
           <I.check size={14}/>
           <div>Los envíos de prueba no se cuentan en tu cuota mensual. Puedes mandarte todas las pruebas que quieras.</div>
@@ -347,35 +527,93 @@ function TestSendModal({ onClose }) {
 // VARIABLES / TAGS MODAL
 // ════════════════════════════════════════════════════════════════
 function VariablesModal({ onClose }) {
+  const { vars, setVars, editable } = useTemplateVars();
+  const [creating, setCreating] = React.useState(false);
+  const [draft, setDraft] = React.useState({ key:'', label:'', sample:'' });
+
+  const updateVar = (i, patch) => {
+    if (!editable) return;
+    setVars(vars.map((v, vi) => vi === i ? { ...v, ...patch } : v));
+  };
+  const removeVar = (i) => {
+    if (!editable) return;
+    setVars(vars.filter((_, vi) => vi !== i));
+  };
+  const submitNew = () => {
+    const key = draft.key.trim().replace(/^@/,'').replace(/\s+/g,'_');
+    if (!key) return;
+    if (vars.some(v => v.key === key)) {
+      window.toast && window.toast({ kind:'err', title:'Ya existe una etiqueta @'+key });
+      return;
+    }
+    setVars([...vars, { key, label: draft.label.trim() || key, sample: draft.sample.trim() || '', type:'texto' }]);
+    setCreating(false);
+    setDraft({ key:'', label:'', sample:'' });
+  };
+
   return (
-    <Modal title="Etiquetas que se rellenan solas"
-      sub="Escribe @nombre en cualquier texto y cada persona verá el suyo. Nosotros hacemos el trabajo."
+    <Modal title="Etiquetas de esta plantilla"
+      sub={editable
+        ? 'Escribe {{nombre}} (con dobles llaves) en cualquier bloque y se reemplaza por el valor de cada destinatario. Cada plantilla tiene sus propias etiquetas.'
+        : 'Abre una plantilla para editar sus etiquetas. Aquí ves los valores por defecto del workspace.'}
       size="wide" onClose={onClose}
       footer={<>
         <button className="btn ghost" onClick={onClose}>Cerrar</button>
-        <button className="btn primary" onClick={()=>{
-          window.toast && window.toast({ kind:'ok', title:'Etiqueta nueva creada', msg:'Ya puedes usarla en cualquier bloque de texto.' });
-        }}><I.plus size={13}/> Crear etiqueta nueva</button>
+        {editable && !creating && (
+          <button className="btn primary" onClick={()=>setCreating(true)}>
+            <I.plus size={13}/> Crear etiqueta nueva
+          </button>
+        )}
       </>}>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20}}>
         <div>
           <div className="prop-label">Etiquetas disponibles</div>
-          <div style={{fontSize:11,color:'var(--fg-3)',marginBottom:8,lineHeight:1.5}}>Haz clic en cualquiera para copiarla, o arrástrala a un bloque de texto.</div>
+          <div style={{fontSize:11,color:'var(--fg-3)',marginBottom:8,lineHeight:1.5}}>
+            {editable
+              ? 'Haz clic para copiar la etiqueta tal cual va en el texto. Edita el valor de ejemplo para ajustar lo que verá el destinatario en la vista previa.'
+              : 'Solo lectura — abre una plantilla del dashboard para modificar.'}
+          </div>
+          {creating && (
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 28px',gap:6,padding:10,marginBottom:10,background:'var(--accent-soft)',borderRadius:'var(--r-md)',alignItems:'center'}}>
+              <input className="field" value={draft.key} onChange={e=>setDraft(d=>({...d,key:e.target.value}))} onKeyDown={e=>{if(e.key==='Enter')submitNew();if(e.key==='Escape')setCreating(false);}} placeholder="curso (sin {{}})" autoFocus style={{fontSize:12,padding:'4px 6px'}}/>
+              <input className="field" value={draft.label} onChange={e=>setDraft(d=>({...d,label:e.target.value}))} placeholder="Etiqueta" style={{fontSize:12,padding:'4px 6px'}}/>
+              <input className="field" value={draft.sample} onChange={e=>setDraft(d=>({...d,sample:e.target.value}))} placeholder="Ejemplo" style={{fontSize:12,padding:'4px 6px'}}/>
+              <button className="btn icon sm" onClick={submitNew} disabled={!draft.key.trim()} title="Crear"><I.check size={11}/></button>
+            </div>
+          )}
           <div style={{border:'1px solid var(--line)',borderRadius:'var(--r-md)',overflow:'hidden'}}>
-            {VARIABLES.map((v,i) => (
-              <div key={v.key} style={{display:'grid',gridTemplateColumns:'1fr 1fr 20px',gap:10,padding:'10px 12px',borderBottom:i<VARIABLES.length-1?'1px solid var(--line)':'none',alignItems:'center',fontSize:12,cursor:'pointer'}}>
+            {vars.length === 0 && (
+              <div style={{padding:'18px 14px',fontSize:12,color:'var(--fg-3)',textAlign:'center'}}>
+                Esta plantilla aún no tiene etiquetas. {editable && 'Usa "Crear etiqueta nueva" para empezar.'}
+              </div>
+            )}
+            {vars.map((v,i) => (
+              <div key={v.key+'_'+i} style={{display:'grid',gridTemplateColumns:'1fr 1.2fr 20px 20px',gap:10,padding:'10px 12px',borderBottom:i<vars.length-1?'1px solid var(--line)':'none',alignItems:'center',fontSize:12}}>
                 <div>
-                  <div style={{fontSize:13,fontWeight:600,color:'var(--accent)'}}>@{v.key}</div>
-                  <div style={{fontSize:11,color:'var(--fg-3)',marginTop:2}}>{v.label}</div>
+                  <div style={{fontSize:13,fontWeight:600,color:'var(--accent)',fontFamily:'var(--font-mono)'}}>{`{{${v.key}}}`}</div>
+                  <div style={{fontSize:11,color:'var(--fg-3)',marginTop:2}}>{v.label || v.key}</div>
                 </div>
-                <div style={{fontSize:11,color:'var(--fg-2)'}}>
-                  <span style={{fontSize:10,color:'var(--fg-3)'}}>Se verá como: </span>
-                  <b>{v.sample}</b>
+                <div style={{display:'flex',alignItems:'center',gap:6}}>
+                  <span style={{fontSize:10,color:'var(--fg-3)',flexShrink:0}}>Se verá:</span>
+                  {editable ? (
+                    <input className="field" value={v.sample||''} onChange={e=>updateVar(i,{sample:e.target.value})} style={{fontSize:12,padding:'2px 6px',height:24,fontWeight:500}}/>
+                  ) : (
+                    <b>{v.sample}</b>
+                  )}
                 </div>
-                <button className="btn icon sm ghost" title="Copiar" onClick={()=>{
-                  try { navigator.clipboard?.writeText('@'+v.key); } catch(e){}
-                  window.toast && window.toast({ kind:'ok', title:`@${v.key} copiada`, msg:'Pégala en cualquier bloque de texto.' });
-                }}><I.copy size={12}/></button>
+                <button className="btn icon sm ghost" title={`Copiar {{${v.key}}}`} onClick={()=>{
+                  const tag = `{{${v.key}}}`;
+                  try { navigator.clipboard?.writeText(tag); } catch(e){}
+                  window.toast && window.toast({ kind:'ok', title:`${tag} copiada` });
+                }}><I.copy size={11}/></button>
+                {editable ? (
+                  <button className="btn icon sm ghost" title="Eliminar etiqueta" style={{color:'var(--err,#e04f4f)'}}
+                    onClick={()=>{
+                      if (window.confirm(`Eliminar {{${v.key}}} de esta plantilla?`)) removeVar(i);
+                    }}>
+                    <I.trash size={11}/>
+                  </button>
+                ) : <span/>}
               </div>
             ))}
           </div>
@@ -385,7 +623,7 @@ function VariablesModal({ onClose }) {
           <div style={{fontSize:11,color:'var(--fg-3)',marginBottom:8,lineHeight:1.5}}>Elige de dónde queremos sacar el nombre, correo, etc. de cada persona.</div>
           <div className="col" style={{gap:8}}>
             {[
-              {n:'Mi lista de contactos', d:'La lista que cargaste en Mailcraft', on:true},
+              {n:'Mi lista de contactos', d:'La lista que cargaste en Simple Template', on:true},
               {n:'Archivo CSV', d:'Sube un Excel o Google Sheets', on:false},
               {n:'Mi tienda / CRM',d:'Shopify, HubSpot, Pipedrive, Salesforce', on:false},
               {n:'Mi base de datos', d:'Solo si tu equipo técnico la configuró', on:false},
@@ -406,7 +644,7 @@ function VariablesModal({ onClose }) {
           <div className="prop-label">Cómo se verá</div>
           <div style={{padding:14,background:'var(--surface-2)',borderRadius:'var(--r-md)',fontSize:13}}>
             <div style={{color:'var(--fg-3)',fontSize:11,marginBottom:6}}>
-              Tú escribiste: <span style={{color:'var(--accent)',fontWeight:600}}>Hola <b>@nombre</b>, aquí está tu pedido <b>@pedido</b></span>
+              Tú escribiste: <span style={{color:'var(--accent)',fontWeight:600,fontFamily:'var(--font-mono)'}}>Hola {`{{nombre}}`}, aquí está tu pedido {`{{pedido}}`}</span>
             </div>
             <div style={{color:'var(--fg)',fontWeight:500,padding:'6px 0',borderTop:'1px dashed var(--line)'}}>
               Carmen verá: <b>Hola Carmen, aquí está tu pedido #A-4821</b>
