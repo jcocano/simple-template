@@ -448,6 +448,10 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
   const [name, setName] = React.useState(template?.name || 'Plantilla sin título');
   const [zoom, setZoom] = React.useState(100);
   const [improveBlock, setImproveBlock] = React.useState(null);
+  // When the user clicks an empty image placeholder in the canvas we want to
+  // jump straight to the library picker, skipping "select → open props tab →
+  // click button". Holds { sectionId, block } while the picker is open.
+  const [picker, setPicker] = React.useState(null);
   const [saveState, setSaveState] = React.useState('idle'); // idle | dirty | saving | error
   const [showTour, setShowTour] = React.useState(() => {
     try { return !window.stStorage.getSetting('tour-seen', false); } catch(e) { return false; }
@@ -473,9 +477,23 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
     window.addEventListener('st:improve', h);
     const t = () => setShowTour(true);
     window.addEventListener('st:start-tour', t);
+    const pick = (e) => {
+      const { sectionId, blockId } = e.detail || {};
+      if (!sectionId || !blockId) return;
+      const section = docRef.current.find(s => s.id === sectionId);
+      if (!section) return;
+      let found = null;
+      for (const col of section.columns || []) {
+        found = (col.blocks || []).find(b => b.id === blockId);
+        if (found) break;
+      }
+      if (found) setPicker({ sectionId, block: found });
+    };
+    window.addEventListener('st:pick-image-for-block', pick);
     return () => {
       window.removeEventListener('st:improve', h);
       window.removeEventListener('st:start-tour', t);
+      window.removeEventListener('st:pick-image-for-block', pick);
     };
   }, []);
 
@@ -846,6 +864,17 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
         </aside>
       </div>
       {improveBlock && <ImproveAIModal block={improveBlock} onClose={()=>setImproveBlock(null)} onApply={(newBlock)=>{ updateBlock(newBlock); setImproveBlock(null); }}/>}
+      <ImagePickerModal
+        open={!!picker}
+        onClose={()=>setPicker(null)}
+        onSelect={(img)=>{
+          if (!picker) return;
+          const patch = { content: {} };
+          if (img.url) patch.content.src = img.url;
+          if (img.name) patch.content.alt = img.alt || img.name;
+          editBlockContent(picker.sectionId, picker.block, patch);
+        }}
+      />
       {showTour && <EditorTour onClose={()=>setShowTour(false)}/>}
     </div>
   );
@@ -1112,6 +1141,7 @@ function SectionView({ section, selected, selectedBlockId, onSelectSection, onSe
             key={ci}
             column={col}
             colIdx={ci}
+            sectionId={section.id}
             totalBlocks={col.blocks.length}
             selectedBlockId={selectedBlockId}
             onSelectBlock={(b)=>onSelectBlock(b, ci)}
@@ -1127,7 +1157,7 @@ function SectionView({ section, selected, selectedBlockId, onSelectSection, onSe
   );
 }
 
-function ColumnView({ column, colIdx, totalBlocks, selectedBlockId, onSelectBlock, onMoveBlock, onDeleteBlock, onAddBlankBlock, onDropBlock, onEditBlock }) {
+function ColumnView({ column, colIdx, sectionId, totalBlocks, selectedBlockId, onSelectBlock, onMoveBlock, onDeleteBlock, onAddBlankBlock, onDropBlock, onEditBlock }) {
   const [dragOver, setDragOver] = React.useState(false);
   return (
     <div
@@ -1183,7 +1213,21 @@ function ColumnView({ column, colIdx, totalBlocks, selectedBlockId, onSelectBloc
           <React.Fragment key={b.id}>
             <div
               className="block-wrap"
-              onClick={e=>{ e.stopPropagation(); onSelectBlock(b); }}
+              onClick={e=>{
+                e.stopPropagation();
+                onSelectBlock(b);
+                // Shortcut: clicking an image block that has no src drops
+                // you straight into the library picker. Any other block (or
+                // image that already has a src) just selects and opens props.
+                if (b.type === 'image') {
+                  const src = b.data?.content?.src || b.data?.src;
+                  if (!src && sectionId) {
+                    window.dispatchEvent(new CustomEvent('st:pick-image-for-block', {
+                      detail: { sectionId, blockId: b.id },
+                    }));
+                  }
+                }
+              }}
               style={{
                 position:'relative',
                 outline: isSel ? '2px solid var(--accent)' : '1px solid transparent',

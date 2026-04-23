@@ -211,7 +211,7 @@ function EBImage({ data = {} }) {
             }}
           />
         ) : (
-          <ImgPH ratio={s.ratio||'2/1'} label={c.alt || 'Imagen — 1200×600'} radius={s.radius}/>
+          <ImgPH ratio={s.ratio||'2/1'} label={c.alt || 'Haz click para elegir una imagen'} radius={s.radius}/>
         )}
       </div>
     </div>
