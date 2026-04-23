@@ -361,12 +361,408 @@ function BrandFontsGroup({ current, onPick }) {
   );
 }
 
+// ────────────────────────────────────────────────────────────────
+// R1 · Section-complete + R2 · Columns custom — SectionProps groups
+// ────────────────────────────────────────────────────────────────
+// Collapsible wrapper — a prop-group whose body toggles on click.
+function CollapsibleGroup({ title, defaultOpen = true, children }) {
+  const [open, setOpen] = React.useState(!!defaultOpen);
+  return (
+    <div className="prop-group">
+      <div
+        className="prop-label"
+        onClick={() => setOpen(o => !o)}
+        style={{ cursor:'pointer', userSelect:'none', marginBottom: open ? 6 : 0 }}
+      >
+        <span>{title}</span>
+        <I.chevronD size={11} style={{ transform: open ? 'rotate(0deg)' : 'rotate(-90deg)', transition:'transform 140ms' }}/>
+      </div>
+      {open && <div>{children}</div>}
+    </div>
+  );
+}
+
+// Tri-state pill: OFF / Desktop / Mobile. `value` ∈ {none, desktop, mobile}
+// where 'none' means "always visible" (no hidden flag).
+function HideOnPill({ hidden, onChange }) {
+  const t = window.stI18n.t;
+  const state = hidden?.desktop ? 'desktop' : hidden?.mobile ? 'mobile' : 'none';
+  const set = (next) => {
+    if (next === 'none') onChange(undefined);
+    else if (next === 'desktop') onChange({ desktop: true });
+    else onChange({ mobile: true });
+  };
+  return (
+    <div className="seg" style={{ width:'100%' }}>
+      <button className={state==='none'?'on':''} onClick={()=>set('none')}>
+        {t('section.hideOn.none')}
+      </button>
+      <button className={state==='desktop'?'on':''} onClick={()=>set('desktop')} title={t('section.hideOn.desktop')}>
+        <I.monitor size={11}/>
+      </button>
+      <button className={state==='mobile'?'on':''} onClick={()=>set('mobile')} title={t('section.hideOn.mobile')}>
+        <I.phone size={11}/>
+      </button>
+    </div>
+  );
+}
+
+// Border editor with toggle for per-side widths ("More options").
+function BorderEditor({ value, onChange }) {
+  const t = window.stI18n.t;
+  const b = value || {};
+  const [perSide, setPerSide] = React.useState(!!(b.sides));
+  const set = (patch) => onChange({ ...b, ...patch });
+  return (
+    <div>
+      <div className="prop-row">
+        <label>{t('section.field.borderWidth')}</label>
+        <Num value={b.w || 0} onChange={v => set({ w: v })} min={0} max={20}/>
+      </div>
+      <div className="prop-row">
+        <label>{t('section.field.borderStyle')}</label>
+        <div className="seg" style={{ width:'100%' }}>
+          {['solid','dashed','dotted'].map(s => (
+            <button key={s} className={(b.style||'solid')===s?'on':''} onClick={()=>set({ style:s })}>{t('section.borderStyle.'+s)}</button>
+          ))}
+        </div>
+      </div>
+      <div className="prop-row">
+        <label>{t('section.field.borderColor')}</label>
+        <ColorInput value={b.color || '#d6d6d6'} onChange={v => set({ color:v })}/>
+      </div>
+      <button
+        className="btn sm ghost"
+        style={{ width:'100%', marginTop:4, fontSize:11 }}
+        onClick={()=>{
+          if (perSide) {
+            const next = { ...b };
+            delete next.sides;
+            onChange(next);
+            setPerSide(false);
+          } else {
+            const w = b.w || 0;
+            onChange({ ...b, sides: { top:w, right:w, bottom:w, left:w } });
+            setPerSide(true);
+          }
+        }}>{perSide ? t('section.moreOptions.less') : t('section.moreOptions.more')}</button>
+      {perSide && b.sides && (
+        <div style={{ marginTop:6 }}>
+          {['top','right','bottom','left'].map(side => (
+            <div key={side} className="prop-row">
+              <label>{t('section.borderSide.'+side)}</label>
+              <Num value={b.sides[side] || 0} onChange={v => set({ sides: { ...b.sides, [side]: v } })} min={0} max={20}/>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Radius editor with toggle for per-corner values.
+function RadiusEditor({ value, corners, onChangeRadius, onChangeCorners }) {
+  const t = window.stI18n.t;
+  const [perCorner, setPerCorner] = React.useState(!!corners);
+  return (
+    <div>
+      {!perCorner && (
+        <div className="prop-row">
+          <label>{t('section.field.radius')}</label>
+          <Num value={value || 0} onChange={onChangeRadius} min={0} max={60}/>
+        </div>
+      )}
+      <button
+        className="btn sm ghost"
+        style={{ width:'100%', marginTop:4, fontSize:11 }}
+        onClick={()=>{
+          if (perCorner) {
+            onChangeCorners(undefined);
+            setPerCorner(false);
+          } else {
+            const rs = value || 0;
+            onChangeCorners({ tl:rs, tr:rs, br:rs, bl:rs });
+            setPerCorner(true);
+          }
+        }}>{perCorner ? t('section.moreOptions.less') : t('section.moreOptions.more')}</button>
+      {perCorner && corners && (
+        <div style={{ marginTop:6 }}>
+          {[['tl','radiusCorner.tl'],['tr','radiusCorner.tr'],['br','radiusCorner.br'],['bl','radiusCorner.bl']].map(([k, lkey]) => (
+            <div key={k} className="prop-row">
+              <label>{t('section.'+lkey)}</label>
+              <Num value={corners[k] || 0} onChange={v => onChangeCorners({ ...corners, [k]: v })} min={0} max={60}/>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Per-side padding editor (T/R/B/L) with "More options" toggle. Accepts a
+// scalar number OR an object {top,right,bottom,left}. Emits a scalar when
+// all sides are equal (so existing scalar consumers still work); otherwise
+// an object.
+function PaddingEditor({ value, onChange }) {
+  const t = window.stI18n.t;
+  const scalar = typeof value === 'number' ? value : null;
+  const obj = (value && typeof value === 'object') ? value : null;
+  const [perSide, setPerSide] = React.useState(!!obj);
+  return (
+    <div>
+      {!perSide && (
+        <div className="prop-row">
+          <label>{t('editor.sectionProps.padding')}</label>
+          <Num value={typeof scalar === 'number' ? scalar : 0} onChange={v => onChange(v)} min={0} max={80}/>
+        </div>
+      )}
+      <button
+        className="btn sm ghost"
+        style={{ width:'100%', marginTop:4, fontSize:11 }}
+        onClick={()=>{
+          if (perSide) {
+            const v = obj || {};
+            const avg = Math.round(((v.top||0)+(v.right||0)+(v.bottom||0)+(v.left||0))/4);
+            onChange(avg);
+            setPerSide(false);
+          } else {
+            const n = typeof scalar === 'number' ? scalar : 0;
+            onChange({ top:n, right:n, bottom:n, left:n });
+            setPerSide(true);
+          }
+        }}>{perSide ? t('section.moreOptions.less') : t('section.moreOptions.more')}</button>
+      {perSide && obj && (
+        <div style={{ marginTop:6 }}>
+          {['top','right','bottom','left'].map(side => (
+            <div key={side} className="prop-row">
+              <label>{t('section.borderSide.'+side)}</label>
+              <Num value={obj[side] || 0} onChange={v => onChange({ ...obj, [side]: v })} min={0} max={120}/>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Columns structure editor — horizontal bar showing each column block,
+// add/delete controls, and ± buttons to tweak widths.
+function ColumnsStructureGroup({ section, onChange, selectedColIdx, onSelectCol }) {
+  const t = window.stI18n.t;
+  const cols = section.columns || [];
+  const totalW = cols.reduce((s, c) => s + (c.w || 0), 0) || 100;
+
+  const addColumn = () => {
+    if (cols.length >= 6) return;
+    const newW = Math.floor(100 / (cols.length + 1));
+    // Rebalance existing columns to share remaining width evenly.
+    const remainder = 100 - newW;
+    const adjusted = cols.map(c => ({ ...c, w: Math.floor(remainder / cols.length) }));
+    const next = [...adjusted, { w: 100 - adjusted.reduce((s,c)=>s+c.w,0), blocks: [] }];
+    const layout = next.length === 1 ? '1col' : next.length === 2 ? '2col' : next.length === 3 ? '3col' : 'custom';
+    onChange({ ...section, columns: next, layout });
+  };
+  const removeColumn = (i) => {
+    if (cols.length <= 1) return;
+    const removed = cols[i];
+    const remaining = cols.filter((_, idx) => idx !== i);
+    // Move removed blocks into the nearest remaining column (the one at idx-1
+    // or the new first column) to preserve user content.
+    const target = Math.max(0, i - 1);
+    remaining[target] = { ...remaining[target], blocks: [...(remaining[target].blocks||[]), ...(removed.blocks||[])] };
+    const share = Math.floor(100 / remaining.length);
+    const next = remaining.map((c, idx) => ({ ...c, w: idx === remaining.length - 1 ? 100 - share * (remaining.length - 1) : share }));
+    const layout = next.length === 1 ? '1col' : next.length === 2 ? '2col' : next.length === 3 ? '3col' : 'custom';
+    onChange({ ...section, columns: next, layout });
+    if (selectedColIdx === i && onSelectCol) onSelectCol(null);
+  };
+  const bumpWidth = (i, delta) => {
+    const unit = Math.round(100 / 12); // 1 grid unit ≈ 8.33%
+    const nextCols = cols.map(c => ({ ...c }));
+    const newW = Math.max(unit, Math.min(100 - unit * Math.max(1, cols.length - 1), (nextCols[i].w || 0) + delta * unit));
+    const diff = newW - (nextCols[i].w || 0);
+    if (diff === 0) return;
+    // Take/give the difference from the next column (wrap around).
+    const neighbor = i === cols.length - 1 ? i - 1 : i + 1;
+    if (neighbor < 0) return;
+    const neighborW = (nextCols[neighbor].w || 0) - diff;
+    if (neighborW < unit) return;
+    nextCols[i].w = newW;
+    nextCols[neighbor].w = neighborW;
+    onChange({ ...section, columns: nextCols });
+  };
+
+  // Slider: move column boundaries by grid units (12-col).
+  return (
+    <CollapsibleGroup title={t('section.group.columns')} defaultOpen>
+      <div style={{ fontSize:11, color:'var(--fg-3)', marginBottom:6 }}>
+        {t('section.columns.count', { n: cols.length })}
+      </div>
+      <div style={{
+        display:'flex', gap:4, width:'100%',
+        border:'1px solid var(--line)', borderRadius:4, padding:3,
+        background:'var(--surface-2)',
+      }}>
+        {cols.map((c, i) => {
+          const pct = Math.round(((c.w || 0) / totalW) * 100);
+          const on = selectedColIdx === i;
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => onSelectCol && onSelectCol(i)}
+              className={on ? 'on' : ''}
+              style={{
+                flex: `0 0 ${pct}%`, minWidth: 24,
+                background: on ? 'var(--accent-soft)' : 'var(--surface)',
+                color: on ? 'var(--accent)' : 'var(--fg-2)',
+                border:'1px solid var(--line)', borderRadius:3,
+                padding:'6px 4px', fontSize:10, fontFamily:'var(--font-mono)',
+                cursor:'pointer', position:'relative',
+                display:'flex', alignItems:'center', justifyContent:'center',
+              }}
+              title={t('section.columns.selectHint', { n: i+1 })}
+            >
+              {pct}%
+              {cols.length > 1 && (
+                <span
+                  onClick={(e)=>{ e.stopPropagation(); removeColumn(i); }}
+                  style={{
+                    position:'absolute', top:-6, right:-4,
+                    width:14, height:14, borderRadius:'50%',
+                    background:'var(--danger, #c04a4a)', color:'#fff',
+                    display:'grid', placeItems:'center',
+                    fontSize:9, cursor:'pointer',
+                  }}
+                  title={t('section.columns.delete')}
+                >×</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {selectedColIdx !== null && selectedColIdx !== undefined && cols[selectedColIdx] && (
+        <div className="prop-row" style={{ marginTop:10 }}>
+          <label>{t('section.columns.widthUnits')}</label>
+          <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+            <button className="btn icon sm ghost" onClick={()=>bumpWidth(selectedColIdx, -1)} title={t('common.decrease')}><I.minus size={11}/></button>
+            <div style={{ flex:1, textAlign:'center', fontSize:11, fontFamily:'var(--font-mono)' }}>{Math.round((cols[selectedColIdx].w||0))}%</div>
+            <button className="btn icon sm ghost" onClick={()=>bumpWidth(selectedColIdx, 1)} title={t('common.increase')}><I.plus size={11}/></button>
+          </div>
+        </div>
+      )}
+      {cols.length < 6 && (
+        <button className="btn sm ghost" style={{ width:'100%', marginTop:8 }} onClick={addColumn}>
+          <I.plus size={11}/> {t('section.columns.add')}
+        </button>
+      )}
+    </CollapsibleGroup>
+  );
+}
+
+// Per-column editor (inside Layout tab). Shows column background, padding,
+// border, align + hide-on + mobile-width.
+function ColumnEditorGroup({ section, colIdx, onChange }) {
+  const t = window.stI18n.t;
+  const col = section.columns[colIdx];
+  if (!col) return null;
+  const style = col.style || {};
+  const mobile = col.mobile;
+  const setCol = (patch) => {
+    const nextCols = section.columns.map((c, i) => i === colIdx ? { ...c, ...patch } : c);
+    onChange({ ...section, columns: nextCols });
+  };
+  const updStyle = (k, v) => setCol({ style: { ...style, [k]: v } });
+  const updMobile = (k, v) => {
+    const next = window.setDeviceOverride(mobile, k, v);
+    setCol({ mobile: next });
+  };
+  const clearMobile = (k) => setCol({ mobile: window.setDeviceOverride(mobile, k, undefined) });
+
+  return (
+    <CollapsibleGroup title={t('section.group.column', { n: colIdx + 1 })} defaultOpen>
+      {/* Mobile width override */}
+      <window.DeviceField
+        label={t('column.field.mobileWidth')}
+        desktopValue={col.w || 0}
+        mobileValue={mobile?.w}
+        onChangeDesktop={(v)=> setCol({ w: v })}
+        onChangeMobile={(v)=> setCol({ mobile: window.setDeviceOverride(mobile, 'w', v) })}
+        onClearMobile={()=> setCol({ mobile: window.setDeviceOverride(mobile, 'w', undefined) })}
+      >
+        {(value, setValue) => <Num value={value || 0} onChange={setValue} min={0} max={100} suffix="%"/>}
+      </window.DeviceField>
+
+      {/* Background color */}
+      <window.DeviceField
+        label={t('column.field.bg')}
+        desktopValue={style.bg || 'transparent'}
+        mobileValue={mobile?.bg}
+        onChangeDesktop={(v)=> updStyle('bg', v)}
+        onChangeMobile={(v)=> updMobile('bg', v)}
+        onClearMobile={()=> clearMobile('bg')}
+      >
+        {(value, setValue) => <ColorInput value={value === 'transparent' ? '#ffffff' : value} onChange={setValue}/>}
+      </window.DeviceField>
+
+      {/* Padding (scalar or per-side) */}
+      <window.DeviceField
+        label={t('column.field.padding')}
+        desktopValue={style.padding ?? 0}
+        mobileValue={mobile?.padding}
+        onChangeDesktop={(v)=> updStyle('padding', v)}
+        onChangeMobile={(v)=> updMobile('padding', v)}
+        onClearMobile={()=> clearMobile('padding')}
+      >
+        {(value, setValue) => <PaddingEditor value={value} onChange={setValue}/>}
+      </window.DeviceField>
+
+      {/* Border */}
+      <div style={{ marginTop:10 }}>
+        <div className="prop-label">{t('column.field.border')}</div>
+        <BorderEditor value={style.border || {}} onChange={(v) => updStyle('border', v)}/>
+      </div>
+
+      {/* Alignment */}
+      <div className="prop-row" style={{ marginTop:10 }}>
+        <label>{t('column.field.align')}</label>
+        <div className="seg" style={{ width:'100%' }}>
+          {['left','center','right'].map(a => (
+            <button key={a} className={(style.align||'left')===a?'on':''} onClick={()=>updStyle('align', a)}>
+              {a==='left'?<I.alignL size={12}/>:a==='center'?<I.alignC size={12}/>:<I.alignR size={12}/>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Hide on */}
+      <div className="prop-row" style={{ marginTop:10 }}>
+        <label>{t('column.field.hideOn')}</label>
+        <HideOnPill hidden={col.hidden} onChange={(v)=> setCol({ hidden: v })}/>
+      </div>
+    </CollapsibleGroup>
+  );
+}
+
 function SectionProps({ section, onChange }) {
   const t = window.stI18n.t;
   window.stI18n.useLang();
   const [tab,setTab] = React.useState('style');
+  const [selectedCol, setSelectedCol] = React.useState(null);
+  // Reset column selection when section changes.
+  const prevSecId = React.useRef(section?.id);
+  React.useEffect(() => {
+    if (prevSecId.current !== section?.id) {
+      setSelectedCol(null);
+      prevSecId.current = section?.id;
+    }
+  }, [section?.id]);
   if (!section) return null;
+  const mob = section.mobile || {};
+  const hid = section.hidden;
   const updStyle = (k,v) => onChange({ ...section, style: {...section.style, [k]:v} });
+  const updMobile = (k,v) => onChange({ ...section, mobile: window.setDeviceOverride(mob, k, v) });
+  const clearMobile = (k) => onChange({ ...section, mobile: window.setDeviceOverride(mob, k, undefined) });
   const upd = (k,v) => onChange({ ...section, [k]:v });
   return (
     <div style={{display:'flex',flexDirection:'column',height:'100%'}}>
@@ -400,18 +796,89 @@ function SectionProps({ section, onChange }) {
                 ))}
               </div>
             </div>
-            <div className="prop-group">
-              <div className="prop-label">{t('editor.sectionProps.contentBg')}</div>
-              <div className="prop-row">
-                <label>{t('editor.sectionProps.color')}</label>
-                <ColorInput value={section.style.bg} onChange={v=>updStyle('bg',v)}/>
+
+            {/* ───── Backgrounds ───── */}
+            <CollapsibleGroup title={t('section.group.backgrounds')} defaultOpen>
+              <SectionOuterGroup section={section} updStyle={updStyle}/>
+              <div style={{ marginTop:10 }}>
+                <div className="prop-label">{t('editor.sectionProps.contentBg')}</div>
+                <window.DeviceField
+                  label={t('editor.sectionProps.color')}
+                  desktopValue={section.style.bg}
+                  mobileValue={mob.bg}
+                  onChangeDesktop={(v)=> updStyle('bg', v)}
+                  onChangeMobile={(v)=> updMobile('bg', v)}
+                  onClearMobile={()=> clearMobile('bg')}
+                >
+                  {(value, setValue) => <ColorInput value={value} onChange={setValue}/>}
+                </window.DeviceField>
               </div>
-              <div style={{fontSize:11,color:'var(--fg-3)',marginTop:6,lineHeight:1.5}}>
-                {t('editor.sectionProps.contentBgHint')}
+              <div style={{ marginTop:10 }}>
+                <div className="prop-label">{t('section.field.bgImage')}</div>
+                <div className="prop-row">
+                  <label>{t('section.field.bgImage')}</label>
+                  <input
+                    className="field"
+                    value={section.style.bgImage || ''}
+                    placeholder={t('section.placeholder.bgImage')}
+                    onChange={(e)=>updStyle('bgImage', e.target.value || undefined)}
+                  />
+                </div>
+                {section.style.bgImage && (
+                  <>
+                    <div className="prop-row">
+                      <label>{t('section.field.bgImagePosition')}</label>
+                      <div className="seg" style={{ width:'100%' }}>
+                        {['left top','center top','right top','center center','center bottom'].map((p, idx) => (
+                          <button
+                            key={p}
+                            className={(section.style.bgImagePosition || 'center center') === p ? 'on' : ''}
+                            onClick={()=>updStyle('bgImagePosition', p)}
+                            title={p}
+                            style={{ fontSize:9, fontFamily:'var(--font-mono)' }}
+                          >{['LT','CT','RT','C','CB'][idx]}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="prop-row">
+                      <label>{t('section.field.bgImageRepeat')}</label>
+                      <div className="seg" style={{ width:'100%' }}>
+                        {['no-repeat','repeat','repeat-x','repeat-y'].map(r => (
+                          <button key={r} className={(section.style.bgImageRepeat||'no-repeat')===r?'on':''} onClick={()=>updStyle('bgImageRepeat', r)}
+                            style={{ fontSize:9 }}
+                          >{t('section.bgRepeat.'+r)}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="prop-row">
+                      <label>{t('section.field.bgImageSize')}</label>
+                      <div className="seg" style={{ width:'100%' }}>
+                        {['cover','contain','auto'].map(sz => (
+                          <button key={sz} className={(section.style.bgImageSize||'cover')===sz?'on':''} onClick={()=>updStyle('bgImageSize', sz)}>{t('section.bgSize.'+sz)}</button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
-            </div>
-            <SectionOuterGroup section={section} updStyle={updStyle}/>
-            <div className="prop-group">
+            </CollapsibleGroup>
+
+            {/* ───── Borders ───── */}
+            <CollapsibleGroup title={t('section.group.borders')} defaultOpen={false}>
+              <div className="prop-label">{t('section.field.border')}</div>
+              <BorderEditor value={section.style.border || {}} onChange={(v) => updStyle('border', v)}/>
+              <div style={{ height:1, background:'var(--line)', margin:'10px 0' }}/>
+              <div className="prop-label">{t('section.field.radiusCorners')}</div>
+              <RadiusEditor
+                value={section.style.radius}
+                corners={section.style.radiusCorners}
+                onChangeRadius={(v)=>updStyle('radius', v)}
+                onChangeCorners={(v)=>updStyle('radiusCorners', v)}
+              />
+            </CollapsibleGroup>
+
+            {/* ───── Layout ───── */}
+            <CollapsibleGroup title={t('section.group.layout')} defaultOpen>
               <div className="prop-label">{t('editor.sectionProps.text')}</div>
               <div className="prop-row">
                 <label>{t('editor.sectionProps.color')}</label>
@@ -427,44 +894,121 @@ function SectionProps({ section, onChange }) {
                   ))}
                 </div>
               </div>
-            </div>
-            <div className="prop-group">
-              <div className="prop-label">{t('editor.sectionProps.spacing')}</div>
-              <div className="prop-row">
-                <label>{t('editor.sectionProps.padding')}</label>
-                <Num value={section.style.padding} onChange={v=>updStyle('padding',v)} min={0} max={80}/>
-              </div>
-            </div>
-            <div className="prop-group">
-              <div className="prop-label">{t('editor.sectionProps.size')}</div>
-              <div className="prop-row">
-                <label>{t('editor.sectionProps.widthLabel')}</label>
-                <Num value={section.style.width || 600} onChange={v=>updStyle('width',v)} min={320} max={800}/>
-              </div>
-              <div style={{fontSize:11,color:'var(--fg-3)',marginTop:6,lineHeight:1.5}}>
+
+              <div style={{ height:1, background:'var(--line)', margin:'10px 0' }}/>
+
+              {/* Content-area padding with Mobile chip */}
+              <window.DeviceField
+                label={t('editor.sectionProps.padding')}
+                desktopValue={section.style.padding}
+                mobileValue={mob.padding}
+                onChangeDesktop={(v)=> updStyle('padding', v)}
+                onChangeMobile={(v)=> updMobile('padding', v)}
+                onClearMobile={()=> clearMobile('padding')}
+              >
+                {(value, setValue) => <Num value={value} onChange={setValue} min={0} max={80}/>}
+              </window.DeviceField>
+
+              {/* Section width */}
+              <window.DeviceField
+                label={t('editor.sectionProps.widthLabel')}
+                desktopValue={section.style.width || 600}
+                mobileValue={mob.width}
+                onChangeDesktop={(v)=> updStyle('width', v)}
+                onChangeMobile={(v)=> updMobile('width', v)}
+                onClearMobile={()=> clearMobile('width')}
+              >
+                {(value, setValue) => <Num value={value} onChange={setValue} min={320} max={800}/>}
+              </window.DeviceField>
+              <div style={{fontSize:11,color:'var(--fg-3)',marginTop:-2,marginBottom:8,lineHeight:1.5}}>
                 {t('editor.sectionProps.widthHint')}
               </div>
-            </div>
+
+              {/* Outer padding Y */}
+              <window.DeviceField
+                label={t('editor.sectionOuter.paddingY')}
+                desktopValue={section.style.outerPadY || 0}
+                mobileValue={mob.outerPadY}
+                onChangeDesktop={(v)=> updStyle('outerPadY', v)}
+                onChangeMobile={(v)=> updMobile('outerPadY', v)}
+                onClearMobile={()=> clearMobile('outerPadY')}
+              >
+                {(value, setValue) => <Num value={value || 0} onChange={setValue} min={0} max={120}/>}
+              </window.DeviceField>
+
+              {/* Vertical align between columns */}
+              <window.DeviceField
+                label={t('section.field.vAlign')}
+                desktopValue={section.style.vAlign || 'top'}
+                mobileValue={mob.vAlign}
+                onChangeDesktop={(v)=> updStyle('vAlign', v)}
+                onChangeMobile={(v)=> updMobile('vAlign', v)}
+                onClearMobile={()=> clearMobile('vAlign')}
+              >
+                {(value, setValue) => (
+                  <div className="seg" style={{ width:'100%' }}>
+                    {['top','middle','bottom'].map(a => (
+                      <button key={a} className={value===a?'on':''} onClick={()=>setValue(a)}>{t('section.vAlign.'+a)}</button>
+                    ))}
+                  </div>
+                )}
+              </window.DeviceField>
+
+              {/* Stack on mobile */}
+              <div className="prop-row" style={{ marginTop:10 }}>
+                <label>{t('section.field.stackOnMobile')}</label>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={section.stackOnMobile !== false}
+                    onChange={(e)=>upd('stackOnMobile', e.target.checked)}
+                  />
+                  <span/>
+                </label>
+              </div>
+
+              {/* Hide on */}
+              <div className="prop-row" style={{ marginTop:10 }}>
+                <label>{t('section.field.hideOn')}</label>
+                <HideOnPill hidden={hid} onChange={(v)=>upd('hidden', v)}/>
+              </div>
+            </CollapsibleGroup>
           </>
         )}
         {tab==='layout' && (
-          <div className="prop-group">
-            <div className="prop-label">{t('editor.sectionProps.columns')}</div>
-            <div className="seg" style={{width:'100%'}}>
-              {[
-                {v:'1col',l:'1'}, {v:'2col',l:'2'}, {v:'3col',l:'3'}, {v:'sidebar',l:'1:2'}
-              ].map(o => (
-                <button key={o.v} className={section.layout===o.v?'on':''} onClick={()=>{
-                  const cols = o.v==='1col'?[{w:100,blocks:section.columns.flatMap(c=>c.blocks)}]
-                    : o.v==='2col'?[{w:50,blocks:section.columns[0]?.blocks||[]},{w:50,blocks:section.columns[1]?.blocks||[]}]
-                    : o.v==='3col'?[{w:33,blocks:section.columns[0]?.blocks||[]},{w:33,blocks:section.columns[1]?.blocks||[]},{w:34,blocks:section.columns[2]?.blocks||[]}]
-                    : [{w:33,blocks:section.columns[0]?.blocks||[]},{w:67,blocks:section.columns[1]?.blocks||[]}];
-                  onChange({...section, layout:o.v, columns:cols});
-                }}>{o.l}</button>
-              ))}
+          <>
+            <div className="prop-group">
+              <div className="prop-label">{t('editor.sectionProps.columns')}</div>
+              <div className="seg" style={{width:'100%'}}>
+                {[
+                  {v:'1col',l:'1'}, {v:'2col',l:'2'}, {v:'3col',l:'3'}, {v:'sidebar',l:'1:2'}
+                ].map(o => (
+                  <button key={o.v} className={section.layout===o.v?'on':''} onClick={()=>{
+                    const cols = o.v==='1col'?[{w:100,blocks:section.columns.flatMap(c=>c.blocks)}]
+                      : o.v==='2col'?[{w:50,blocks:section.columns[0]?.blocks||[]},{w:50,blocks:section.columns[1]?.blocks||[]}]
+                      : o.v==='3col'?[{w:33,blocks:section.columns[0]?.blocks||[]},{w:33,blocks:section.columns[1]?.blocks||[]},{w:34,blocks:section.columns[2]?.blocks||[]}]
+                      : [{w:33,blocks:section.columns[0]?.blocks||[]},{w:67,blocks:section.columns[1]?.blocks||[]}];
+                    onChange({...section, layout:o.v, columns:cols});
+                    setSelectedCol(null);
+                  }}>{o.l}</button>
+                ))}
+              </div>
+              <div style={{fontSize:11,color:'var(--fg-3)',marginTop:10,lineHeight:1.5}}>{t('editor.sectionProps.columnsHint')}</div>
             </div>
-            <div style={{fontSize:11,color:'var(--fg-3)',marginTop:10,lineHeight:1.5}}>{t('editor.sectionProps.columnsHint')}</div>
-          </div>
+            <ColumnsStructureGroup
+              section={section}
+              onChange={onChange}
+              selectedColIdx={selectedCol}
+              onSelectCol={setSelectedCol}
+            />
+            {selectedCol !== null && section.columns[selectedCol] && (
+              <ColumnEditorGroup
+                section={section}
+                colIdx={selectedCol}
+                onChange={onChange}
+              />
+            )}
+          </>
         )}
         {tab==='type' && (
           <>
@@ -1147,6 +1691,7 @@ function Editor({ template, block, onBack, onPreview, onExport, onTestSend, onOp
                     section={s}
                     selected={sel?.type==='section' && sel.id===s.id}
                     selectedBlockId={sel?.type==='block' ? sel.id : null}
+                    device={device}
                     onSelectSection={()=>setSel({type:'section',id:s.id})}
                     onSelectBlock={(b, colIdx)=>setSel({type:'block',id:b.id,sectionId:s.id,colIdx})}
                     onMoveUp={si>0 ? ()=>moveSection(s.id,-1) : null}
@@ -1183,16 +1728,18 @@ function Editor({ template, block, onBack, onPreview, onExport, onTestSend, onOp
           </div>
         </div>
 
-        <aside className="side-panel" data-tour="right-panel">
-          <div className="side-tabs" style={{padding:'8px 8px 4px'}}>
-            <Tab label={selBlock?t('editor.rightTab.block'):t('editor.rightTab.section')} active={rightTab==='props'} onClick={()=>setRightTab('props')}/>
-            <Tab label={t('editor.rightTab.design')} active={rightTab==='design'} onClick={()=>setRightTab('design')}/>
-          </div>
-          {rightTab==='props' && selBlock && <BlockProps block={selBlock} onChange={updateBlock} onDelete={()=>deleteBlock(sel.sectionId, sel.id)}/>}
-          {rightTab==='props' && !selBlock && selSection && <SectionProps section={selSection} onChange={updateSection}/>}
-          {rightTab==='props' && !selBlock && !selSection && <div className="side-body"><div style={{fontSize:12,color:'var(--fg-3)'}}>{t('editor.rightPanel.selectPrompt')}</div></div>}
-          {rightTab==='design' && <DesignPanel/>}
-        </aside>
+        <window.DevicePanelProvider device={device} setDevice={setDevice}>
+          <aside className="side-panel" data-tour="right-panel">
+            <div className="side-tabs" style={{padding:'8px 8px 4px'}}>
+              <Tab label={selBlock?t('editor.rightTab.block'):t('editor.rightTab.section')} active={rightTab==='props'} onClick={()=>setRightTab('props')}/>
+              <Tab label={t('editor.rightTab.design')} active={rightTab==='design'} onClick={()=>setRightTab('design')}/>
+            </div>
+            {rightTab==='props' && selBlock && <BlockProps block={selBlock} onChange={updateBlock} onDelete={()=>deleteBlock(sel.sectionId, sel.id)}/>}
+            {rightTab==='props' && !selBlock && selSection && <SectionProps section={selSection} onChange={updateSection}/>}
+            {rightTab==='props' && !selBlock && !selSection && <div className="side-body"><div style={{fontSize:12,color:'var(--fg-3)'}}>{t('editor.rightPanel.selectPrompt')}</div></div>}
+            {rightTab==='design' && <DesignPanel/>}
+          </aside>
+        </window.DevicePanelProvider>
       </div>
       {improveBlock && <ImproveAIModal block={improveBlock} onClose={()=>setImproveBlock(null)} onApply={(newBlock)=>{ updateBlock(newBlock); setImproveBlock(null); }}/>}
       <ImagePickerModal
@@ -1430,15 +1977,97 @@ function BlockInsertBtn({ onClick, onDropBlock }) {
   );
 }
 
-function SectionView({ section, selected, selectedBlockId, onSelectSection, onSelectBlock, onMoveUp, onMoveDown, onDuplicate, onDelete, onMoveBlock, onDeleteBlock, onAddBlankBlock, onDropBlock, onEditBlock }) {
+// Serializes a padding value that may be a number or {top,right,bottom,left}
+// into a CSS padding string. Falls back to 0 when undefined/null.
+function resolvePaddingCss(p) {
+  if (p == null) return 0;
+  if (typeof p === 'number') return p;
+  if (typeof p === 'object') {
+    const tp = p.top || 0, rt = p.right || 0, bt = p.bottom || 0, lf = p.left || 0;
+    return `${tp}px ${rt}px ${bt}px ${lf}px`;
+  }
+  return p;
+}
+
+// Produces CSS `border` shorthand (or shorthand per side) from a style's
+// `border` field. Returns an object with optional borderTop/Right/Bottom/Left
+// styles or a single `border` shorthand to spread into inline-style.
+function resolveBorderStyle(b) {
+  if (!b || typeof b !== 'object') return {};
+  const w = typeof b.w === 'number' ? b.w : (typeof b.w === 'string' ? parseInt(b.w,10)||0 : 0);
+  const s = b.style || 'solid';
+  const c = b.color || 'transparent';
+  if (b.sides && typeof b.sides === 'object') {
+    const out = {};
+    const sides = ['top','right','bottom','left'];
+    for (const side of sides) {
+      const sw = b.sides[side];
+      const swn = typeof sw === 'number' ? sw : (typeof sw === 'string' ? parseInt(sw,10)||0 : w);
+      const Cap = side.charAt(0).toUpperCase() + side.slice(1);
+      out[`border${Cap}`] = `${swn}px ${s} ${c}`;
+    }
+    return out;
+  }
+  if (w > 0) return { border: `${w}px ${s} ${c}` };
+  return {};
+}
+
+function resolveRadiusStyle(rs, corners) {
+  const out = {};
+  if (corners && typeof corners === 'object') {
+    out.borderTopLeftRadius = typeof corners.tl === 'number' ? corners.tl : (rs || 0);
+    out.borderTopRightRadius = typeof corners.tr === 'number' ? corners.tr : (rs || 0);
+    out.borderBottomRightRadius = typeof corners.br === 'number' ? corners.br : (rs || 0);
+    out.borderBottomLeftRadius = typeof corners.bl === 'number' ? corners.bl : (rs || 0);
+    return out;
+  }
+  if (typeof rs === 'number' && rs > 0) out.borderRadius = rs;
+  return out;
+}
+
+function SectionView({ section, selected, selectedBlockId, onSelectSection, onSelectBlock, onMoveUp, onMoveDown, onDuplicate, onDelete, onMoveBlock, onDeleteBlock, onAddBlankBlock, onDropBlock, onEditBlock, device }) {
   const t = window.stI18n.t;
   window.stI18n.useLang();
-  const font = FONT_OPTIONS.find(f => f.id===section.style.font) || FONT_OPTIONS[0];
+  const dev = device || 'desktop';
+  const st = window.resolveStyle(section.style, section.mobile, dev);
+  const font = FONT_OPTIONS.find(f => f.id===st.font) || FONT_OPTIONS[0];
   const [hover, setHover] = React.useState(false);
   const showChrome = selected || hover;
-  const outerBg = section.style.outerBg || 'transparent';
-  const outerPadY = section.style.outerPadY || 0;
-  const innerWidth = section.style.width || 600;
+  const outerBg = st.outerBg || 'transparent';
+  const outerPadY = st.outerPadY || 0;
+  const innerWidth = st.width || 600;
+  const visible = window.isVisibleOn(section.hidden, dev);
+  const cols = section.columns || [];
+  const stackOnMobile = section.stackOnMobile !== false; // default true
+  const hiddenBadge = !visible ? (dev === 'mobile' ? t('section.badge.hiddenOnMobile') : t('section.badge.hiddenOnDesktop')) : null;
+
+  // Determine columns layout (per-device)
+  const colLayouts = cols.map((c) => {
+    const mobW = c.mobile && typeof c.mobile.w === 'number' ? c.mobile.w : null;
+    const colVisible = window.isVisibleOn(c.hidden, dev);
+    const effW = dev === 'mobile'
+      ? (mobW !== null ? mobW : (stackOnMobile ? 100 : (c.w || 0)))
+      : (c.w || 0);
+    return { colVisible, effW, stackedOnMobile: dev === 'mobile' && stackOnMobile && mobW === null };
+  });
+
+  // On mobile, if every column stacks (no mobile.w set and stackOnMobile true),
+  // render as block (one column per row). Otherwise preserve horizontal layout
+  // with effective widths (respecting hidden columns reducing effective span).
+  const allStacked = dev === 'mobile' && colLayouts.every(x => x.stackedOnMobile);
+
+  const vAlign = st.vAlign || 'top';
+  const alignItems = vAlign === 'middle' ? 'center' : vAlign === 'bottom' ? 'flex-end' : 'flex-start';
+
+  const borderStyles = resolveBorderStyle(st.border);
+  const radiusStyles = resolveRadiusStyle(st.radius, st.radiusCorners);
+  const bgImageStyles = st.bgImage ? {
+    backgroundImage: `url(${st.bgImage})`,
+    backgroundPosition: st.bgImagePosition || 'center center',
+    backgroundRepeat: st.bgImageRepeat || 'no-repeat',
+    backgroundSize: st.bgImageSize || 'cover',
+  } : {};
+
   return (
     <div
       onClick={e=>{ e.stopPropagation(); onSelectSection(); }}
@@ -1452,8 +2081,18 @@ function SectionView({ section, selected, selectedBlockId, onSelectSection, onSe
         outline: selected ? '2px solid var(--accent)' : hover ? '1px solid color-mix(in oklab, var(--accent) 50%, transparent)' : '1px solid transparent',
         outlineOffset:-1,
         transition:'outline-color 120ms',
+        opacity: visible ? 1 : 0.3,
       }}
     >
+      {hiddenBadge && (
+        <div style={{
+          position:'absolute',top:6,right:10,zIndex:11,
+          background:'var(--warn, #b45309)',color:'#fff',
+          padding:'2px 8px',borderRadius:12,fontSize:10,
+          fontFamily:'var(--font-mono)',letterSpacing:'0.04em',
+          pointerEvents:'none',
+        }}>{hiddenBadge}</div>
+      )}
       {showChrome && (
         <div style={{
           position:'absolute',top:-26,left:-2,right:-2,
@@ -1480,45 +2119,80 @@ function SectionView({ section, selected, selectedBlockId, onSelectSection, onSe
       )}
 
       <div style={{
-        background:section.style.bg,
-        color:section.style.text,
-        padding:section.style.padding,
+        background:st.bg,
+        color:st.text,
+        padding:resolvePaddingCss(st.padding),
         fontFamily:font.css,
-        textAlign:section.style.align,
-        maxWidth: innerWidth,
+        textAlign:st.align,
+        maxWidth: dev === 'mobile' ? '100%' : innerWidth,
         margin: '0 auto',
+        ...borderStyles,
+        ...radiusStyles,
+        ...bgImageStyles,
       }}>
         <div style={{
-          display:'grid',
-          gridTemplateColumns:section.columns.map(c=>`${c.w}fr`).join(' '),
+          display: allStacked ? 'block' : 'flex',
           gap:16,
+          alignItems,
         }}>
-          {section.columns.map((col, ci) => (
-            <ColumnView
-              key={ci}
-              column={col}
-              colIdx={ci}
-              sectionId={section.id}
-              totalBlocks={col.blocks.length}
-              selectedBlockId={selectedBlockId}
-              onSelectBlock={(b)=>onSelectBlock(b, ci)}
-              onMoveBlock={(blockId,dir)=>onMoveBlock(ci,blockId,dir)}
-              onDeleteBlock={onDeleteBlock}
-              onAddBlankBlock={(atIdx)=>onAddBlankBlock(ci, atIdx)}
-              onDropBlock={(atIdx, blockType)=>onDropBlock(ci, atIdx, blockType)}
-              onEditBlock={onEditBlock}
-            />
-          ))}
+          {cols.map((col, ci) => {
+            const info = colLayouts[ci];
+            if (!info.colVisible) {
+              // Ghost: small dashed placeholder so user sees hidden column exists.
+              return (
+                <div key={ci} style={{
+                  flex: allStacked ? 'none' : `0 0 ${info.effW || 5}%`,
+                  width: allStacked ? '100%' : undefined,
+                  border:'1px dashed color-mix(in oklab, currentColor 25%, transparent)',
+                  opacity:0.4, padding:8, borderRadius:4,
+                  fontSize:10, fontFamily:'var(--font-mono)',
+                  textAlign:'center',
+                  marginBottom: allStacked ? 12 : 0,
+                }}>{dev === 'mobile' ? t('column.ghost.hiddenMobile') : t('column.ghost.hiddenDesktop')}</div>
+              );
+            }
+            return (
+              <div key={ci} style={{
+                flex: allStacked ? 'none' : `0 0 calc(${info.effW}% - 8px)`,
+                width: allStacked ? '100%' : undefined,
+                marginBottom: allStacked && ci < cols.length - 1 ? 16 : 0,
+              }}>
+                <ColumnView
+                  column={col}
+                  colIdx={ci}
+                  sectionId={section.id}
+                  totalBlocks={col.blocks.length}
+                  selectedBlockId={selectedBlockId}
+                  device={dev}
+                  onSelectBlock={(b)=>onSelectBlock(b, ci)}
+                  onMoveBlock={(blockId,dir)=>onMoveBlock(ci,blockId,dir)}
+                  onDeleteBlock={onDeleteBlock}
+                  onAddBlankBlock={(atIdx)=>onAddBlankBlock(ci, atIdx)}
+                  onDropBlock={(atIdx, blockType)=>onDropBlock(ci, atIdx, blockType)}
+                  onEditBlock={onEditBlock}
+                />
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
   );
 }
 
-function ColumnView({ column, colIdx, sectionId, totalBlocks, selectedBlockId, onSelectBlock, onMoveBlock, onDeleteBlock, onAddBlankBlock, onDropBlock, onEditBlock }) {
+function ColumnView({ column, colIdx, sectionId, totalBlocks, selectedBlockId, onSelectBlock, onMoveBlock, onDeleteBlock, onAddBlankBlock, onDropBlock, onEditBlock, device }) {
   const t = window.stI18n.t;
   window.stI18n.useLang();
   const [dragOver, setDragOver] = React.useState(false);
+  const dev = device || 'desktop';
+  const cStyle = window.resolveStyle(column.style || {}, column.mobile, dev);
+  const colBg = cStyle.bg && cStyle.bg !== 'transparent' ? cStyle.bg : undefined;
+  const hasCustomPadding = cStyle.padding !== undefined && cStyle.padding !== null
+    && !(typeof cStyle.padding === 'number' && cStyle.padding === 0);
+  const colPaddingCss = hasCustomPadding ? resolvePaddingCss(cStyle.padding) : null;
+  const colBorder = resolveBorderStyle(cStyle.border);
+  const colAlignMap = { left: 'left', center: 'center', right: 'right' };
+  const textAlign = cStyle.align && colAlignMap[cStyle.align] ? cStyle.align : undefined;
   return (
     <div
       onDragOver={(e)=>{
@@ -1544,14 +2218,17 @@ function ColumnView({ column, colIdx, sectionId, totalBlocks, selectedBlockId, o
       }}
       style={{
         minHeight: column.blocks.length ? 'auto' : 80,
-        border: column.blocks.length ? 'none' : '1px dashed color-mix(in oklab, currentColor 22%, transparent)',
+        border: column.blocks.length || Object.keys(colBorder).length ? 'none' : '1px dashed color-mix(in oklab, currentColor 22%, transparent)',
         borderRadius:4,
-        padding: column.blocks.length ? 0 : 12,
+        padding: (colPaddingCss !== null ? colPaddingCss : (column.blocks.length ? 0 : 12)),
+        background: colBg,
+        textAlign,
         display:'flex',flexDirection:'column',gap:2,
         position:'relative',
         outline: dragOver ? '2px dashed var(--accent)' : undefined,
         outlineOffset: dragOver ? 2 : undefined,
-        background: dragOver ? 'color-mix(in oklab, var(--accent) 10%, transparent)' : undefined,
+        ...colBorder,
+        ...(dragOver ? { background: 'color-mix(in oklab, var(--accent) 10%, transparent)' } : {}),
         transition:'outline-color 120ms, background 120ms',
       }}
     >
@@ -1597,7 +2274,7 @@ function ColumnView({ column, colIdx, sectionId, totalBlocks, selectedBlockId, o
               }}
             >
               {R
-                ? <R data={b.data} onEdit={onEditBlock ? (patch)=>onEditBlock(b, patch) : undefined}/>
+                ? <R data={b.data} device={dev} onEdit={onEditBlock ? (patch)=>onEditBlock(b, patch) : undefined}/>
                 : <div style={{padding:12,opacity:0.5,fontFamily:'var(--font-mono)',fontSize:11}}>&lt;{b.type}/&gt;</div>}
               <div className="elem-actions block-actions" style={{opacity:isSel?1:undefined}}>
                 <button disabled={bi===0} onClick={e=>{e.stopPropagation(); onMoveBlock(b.id,-1);}} title={t('common.moveUp')}><I.chevronD size={11} style={{transform:'rotate(180deg)'}}/></button>
@@ -1617,6 +2294,8 @@ function ColumnView({ column, colIdx, sectionId, totalBlocks, selectedBlockId, o
 // this section. `transparent` (default) = no wall, the canvas/inbox shows
 // through. We use a Switch to opt in because <input type=color> can't hold
 // 'transparent'; the last solid color is remembered for re-enable.
+// Post-R1: rendered inside the Backgrounds collapsible group, so it no longer
+// wraps itself in a .prop-group.
 function SectionOuterGroup({ section, updStyle }) {
   const t = window.stI18n.t;
   window.stI18n.useLang();
@@ -1625,7 +2304,7 @@ function SectionOuterGroup({ section, updStyle }) {
   const lastBgRef = React.useRef(hasOuter ? outerBg : '#f6f5f1');
   if (hasOuter) lastBgRef.current = outerBg;
   return (
-    <div className="prop-group">
+    <div>
       <div className="prop-label">{t('editor.sectionOuter.title')}</div>
       <div className="prop-row">
         <label>{t('editor.sectionOuter.show')}</label>
@@ -1639,16 +2318,10 @@ function SectionOuterGroup({ section, updStyle }) {
         </label>
       </div>
       {hasOuter && (
-        <>
-          <div className="prop-row">
-            <label>{t('editor.sectionProps.color')}</label>
-            <ColorInput value={outerBg} onChange={v => updStyle('outerBg', v)}/>
-          </div>
-          <div className="prop-row">
-            <label>{t('editor.sectionOuter.paddingY')}</label>
-            <Num value={section.style.outerPadY || 0} onChange={v => updStyle('outerPadY', v)} min={0} max={120}/>
-          </div>
-        </>
+        <div className="prop-row">
+          <label>{t('editor.sectionProps.color')}</label>
+          <ColorInput value={outerBg} onChange={v => updStyle('outerBg', v)}/>
+        </div>
       )}
       <div style={{fontSize:11,color:'var(--fg-3)',marginTop:6,lineHeight:1.5}}>
         {t('editor.sectionOuter.hint')}
