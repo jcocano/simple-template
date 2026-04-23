@@ -44,6 +44,60 @@ function Preview({ template, onBack }) {
     });
   }, [doc, lang, previewVars, tplMeta?.meta?.subject, tplMeta?.meta?.preheader, tplMeta?.name]);
 
+  // Simulate a mail client's "force dark" transform (Gmail mobile / iOS Mail):
+  // invert the whole document and re-invert media so images keep their colors.
+  // Inline styles on blocks win over any stylesheet we could inject, so a
+  // filter is the only way to move all that hard-coded light into dark without
+  // leaking preview concerns into export-html.tsx.
+  const previewHtml = React.useMemo(() => {
+    if (!isDark) return html;
+    // Set html background transparent so the iframe element's own bg shows
+    // beyond the body box — otherwise the filter re-inverts whatever we paint
+    // here and we lose the dark. Media gets re-inverted so images look right.
+    const darkStyle = `<style>html{filter:invert(1) hue-rotate(180deg);background:transparent !important}img,picture,video,svg,canvas,iframe{filter:invert(1) hue-rotate(180deg)}</style>`;
+    return html.includes('</head>')
+      ? html.replace('</head>', `${darkStyle}</head>`)
+      : `${darkStyle}${html}`;
+  }, [html, isDark]);
+
+  // Auto-size iframe to content so blank letter-sheet space doesn't show
+  // below a short email. `allow-same-origin` gives us contentDocument access;
+  // ResizeObserver keeps up with late-loading images.
+  const iframeRef = React.useRef(null);
+  const [iframeHeight, setIframeHeight] = React.useState(200);
+  React.useEffect(() => {
+    const el = iframeRef.current;
+    if (!el) return;
+    let ro = null;
+    const measure = () => {
+      try {
+        const d = el.contentDocument;
+        if (!d) return;
+        const h = Math.max(
+          d.documentElement?.scrollHeight || 0,
+          d.body?.scrollHeight || 0,
+        );
+        if (h > 0) setIframeHeight(h);
+      } catch (_) { /* cross-origin — shouldn't happen with srcDoc + allow-same-origin */ }
+    };
+    const onLoad = () => {
+      measure();
+      try {
+        const d = el.contentDocument;
+        if (d && typeof ResizeObserver !== 'undefined') {
+          ro = new ResizeObserver(measure);
+          if (d.documentElement) ro.observe(d.documentElement);
+          if (d.body) ro.observe(d.body);
+        }
+      } catch (_) {}
+    };
+    el.addEventListener('load', onLoad);
+    return () => {
+      el.removeEventListener('load', onLoad);
+      try { ro?.disconnect(); } catch (_) {}
+    };
+  }, [previewHtml]);
+
   // Ancho del card del cliente: en desktop, lo suficientemente ancho para ver
   // la sección más grande con slack; en mobile, 390px fijo.
   const docMaxWidth = (doc.sections || []).reduce((m, s) => Math.max(m, s.style?.width || 600), 600);
@@ -198,16 +252,17 @@ function Preview({ template, onBack }) {
             </div>
           ) : (
             <iframe
+              ref={iframeRef}
               title="email-preview"
-              srcDoc={html}
+              srcDoc={previewHtml}
               sandbox="allow-same-origin"
               style={{
                 display:'block',
                 width: iframeWidth,
                 maxWidth:'100%',
-                height: 780,
+                height: iframeHeight,
                 border:0,
-                background:'#ffffff',
+                background: isDark ? '#0b0b0d' : '#ffffff',
               }}
             />
           )}
