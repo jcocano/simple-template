@@ -31,8 +31,10 @@ function Preview({ template, onBack }) {
   const isMobile = device === 'mobile';
   const isDark   = theme === 'dark';
 
-  // Ancho del "papel" del correo
-  const emailWidth = isMobile ? 390 : 640;
+  // El card del cliente debe alojar la sección más ancha del documento + slack
+  // para que se aprecien los fondos exteriores que ocupan todo lo ancho.
+  const docMaxWidth = doc.reduce((m, s) => Math.max(m, s.style?.width || 600), 600);
+  const emailWidth = isMobile ? 390 : Math.max(640, docMaxWidth + 40);
 
   // Colores del cliente (la app/cliente simulado, no el correo)
   const clientBg     = isDark ? '#0b0b0d' : '#edece6';
@@ -41,39 +43,49 @@ function Preview({ template, onBack }) {
   const chromeSub    = isDark ? '#8a8a92' : '#6b6b72';
   const chromeLine   = isDark ? '#26262b' : '#e8e7e1';
 
-  // Render de una sección (con sus columnas y bloques)
+  // Render de una sección — Beefree-shaped: outer band a todo el ancho con
+  // outerBg + outerPadY, contenido centrado a `style.width` con bg interior.
   const renderSection = (section) => {
     const st = section.style || {};
     const pad = st.padding ?? 24;
     const cols = section.columns || [];
     const totalW = cols.reduce((s,c)=>s+(c.w||0),0) || 100;
+    const outerBg = st.outerBg || 'transparent';
+    const outerPadY = st.outerPadY || 0;
+    const innerWidth = st.width || 600;
 
     return (
       <div key={section.id} style={{
-        background: st.bg || '#ffffff',
-        color: st.text || '#1a1a17',
-        padding: isMobile ? `${Math.min(pad,20)}px 14px` : `${pad}px ${Math.max(pad-4,16)}px`,
-        textAlign: st.align || 'left',
-        fontFamily: st.font ? `var(--font-${st.font}, var(--font-sans))` : 'var(--font-sans)',
+        background: outerBg,
+        padding: `${outerPadY}px 0`,
       }}>
         <div style={{
-          display: isMobile ? 'block' : 'flex',
-          gap: isMobile ? 0 : 16,
-          alignItems:'flex-start',
-          maxWidth: isMobile ? '100%' : 600, margin:'0 auto',
+          background: st.bg || '#ffffff',
+          color: st.text || '#1a1a17',
+          padding: isMobile ? `${Math.min(pad,20)}px 14px` : `${pad}px ${Math.max(pad-4,16)}px`,
+          textAlign: st.align || 'left',
+          fontFamily: st.font ? `var(--font-${st.font}, var(--font-sans))` : 'var(--font-sans)',
+          maxWidth: isMobile ? '100%' : innerWidth,
+          margin: '0 auto',
         }}>
-          {cols.map((col, ci) => (
-            <div key={ci} style={{
-              flex: isMobile ? 'none' : `0 0 ${(col.w/totalW)*100 - 2}%`,
-              width: isMobile ? '100%' : undefined,
-              marginBottom: isMobile && ci<cols.length-1 ? 20 : 0,
-            }}>
-              {(col.blocks||[]).map(b => {
-                const R = EB_RENDERERS[b.type];
-                return R ? <R key={b.id} data={b.data}/> : null;
-              })}
-            </div>
-          ))}
+          <div style={{
+            display: isMobile ? 'block' : 'flex',
+            gap: isMobile ? 0 : 16,
+            alignItems:'flex-start',
+          }}>
+            {cols.map((col, ci) => (
+              <div key={ci} style={{
+                flex: isMobile ? 'none' : `0 0 ${(col.w/totalW)*100 - 2}%`,
+                width: isMobile ? '100%' : undefined,
+                marginBottom: isMobile && ci<cols.length-1 ? 20 : 0,
+              }}>
+                {(col.blocks||[]).map(b => {
+                  const R = EB_RENDERERS[b.type];
+                  return R ? <R key={b.id} data={b.data}/> : null;
+                })}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -217,23 +229,17 @@ function Preview({ template, onBack }) {
           {StatusBar}
           {EmailChrome}
 
-          {/* Cuerpo del correo — renderizado REAL a partir del doc */}
+          {/* Cuerpo del correo — cada sección pinta su propio outerBg a todo
+              lo ancho del card, así que aquí solo apilamos sin wrapper. */}
           <div style={{
-            background: isDark ? '#0f0f12' : '#f6f5f1',
-            padding: isMobile ? '12px 0' : '24px 0',
-            overflow:'hidden',
+            background:'transparent',
+            color:'#1a1a17',
+            fontFamily:'var(--font-sans)',
+            boxShadow: isDark ? '0 8px 32px -12px rgba(0,0,0,.8)' : 'none',
           }}>
-            <div style={{
-              maxWidth: isMobile ? '100%' : 600, margin:'0 auto',
-              background:'#ffffff',
-              color:'#1a1a17',
-              fontFamily:'var(--font-sans)',
-              boxShadow: isDark ? '0 8px 32px -12px rgba(0,0,0,.8)' : 'none',
-            }}>
-              {doc.length === 0
-                ? <div style={{padding:'40px 24px',textAlign:'center',color:'#8e8b7e',fontSize:13}}>Esta plantilla aún no tiene contenido.</div>
-                : doc.map(renderSection)}
-            </div>
+            {doc.length === 0
+              ? <div style={{padding:'40px 24px',textAlign:'center',color:'#8e8b7e',fontSize:13}}>Esta plantilla aún no tiene contenido.</div>
+              : doc.map(renderSection)}
           </div>
         </div>
       </div>

@@ -15,8 +15,24 @@ async function listTrashedTemplates() {
   return window.stStorage.templates.listTrashed();
 }
 
-function readTemplate(id) {
-  return window.stStorage.templates.read(id);
+// Normalizes the doc shape so callers can rely on `doc.sections` always being
+// present. Older templates on disk may have `doc` as a bare sections array, or
+// as `{sections, page}` from a previous (now reverted) experiment — fold both
+// to the canonical `{sections}` shape. Section-level fields (outerBg, width…)
+// are merged in by the renderers via `defaultSectionStyle`.
+function normalizeDoc(tpl) {
+  if (!tpl) return tpl;
+  const raw = tpl.doc;
+  const sections = Array.isArray(raw)
+    ? raw
+    : Array.isArray(raw?.sections) ? raw.sections : [];
+  tpl.doc = { sections };
+  return tpl;
+}
+
+async function readTemplate(id) {
+  const tpl = await window.stStorage.templates.read(id);
+  return normalizeDoc(tpl);
 }
 
 async function writeTemplate(id, doc) {
@@ -52,6 +68,7 @@ async function createTemplate(seed = {}) {
     vars,
     meta: seed.meta || { subject: '', preview: '', fromName: '', fromEmail: '' },
   };
+  normalizeDoc(doc);
   const result = await window.stStorage.templates.write(id, doc);
   if (!result) return null;
   window.dispatchEvent(new CustomEvent('st:template-change', {

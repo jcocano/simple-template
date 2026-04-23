@@ -298,12 +298,16 @@ function SectionProps({ section, onChange }) {
               </div>
             </div>
             <div className="prop-group">
-              <div className="prop-label">Fondo</div>
+              <div className="prop-label">Fondo del contenido</div>
               <div className="prop-row">
                 <label>Color</label>
                 <ColorInput value={section.style.bg} onChange={v=>updStyle('bg',v)}/>
               </div>
+              <div style={{fontSize:11,color:'var(--fg-3)',marginTop:6,lineHeight:1.5}}>
+                El color del área central de esta sección, donde están los bloques.
+              </div>
             </div>
+            <SectionOuterGroup section={section} updStyle={updStyle}/>
             <div className="prop-group">
               <div className="prop-label">Texto</div>
               <div className="prop-row">
@@ -326,6 +330,16 @@ function SectionProps({ section, onChange }) {
               <div className="prop-row">
                 <label>Padding</label>
                 <Num value={section.style.padding} onChange={v=>updStyle('padding',v)} min={0} max={80}/>
+              </div>
+            </div>
+            <div className="prop-group">
+              <div className="prop-label">Tamaño</div>
+              <div className="prop-row">
+                <label>Ancho</label>
+                <Num value={section.style.width || 600} onChange={v=>updStyle('width',v)} min={320} max={800}/>
+              </div>
+              <div style={{fontSize:11,color:'var(--fg-3)',marginTop:6,lineHeight:1.5}}>
+                Ancho del contenido de esta sección. El fondo exterior siempre va a todo lo ancho.
               </div>
             </div>
           </>
@@ -472,6 +486,104 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
   docRef.current = doc;
   varsRef.current = vars;
 
+  // ─── Undo / redo for `doc` ───────────────────────────────────────
+  // Snapshots are pushed by a useEffect that watches `doc`. Bursts of edits
+  // within HISTORY_COALESCE_MS collapse into a single undo step (typing in a
+  // text field shouldn't create dozens of entries). The skip flag suppresses
+  // the snapshot when the change is itself an undo/redo. Stack capped at
+  // HISTORY_MAX entries to bound memory.
+  const HISTORY_MAX = 50;
+  const HISTORY_COALESCE_MS = 500;
+  const undoStackRef = React.useRef([]);
+  const redoStackRef = React.useRef([]);
+  const lastSnapshotRef = React.useRef(null);
+  const lastPushAtRef = React.useRef(0);
+  const skipHistoryRef = React.useRef(true);
+  const [historyState, setHistoryState] = React.useState({ canUndo:false, canRedo:false });
+  const refreshHistoryState = React.useCallback(() => {
+    setHistoryState({
+      canUndo: undoStackRef.current.length > 0,
+      canRedo: redoStackRef.current.length > 0,
+    });
+  }, []);
+
+  React.useEffect(() => {
+    if (!loaded) return;
+    if (skipHistoryRef.current) {
+      skipHistoryRef.current = false;
+      lastSnapshotRef.current = doc;
+      return;
+    }
+    const now = Date.now();
+    const coalesce = (now - lastPushAtRef.current) < HISTORY_COALESCE_MS && undoStackRef.current.length > 0;
+    if (!coalesce) {
+      undoStackRef.current.push(lastSnapshotRef.current);
+      if (undoStackRef.current.length > HISTORY_MAX) undoStackRef.current.shift();
+      redoStackRef.current = [];
+    }
+    lastSnapshotRef.current = doc;
+    lastPushAtRef.current = now;
+    refreshHistoryState();
+  }, [doc, loaded, refreshHistoryState]);
+
+  // Reset history when switching template — old snapshots belong to old doc.
+  React.useEffect(() => {
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    lastSnapshotRef.current = null;
+    lastPushAtRef.current = 0;
+    skipHistoryRef.current = true;
+    refreshHistoryState();
+  }, [template?.id, refreshHistoryState]);
+
+  const undo = React.useCallback(() => {
+    if (!undoStackRef.current.length) return;
+    redoStackRef.current.push(lastSnapshotRef.current);
+    const prev = undoStackRef.current.pop();
+    skipHistoryRef.current = true;
+    lastSnapshotRef.current = prev;
+    setDoc(prev);
+    refreshHistoryState();
+  }, [refreshHistoryState]);
+
+  const redo = React.useCallback(() => {
+    if (!redoStackRef.current.length) return;
+    undoStackRef.current.push(lastSnapshotRef.current);
+    const next = redoStackRef.current.pop();
+    skipHistoryRef.current = true;
+    lastSnapshotRef.current = next;
+    setDoc(next);
+    refreshHistoryState();
+  }, [refreshHistoryState]);
+
+  const undoRef = React.useRef(undo);
+  const redoRef = React.useRef(redo);
+  undoRef.current = undo;
+  redoRef.current = redo;
+
+  // ⌘Z / ⌘⇧Z (Ctrl+Z / Ctrl+Shift+Z, Ctrl+Y on Win). Only intercept when we
+  // actually have something to do — otherwise let the browser handle native
+  // input undo (e.g. user typing in template-name field).
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const k = e.key.toLowerCase();
+      const isRedo = (k === 'z' && e.shiftKey) || (k === 'y' && !e.shiftKey);
+      const isUndo = (k === 'z' && !e.shiftKey);
+      if (isRedo) {
+        if (!redoStackRef.current.length) return;
+        e.preventDefault();
+        redoRef.current();
+      } else if (isUndo) {
+        if (!undoStackRef.current.length) return;
+        e.preventDefault();
+        undoRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   React.useEffect(() => {
     const h = (e) => setImproveBlock(e.detail.block);
     window.addEventListener('st:improve', h);
@@ -604,6 +716,12 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
 
   const selSection = sel?.type==='section' ? doc.find(s=>s.id===sel.id) : doc.find(s=>s.id===sel?.sectionId);
   const selBlock = sel?.type==='block' ? selSection?.columns.flatMap(c=>c.blocks).find(b=>b.id===sel.id) : null;
+
+  // Canvas frame width = the widest section's content width. Sections narrower
+  // than this render their outer band wider than their content, exposing the
+  // outerBg as a visible "wall" on either side. Min 600 to keep the frame
+  // visually meaningful when all sections are smaller.
+  const docMaxWidth = doc.reduce((m, s) => Math.max(m, s.style?.width || 600), 600);
 
   const updateSection = (updated) => setDoc(d => d.map(s => s.id===updated.id ? updated : s));
   const updateBlock = (updated) => setDoc(d => d.map(s => s.id===sel.sectionId ? {
@@ -747,8 +865,8 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
 
         {/* Zone C — utility cluster */}
         <div className="icon-cluster">
-          <button className="btn icon ghost sm" title="Deshacer (⌘Z)" aria-label="Deshacer"><I.undo size={13}/></button>
-          <button className="btn icon ghost sm" title="Rehacer (⌘⇧Z)" aria-label="Rehacer"><I.redo size={13}/></button>
+          <button className="btn icon ghost sm" title="Deshacer (⌘Z)" aria-label="Deshacer" disabled={!historyState.canUndo} onClick={undo}><I.undo size={13}/></button>
+          <button className="btn icon ghost sm" title="Rehacer (⌘⇧Z)" aria-label="Rehacer" disabled={!historyState.canRedo} onClick={redo}><I.redo size={13}/></button>
           <SaveBtn saveState={saveState} onClick={()=>flushSaveRef.current()}/>
           <ThemeToggleBtn/>
           <button className="btn icon ghost sm" onClick={()=>window.dispatchEvent(new CustomEvent('st:cmd-open'))} title="Buscar (⌘K)" aria-label="Buscar"><I.search size={13}/></button>
@@ -781,7 +899,11 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
             backgroundImage: `repeating-linear-gradient(0deg, transparent 0 ${editorPrefs.grid-1}px, color-mix(in oklab, var(--line) 40%, transparent) ${editorPrefs.grid-1}px ${editorPrefs.grid}px), repeating-linear-gradient(90deg, transparent 0 ${editorPrefs.grid-1}px, color-mix(in oklab, var(--line) 40%, transparent) ${editorPrefs.grid-1}px ${editorPrefs.grid}px)`,
             backgroundColor: 'var(--bg)',
           }}>
-            <div className="canvas-frame" style={{transform:`scale(${zoom/100})`,transformOrigin:'top center'}}>
+            <div className="canvas-frame" style={{
+              transform:`scale(${zoom/100})`,
+              transformOrigin:'top center',
+              ['--canvas-w']: device==='mobile' ? '375px' : `${docMaxWidth}px`,
+            }}>
               {doc.length === 0 ? (
                 <div
                   style={{background:'var(--surface)',border:'1px solid var(--line)',borderRadius:'var(--r-md)',padding:'20px 0'}}
@@ -1088,6 +1210,9 @@ function SectionView({ section, selected, selectedBlockId, onSelectSection, onSe
   const font = FONT_OPTIONS.find(f => f.id===section.style.font) || FONT_OPTIONS[0];
   const [hover, setHover] = React.useState(false);
   const showChrome = selected || hover;
+  const outerBg = section.style.outerBg || 'transparent';
+  const outerPadY = section.style.outerPadY || 0;
+  const innerWidth = section.style.width || 600;
   return (
     <div
       onClick={e=>{ e.stopPropagation(); onSelectSection(); }}
@@ -1095,14 +1220,11 @@ function SectionView({ section, selected, selectedBlockId, onSelectSection, onSe
       onMouseLeave={()=>setHover(false)}
       style={{
         position:'relative',
-        background:section.style.bg,
-        color:section.style.text,
-        padding:section.style.padding,
-        fontFamily:font.css,
-        textAlign:section.style.align,
+        background: outerBg,
+        padding: `${outerPadY}px 0`,
+        cursor:'pointer',
         outline: selected ? '2px solid var(--accent)' : hover ? '1px solid color-mix(in oklab, var(--accent) 50%, transparent)' : '1px solid transparent',
         outlineOffset:-1,
-        cursor:'pointer',
         transition:'outline-color 120ms',
       }}
     >
@@ -1132,26 +1254,36 @@ function SectionView({ section, selected, selectedBlockId, onSelectSection, onSe
       )}
 
       <div style={{
-        display:'grid',
-        gridTemplateColumns:section.columns.map(c=>`${c.w}fr`).join(' '),
-        gap:16,
+        background:section.style.bg,
+        color:section.style.text,
+        padding:section.style.padding,
+        fontFamily:font.css,
+        textAlign:section.style.align,
+        maxWidth: innerWidth,
+        margin: '0 auto',
       }}>
-        {section.columns.map((col, ci) => (
-          <ColumnView
-            key={ci}
-            column={col}
-            colIdx={ci}
-            sectionId={section.id}
-            totalBlocks={col.blocks.length}
-            selectedBlockId={selectedBlockId}
-            onSelectBlock={(b)=>onSelectBlock(b, ci)}
-            onMoveBlock={(blockId,dir)=>onMoveBlock(ci,blockId,dir)}
-            onDeleteBlock={onDeleteBlock}
-            onAddBlankBlock={(atIdx)=>onAddBlankBlock(ci, atIdx)}
-            onDropBlock={(atIdx, blockType)=>onDropBlock(ci, atIdx, blockType)}
-            onEditBlock={onEditBlock}
-          />
-        ))}
+        <div style={{
+          display:'grid',
+          gridTemplateColumns:section.columns.map(c=>`${c.w}fr`).join(' '),
+          gap:16,
+        }}>
+          {section.columns.map((col, ci) => (
+            <ColumnView
+              key={ci}
+              column={col}
+              colIdx={ci}
+              sectionId={section.id}
+              totalBlocks={col.blocks.length}
+              selectedBlockId={selectedBlockId}
+              onSelectBlock={(b)=>onSelectBlock(b, ci)}
+              onMoveBlock={(blockId,dir)=>onMoveBlock(ci,blockId,dir)}
+              onDeleteBlock={onDeleteBlock}
+              onAddBlankBlock={(atIdx)=>onAddBlankBlock(ci, atIdx)}
+              onDropBlock={(atIdx, blockType)=>onDropBlock(ci, atIdx, blockType)}
+              onEditBlock={onEditBlock}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -1253,20 +1385,55 @@ function ColumnView({ column, colIdx, sectionId, totalBlocks, selectedBlockId, o
   );
 }
 
+// Outer-bg controls for SectionProps' Estilo tab. The full-width "wall" behind
+// this section. `transparent` (default) = no wall, the canvas/inbox shows
+// through. We use a Switch to opt in because <input type=color> can't hold
+// 'transparent'; the last solid color is remembered for re-enable.
+function SectionOuterGroup({ section, updStyle }) {
+  const outerBg = section.style.outerBg || 'transparent';
+  const hasOuter = outerBg !== 'transparent';
+  const lastBgRef = React.useRef(hasOuter ? outerBg : '#f6f5f1');
+  if (hasOuter) lastBgRef.current = outerBg;
+  return (
+    <div className="prop-group">
+      <div className="prop-label">Fondo exterior</div>
+      <div className="prop-row">
+        <label>Mostrar</label>
+        <label className="switch">
+          <input
+            type="checkbox"
+            checked={hasOuter}
+            onChange={e => updStyle('outerBg', e.target.checked ? lastBgRef.current : 'transparent')}
+          />
+          <span/>
+        </label>
+      </div>
+      {hasOuter && (
+        <>
+          <div className="prop-row">
+            <label>Color</label>
+            <ColorInput value={outerBg} onChange={v => updStyle('outerBg', v)}/>
+          </div>
+          <div className="prop-row">
+            <label>Padding vertical</label>
+            <Num value={section.style.outerPadY || 0} onChange={v => updStyle('outerPadY', v)} min={0} max={120}/>
+          </div>
+        </>
+      )}
+      <div style={{fontSize:11,color:'var(--fg-3)',marginTop:6,lineHeight:1.5}}>
+        Franja a todo el ancho que se ve detrás del contenido de la sección.
+      </div>
+    </div>
+  );
+}
+
 function DesignPanel() {
   return (
     <div className="side-body">
       <div className="prop-group">
-        <div className="prop-label">Estilos globales del correo</div>
-        <div className="prop-row"><label>Ancho</label><Num value={600} onChange={()=>{}} min={320} max={800}/></div>
-        <div className="prop-row"><label>Fondo</label><Swatch color="#f5f6fb"/></div>
-        <div className="prop-row"><label>Acento</label><Swatch color="#5b5bf0"/></div>
-      </div>
-        <div className="prop-group">
-        <div className="prop-label">Datos del correo</div>
-        <div className="prop-row"><label>Asunto</label><input className="field" defaultValue="Hola {{nombre}}"/></div>
-        <div className="prop-row"><label>Vista previa</label><input className="field" defaultValue="3 novedades de noviembre"/></div>
-        <div className="prop-row"><label>Remitente</label><input className="field" defaultValue="Acme <hola@acme.com>"/></div>
+        <div style={{fontSize:12,color:'var(--fg-3)',lineHeight:1.6}}>
+          Cada sección tiene sus propios estilos (fondo del contenido, fondo exterior, ancho, padding…). Selecciona una sección en el canvas para configurarla.
+        </div>
       </div>
     </div>
   );
