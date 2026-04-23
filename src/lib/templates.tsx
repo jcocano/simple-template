@@ -160,6 +160,7 @@ async function enrichRows(rows) {
       updated_at: row.updated_at,
       deleted_at: row.deleted_at || null,
       folder: doc?.folder,
+      occasionId: doc?.occasionId || null,
       status: doc?.status,
       starred: !!doc?.starred,
       variant: doc?.variant,
