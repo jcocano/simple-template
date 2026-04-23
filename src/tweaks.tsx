@@ -41,7 +41,7 @@ function TweaksPanel({ tweaks, setTweaks, visible }) {
           <label>Densidad</label>
           <div className="seg">
             <button className={tweaks.density==='compact'?'on':''} onClick={()=>update('density','compact')}>Compacta</button>
-            <button className={tweaks.density==='comfy'?'on':''} onClick={()=>update('density','comfy')}>Cómoda</button>
+            <button className={tweaks.density==='comfortable'?'on':''} onClick={()=>update('density','comfortable')}>Cómoda</button>
           </div>
         </div>
 
