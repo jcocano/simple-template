@@ -886,7 +886,7 @@ window.stI18nDict.ja = {
   'section.preset.imgtext': '画像の横にテキスト',
   'section.preset.products': '2 つの商品',
   'settings.account.about.body': 'オープンソース、ローカル、MIT ライセンス。データはお使いの端末にのみ保存されます。',
-  'settings.account.about.btn.docs': 'GitHub でコードを見る',
+  'settings.account.about.btn.coffee': 'コーヒーをごちそう',
   'settings.account.about.btn.github': 'GitHub',
   'settings.account.about.btn.license': 'MIT ライセンス',
   'settings.account.about.title': 'Simple Template について',

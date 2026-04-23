@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Buy me a coffee
+    url: https://buymeacoffee.com/jesuscocana
+    about: Support ongoing development of Simple Template.
+  - name: GitHub Discussions
+    url: https://github.com/jcocano/simple-templete/discussions
+    about: Questions, ideas, show-and-tell. Not a bug? Start here.
+  - name: Security disclosure
+    url: https://github.com/jcocano/simple-templete/blob/main/SECURITY.md
+    about: Found a security issue? Please do not open a public issue — read SECURITY.md first.

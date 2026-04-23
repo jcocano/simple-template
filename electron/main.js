@@ -1,6 +1,7 @@
 const electron = require("electron");
-const { app, BrowserWindow, protocol } = electron;
+const { app, BrowserWindow, crashReporter, protocol, session } = electron;
 const path = require("path");
+const fs = require("fs");
 const db = require("./storage/db");
 const seed = require("./storage/seed");
 const imageFiles = require("./storage/image-files");
@@ -35,6 +36,30 @@ if (!app || !BrowserWindow) {
   );
   process.exit(1);
 }
+
+// Force the app name so dev builds (which run the raw Electron binary)
+// still show "Simple Template" in the menu bar, About panel and process
+// title — not the bundled "Electron" name from node_modules.
+const APP_NAME = "Simple Template";
+app.setName(APP_NAME);
+process.title = APP_NAME;
+
+crashReporter.start({ uploadToServer: false });
+
+function logCrash(kind, err) {
+  try {
+    const logDir = app.getPath("logs");
+    fs.mkdirSync(logDir, { recursive: true });
+    const line = `[${new Date().toISOString()}] ${kind}: ${err && err.stack ? err.stack : String(err)}\n`;
+    fs.appendFileSync(path.join(logDir, "main.log"), line);
+  } catch (_) {
+    // last-resort: don't let the logger itself throw
+  }
+  console.error(kind, err);
+}
+
+process.on("uncaughtException", (err) => logCrash("uncaughtException", err));
+process.on("unhandledRejection", (reason) => logCrash("unhandledRejection", reason));
 
 function createWindow() {
   const isMac = process.platform === "darwin";
@@ -74,12 +99,43 @@ function createWindow() {
     return;
   }
 
-  win.loadFile(path.join(__dirname, "..", "index.html"));
+  win.loadFile(path.join(__dirname, "..", "dist", "index.html"));
 }
 
 app.whenReady().then(() => {
+  if (process.platform === "darwin" && typeof app.setAboutPanelOptions === "function") {
+    app.setAboutPanelOptions({
+      applicationName: APP_NAME,
+      applicationVersion: app.getVersion(),
+      copyright: "MIT — Jesus Cocaño",
+    });
+  }
   db.init();
   seed.ensureFirstWorkspace();
+
+  // Content-Security-Policy — prod only. Dev keeps Vite HMR unconstrained.
+  // Inline scripts/styles are required by index.html (TWEAKS block + ~800
+  // lines of embedded CSS). Google Fonts is loaded as a stylesheet link.
+  // st-img:// is our custom protocol for workspace images.
+  if (!process.env.ELECTRON_START_URL) {
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' data: https://fonts.gstatic.com",
+      "img-src 'self' data: blob: st-img: https: http:",
+      "connect-src 'self' https:",
+      "media-src 'self' data: blob:",
+    ].join("; ");
+    session.defaultSession.webRequest.onHeadersReceived((details, cb) => {
+      cb({
+        responseHeaders: {
+          ...details.responseHeaders,
+          "Content-Security-Policy": [csp],
+        },
+      });
+    });
+  }
 
   // Actual handler del protocolo custom. Devuelve los bytes del archivo o 404.
   protocol.handle("st-img", async (request) => {

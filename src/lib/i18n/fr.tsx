@@ -885,7 +885,7 @@ window.stI18nDict.fr = {
   'section.preset.imgtext': 'Texte à côté de l’image',
   'section.preset.products': 'Deux produits',
   'settings.account.about.body': 'Open source, local, licence MIT. Tes données restent sur ton ordinateur.',
-  'settings.account.about.btn.docs': 'Voir le code sur GitHub',
+  'settings.account.about.btn.coffee': 'Offre-moi un café',
   'settings.account.about.btn.github': 'GitHub',
   'settings.account.about.btn.license': 'Licence MIT',
   'settings.account.about.title': 'À propos de Simple Template',

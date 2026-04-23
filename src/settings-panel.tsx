@@ -111,7 +111,7 @@ function SettingsPanel({ onClose, initialSection='account' }) {
           </div>
 
           <div style={{marginTop:'auto',padding:'12px 10px 4px',fontSize:10.5,color:'var(--fg-3)',lineHeight:1.55}}>
-            {t('settings.version', { version: '0.4.2' })} · <span style={{color:'var(--accent)',cursor:'pointer'}}>{t('settings.changelog')}</span>
+            {t('settings.version', { v: __APP_VERSION__ })} · <span style={{color:'var(--accent)',cursor:'pointer'}} onClick={()=>window.shell?.openExternal?.('https://github.com/jcocano/simple-templete/blob/main/CHANGELOG.md')}>{t('settings.changelog')}</span>
           </div>
         </aside>
 
@@ -713,9 +713,9 @@ function AccountSection({ onChange }) {
               {t('settings.account.about.body')}
             </p>
             <div style={{display:'flex',gap:8,marginTop:10,flexWrap:'wrap'}}>
-              <button className="btn sm"><I.code size={12}/> {t('settings.account.about.btn.github')}</button>
-              <button className="btn sm ghost"><I.external size={12}/> {t('settings.account.about.btn.docs')}</button>
-              <button className="btn sm ghost"><I.book size={12}/> {t('settings.account.about.btn.license')}</button>
+              <button className="btn sm" onClick={()=>window.shell?.openExternal?.('https://github.com/jcocano/simple-templete')}><I.code size={12}/> {t('settings.account.about.btn.github')}</button>
+              <button className="btn sm ghost" onClick={()=>window.shell?.openExternal?.('https://github.com/jcocano/simple-templete/blob/main/LICENSE')}><I.book size={12}/> {t('settings.account.about.btn.license')}</button>
+              <button className="btn sm ghost" onClick={()=>window.shell?.openExternal?.('https://buymeacoffee.com/jesuscocana')}><I.heart size={12}/> {t('settings.account.about.btn.coffee')}</button>
             </div>
           </div>
         </div>

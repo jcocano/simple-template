@@ -1,0 +1,72 @@
+name: Translation help / fix
+description: Report a translation problem or volunteer to translate Simple Template.
+title: "[i18n]: "
+labels: ["i18n", "good first issue"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping with translations. Simple Template ships in six languages — see [CONTRIBUTING.md](../CONTRIBUTING.md#helping-with-translations) for the workflow.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of translation issue is this?
+      options:
+        - Typo or grammar fix
+        - Better phrasing / more natural copy
+        - Missing translation (key not translated yet)
+        - Inconsistent terminology across strings
+        - New language request
+        - Offering to translate an existing language
+    validations:
+      required: true
+
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language affected
+      options:
+        - Spanish (es)
+        - English (en)
+        - Portuguese — Brazil (pt)
+        - French (fr)
+        - Japanese (ja)
+        - Chinese — Simplified (zh)
+        - A new language (specify in description)
+    validations:
+      required: true
+
+  - type: input
+    id: key
+    attributes:
+      label: i18n key (if applicable)
+      description: "The key from `src/lib/i18n/<lang>.tsx`, e.g. `settings.export.format.label`."
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current string
+      description: Paste what the app currently shows.
+
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed string
+      description: Your suggested replacement (preserve any `{placeholders}`).
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Screenshots, screen names, or situations where the string appears.
+
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Are you offering to submit the fix yourself?
+      options:
+        - label: Yes, I can open a pull request.
+          required: false
+        - label: No, just reporting — someone else please fix it.
+          required: false

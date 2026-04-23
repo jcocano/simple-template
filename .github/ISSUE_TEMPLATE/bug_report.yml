@@ -1,0 +1,95 @@
+name: Bug report
+description: Something in Simple Template is broken or behaves unexpectedly.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill in as much as you can — the more details you give, the faster this gets fixed.
+
+        Not sure if this is a bug? Start a [discussion](https://github.com/jcocano/simple-templete/discussions) instead.
+
+  - type: checkboxes
+    id: pre-checks
+    attributes:
+      label: Pre-checks
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I am running the latest version available from `main`.
+          required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Version from `package.json` or the app's About panel.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Windows 11
+        - Windows 10
+        - Linux (Ubuntu / Debian)
+        - Linux (Fedora)
+        - Linux (Arch)
+        - Linux (other)
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version
+      placeholder: "macOS 14.2, Windows 11 23H2, Ubuntu 24.04, etc."
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug clearly.
+      placeholder: When I click X, Y happens instead of Z.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Minimal, numbered list so anyone can reproduce.
+      placeholder: |
+        1. Open the app
+        2. Create a new template
+        3. Click ...
+        4. See the error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: I expected ...
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: |
+        If relevant, paste log output or attach screenshots.
+        Logs live in the app's log directory (macOS: `~/Library/Logs/Simple Template/main.log`).
+      render: shell
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Anything else that might help.
