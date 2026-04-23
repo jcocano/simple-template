@@ -421,22 +421,49 @@ function Dashboard({ onOpen, onNew }) {
 
   const rawItems = useTemplates();
   const trashedItems = useTrashedTemplates();
+  const occasions = useOccasions();
+  const [occasionModal, setOccasionModal] = React.useState(null);
+  const [moveMenu, setMoveMenu] = React.useState(null);
+  const [dragOverOccId, setDragOverOccId] = React.useState(null);
   const inTrash = folder === 'trash';
+
+  // Resolve each template's occasion once per render — honors explicit
+  // `occasionId` on the doc and falls back to matching the legacy `folder`
+  // string, so seed/older templates still show a color without a disk write.
+  const occasionByTplId = React.useMemo(() => {
+    const m = {};
+    for (const t of rawItems) {
+      const oc = window.stOccasions.resolveOccasionForRow(t, occasions);
+      if (oc) m[t.id] = oc;
+    }
+    return m;
+  }, [rawItems, occasions]);
+
+  const occasionCounts = React.useMemo(() => {
+    const counts = {};
+    for (const t of rawItems) {
+      const oc = occasionByTplId[t.id];
+      if (oc) counts[oc.id] = (counts[oc.id] || 0) + 1;
+    }
+    return counts;
+  }, [rawItems, occasionByTplId]);
 
   const items = React.useMemo(() => {
     const source = inTrash ? trashedItems : rawItems;
     const filtered = source.filter(t => {
-      if (inTrash) return (t.name || '').toLowerCase().includes(q.toLowerCase());
-      return (
-        (folder==='all' || (folder==='starred' && t.starred) || folder==='recent' || folder==='shared') &&
-        (t.name || '').toLowerCase().includes(q.toLowerCase())
-      );
+      const matchesName = (t.name || '').toLowerCase().includes(q.toLowerCase());
+      if (!matchesName) return false;
+      if (inTrash) return true;
+      if (folder === 'all' || folder === 'recent' || folder === 'shared') return true;
+      if (folder === 'starred') return !!t.starred;
+      if (folder.startsWith('occ:')) return occasionByTplId[t.id]?.id === folder.slice(4);
+      return false;
     });
     if (sort === 'name') filtered.sort((a,b) => (a.name||'').localeCompare(b.name||''));
     else if (sort === 'status') filtered.sort((a,b) => (a.status||'').localeCompare(b.status||''));
     // 'updated' is already the SQLite default (ORDER BY updated_at DESC).
     return filtered;
-  }, [rawItems, trashedItems, inTrash, folder, q, sort]);
+  }, [rawItems, trashedItems, inTrash, folder, q, sort, occasionByTplId]);
 
   const folderCounts = React.useMemo(() => ({
     all: rawItems.length,
@@ -475,13 +502,58 @@ function Dashboard({ onOpen, onNew }) {
             );
           })}
           <div className="nav-label">Por ocasión</div>
-          {CATS.map(c => (
-            <div key={c.id} className="nav-item">
-              <div style={{width:10,height:10,borderRadius:2,background:'var(--accent)',opacity:0.3}}/>
-              <span>{c.name}</span>
-              <span className="count">{c.count}</span>
-            </div>
-          ))}
+          {occasions.map(oc => {
+            const active = folder === `occ:${oc.id}`;
+            const dropOver = dragOverOccId === oc.id;
+            const count = occasionCounts[oc.id] || 0;
+            return (
+              <div
+                key={oc.id}
+                className={`nav-item ${active?'active':''} ${dropOver?'drop-active':''}`}
+                onClick={()=>setFolder(`occ:${oc.id}`)}
+                onDragOver={(e)=>{
+                  if (!Array.from(e.dataTransfer.types).includes('text/x-mc-template')) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (dragOverOccId !== oc.id) setDragOverOccId(oc.id);
+                }}
+                onDragLeave={(e)=>{
+                  if (e.currentTarget.contains(e.relatedTarget)) return;
+                  setDragOverOccId(id => id === oc.id ? null : id);
+                }}
+                onDrop={(e)=>{
+                  const tplId = e.dataTransfer.getData('text/x-mc-template');
+                  setDragOverOccId(null);
+                  if (!tplId) return;
+                  e.preventDefault();
+                  window.stOccasions.setTemplateOccasion(tplId, oc.id);
+                }}
+              >
+                <div style={{width:10,height:10,borderRadius:2,background:oc.color,flexShrink:0}}/>
+                <span style={{minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{oc.name}</span>
+                <span className="count oc-count-hideable">{count}</span>
+                <div className="oc-actions" onClick={e=>e.stopPropagation()}>
+                  <button className="btn icon sm ghost" title="Renombrar o cambiar color"
+                    onClick={()=>setOccasionModal({mode:'edit', occasion: oc})}>
+                    <I.edit size={11}/>
+                  </button>
+                  <button className="btn icon sm ghost" title="Borrar ocasión"
+                    onClick={()=>{
+                      if (window.confirm(`¿Borrar la ocasión «${oc.name}»? Las plantillas asignadas quedarán sin ocasión.`)) {
+                        window.stOccasions.remove(oc.id);
+                        if (folder === `occ:${oc.id}`) setFolder('all');
+                      }
+                    }}>
+                    <I.trash size={11}/>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+          <div className="nav-item" onClick={()=>setOccasionModal({mode:'new'})} style={{color:'var(--fg-3)'}}>
+            <I.plus size={12}/>
+            <span>Nueva ocasión</span>
+          </div>
           <div className="nav-label">Mis cosas</div>
           <div className="nav-item" onClick={()=>onOpen('library')}>
             <I.layers size={15}/>
@@ -595,8 +667,20 @@ function Dashboard({ onOpen, onNew }) {
                   <div style={{fontSize:11,color:'var(--fg-3)'}}>En blanco, o partiendo de un ejemplo</div>
                 </div>
               )}
-              {items.map(t => (
-                <div key={t.id} className="tpl-card" onClick={inTrash ? undefined : ()=>onOpen('editor', t)} style={inTrash?{cursor:'default',opacity:0.85}:undefined}>
+              {items.map(t => {
+                const oc = occasionByTplId[t.id];
+                return (
+                <div key={t.id} className="tpl-card"
+                  draggable={!inTrash}
+                  onClick={inTrash ? undefined : ()=>onOpen('editor', t)}
+                  onDragStart={(e)=>{
+                    if (inTrash) return;
+                    e.dataTransfer.setData('text/x-mc-template', t.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.currentTarget.classList.add('dragging');
+                  }}
+                  onDragEnd={(e)=>e.currentTarget.classList.remove('dragging')}
+                  style={inTrash ? {cursor:'default',opacity:0.85} : undefined}>
                   <div className="tpl-thumb">
                     {inTrash && <div className="badge"><div className="chip">En papelera</div></div>}
                     {!inTrash && t.starred && <div className="badge"><div className="chip accent"><I.star size={10}/> Favorita</div></div>}
@@ -628,6 +712,14 @@ function Dashboard({ onOpen, onNew }) {
                             onClick={e=>{ e.stopPropagation(); window.stTemplates.duplicate(t.id); }}>
                             <I.copy size={12}/>
                           </button>
+                          <button className="btn icon sm" title="Mover a ocasión…"
+                            onClick={e=>{
+                              e.stopPropagation();
+                              const r = e.currentTarget.getBoundingClientRect();
+                              setMoveMenu({ templateId: t.id, x: r.right - 220, y: r.bottom + 4 });
+                            }}>
+                            <I.dotsV size={12}/>
+                          </button>
                           <button className="btn icon sm" title="Mover a la papelera"
                             onClick={e=>{ e.stopPropagation(); window.stTemplates.remove(t.id); }}>
                             <I.trash size={12}/>
@@ -640,7 +732,10 @@ function Dashboard({ onOpen, onNew }) {
                   <div className="tpl-meta">
                     <div className="tpl-title">{t.name}</div>
                     <div className="tpl-sub">
-                      <span>{t.folder || 'Sin carpeta'}</span>
+                      {oc && <span className="oc-dot" style={{background:oc.color}}/>}
+                      <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                        {t.folder || 'Sin carpeta'}
+                      </span>
                       <span className="tpl-dot"/>
                       {inTrash
                         ? <span>Borrada {formatRelative(t.deleted_at)}</span>
@@ -652,7 +747,8 @@ function Dashboard({ onOpen, onNew }) {
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div style={{background:'var(--surface)',border:'1px solid var(--line)',borderRadius:'var(--r-lg)',overflow:'hidden'}}>
@@ -660,14 +756,26 @@ function Dashboard({ onOpen, onNew }) {
                 <span/>
                 <span>Nombre</span><span>Ocasión</span><span>Estado</span><span>Última edición</span><span/>
               </div>
-              {items.map(t => (
-                <div key={t.id} onClick={inTrash ? undefined : ()=>onOpen('editor',t)}
+              {items.map(t => {
+                const oc = occasionByTplId[t.id];
+                return (
+                <div key={t.id}
+                  draggable={!inTrash}
+                  onClick={inTrash ? undefined : ()=>onOpen('editor',t)}
+                  onDragStart={(e)=>{
+                    if (inTrash) return;
+                    e.dataTransfer.setData('text/x-mc-template', t.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                  }}
                   style={{display:'grid',gridTemplateColumns:'32px 1fr 160px 140px 120px 80px',padding:'12px 16px',borderBottom:'1px solid var(--line)',alignItems:'center',cursor:inTrash?'default':'pointer',fontSize:13,opacity:inTrash?0.85:1}}
                   onMouseEnter={e=>{ if(!inTrash) e.currentTarget.style.background='var(--surface-2)'; }}
                   onMouseLeave={e=>{ if(!inTrash) e.currentTarget.style.background=''; }}>
                   <div>{!inTrash && t.starred && <I.star2 size={14} style={{color:'var(--warn)'}}/>}</div>
                   <div style={{fontWeight:500}}>{t.name}</div>
-                  <div style={{color:'var(--fg-2)'}}>{t.folder || 'Sin carpeta'}</div>
+                  <div style={{color:'var(--fg-2)',display:'flex',alignItems:'center',gap:8,minWidth:0}}>
+                    {oc && <span className="oc-dot" style={{background:oc.color}}/>}
+                    <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.folder || 'Sin carpeta'}</span>
+                  </div>
                   <div>
                     {inTrash
                       ? <span className="chip">En papelera</span>
@@ -693,16 +801,173 @@ function Dashboard({ onOpen, onNew }) {
                         </button>
                       </>
                     ) : (
-                      <I.dotsV size={14}/>
+                      <button className="btn icon sm ghost" title="Mover a ocasión…"
+                        onClick={e=>{
+                          e.stopPropagation();
+                          const r = e.currentTarget.getBoundingClientRect();
+                          setMoveMenu({ templateId: t.id, x: r.right - 220, y: r.bottom + 4 });
+                        }}>
+                        <I.dotsV size={14}/>
+                      </button>
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ))}
         </div>
       </main>
       {aiOpen && <AIGenerateModal onClose={()=>setAiOpen(false)} onGenerated={(tpl)=>{ setAiOpen(false); onOpen && onOpen('editor', tpl); }}/>}
+      {occasionModal && <OccasionModal mode={occasionModal.mode} occasion={occasionModal.occasion} onClose={()=>setOccasionModal(null)}/>}
+      {moveMenu && <MoveMenuPopover menu={moveMenu} occasions={occasions} onClose={()=>setMoveMenu(null)}/>}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// Occasion modal — create / edit. Color choice is a fixed palette
+// (MongoDB Compass-style) rather than a free-form picker so the
+// sidebar stays visually coherent across workspaces.
+// ════════════════════════════════════════════════════════════════
+function OccasionModal({ mode, occasion, onClose }) {
+  const palette = window.stOccasions.PALETTE;
+  const [name, setName] = React.useState(occasion?.name || '');
+  const [color, setColor] = React.useState(occasion?.color || palette[0].value);
+  const inputRef = React.useRef(null);
+
+  React.useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+
+  const submit = () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (mode === 'edit' && occasion) {
+      window.stOccasions.update(occasion.id, { name: trimmed, color });
+    } else {
+      window.stOccasions.add({ name: trimmed, color });
+    }
+    onClose();
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal pop" onClick={e=>e.stopPropagation()} style={{maxWidth:440}}>
+        <div className="modal-head">
+          <div style={{width:32,height:32,borderRadius:8,background:color,display:'grid',placeItems:'center',transition:'background 120ms'}}>
+            <div style={{width:12,height:12,borderRadius:3,background:'rgba(255,255,255,.82)'}}/>
+          </div>
+          <div style={{flex:1}}>
+            <h3>{mode === 'edit' ? 'Editar ocasión' : 'Nueva ocasión'}</h3>
+            <div className="sub">Dale un nombre y un color para distinguirla en el sidebar.</div>
+          </div>
+          <button className="btn icon ghost" onClick={onClose}><I.x size={15}/></button>
+        </div>
+        <div className="modal-body">
+          <div className="prop-label" style={{marginBottom:6}}>Nombre</div>
+          <input ref={inputRef} className="field" value={name}
+            onChange={e=>setName(e.target.value)}
+            onKeyDown={e=>{
+              if (e.key === 'Enter') submit();
+              if (e.key === 'Escape') onClose();
+            }}
+            placeholder="Ej.: Carritos abandonados"/>
+          <div className="prop-label" style={{marginTop:16,marginBottom:8}}>Color</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(9, 1fr)',gap:8}}>
+            {palette.map(p => {
+              const on = color === p.value;
+              return (
+                <button key={p.id} onClick={()=>setColor(p.value)} title={p.name}
+                  style={{
+                    aspectRatio:'1',
+                    borderRadius:'50%',
+                    background:p.value,
+                    border:'none',
+                    cursor:'pointer',
+                    position:'relative',
+                    outline: on ? '2px solid var(--fg)' : 'none',
+                    outlineOffset: 2,
+                  }}>
+                  {on && <I.check size={12} style={{color:'#fff',position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)'}}/>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="modal-foot">
+          <button className="btn" onClick={onClose}>Cancelar</button>
+          <button className="btn primary" onClick={submit} disabled={!name.trim()}>
+            {mode === 'edit' ? 'Guardar cambios' : 'Crear ocasión'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// "Mover a…" popover — anchored to the card/row's action button.
+// Uses fixed positioning so it isn't clipped by the card's overflow:
+// hidden (which exists so the thumbnail stays inside the rounded card).
+// ════════════════════════════════════════════════════════════════
+function MoveMenuPopover({ menu, occasions, onClose }) {
+  const ref = React.useRef(null);
+
+  React.useEffect(() => {
+    const click = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    const esc = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('mousedown', click);
+    window.addEventListener('keydown', esc);
+    return () => {
+      window.removeEventListener('mousedown', click);
+      window.removeEventListener('keydown', esc);
+    };
+  }, [onClose]);
+
+  const move = (occasionId) => {
+    window.stOccasions.setTemplateOccasion(menu.templateId, occasionId);
+    onClose();
+  };
+
+  const style = {
+    position:'fixed',
+    top: Math.min(menu.y, window.innerHeight - 320),
+    left: Math.max(8, Math.min(menu.x, window.innerWidth - 240)),
+    minWidth:220,
+    maxHeight:320,
+    overflowY:'auto',
+    background:'var(--surface)',
+    border:'1px solid var(--line)',
+    borderRadius:'var(--r-md)',
+    boxShadow:'0 12px 32px rgba(0,0,0,.18)',
+    zIndex:60,
+    padding:6,
+  };
+
+  return (
+    <div ref={ref} style={style}>
+      <div style={{fontSize:10,color:'var(--fg-3)',padding:'6px 10px',textTransform:'uppercase',letterSpacing:'.06em'}}>Mover a ocasión</div>
+      {occasions.length === 0 && (
+        <div style={{padding:'8px 10px',fontSize:12,color:'var(--fg-3)'}}>
+          Aún no hay ocasiones. Crea una desde el sidebar.
+        </div>
+      )}
+      {occasions.map(oc => (
+        <button key={oc.id} className="btn ghost sm"
+          style={{width:'100%',justifyContent:'flex-start',gap:8}}
+          onClick={()=>move(oc.id)}>
+          <span style={{width:10,height:10,borderRadius:2,background:oc.color,flexShrink:0}}/>
+          <span style={{flex:1,textAlign:'left',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{oc.name}</span>
+        </button>
+      ))}
+      <div style={{height:1,background:'var(--line)',margin:'4px 0'}}/>
+      <button className="btn ghost sm" style={{width:'100%',justifyContent:'flex-start',gap:8}}
+        onClick={()=>move(null)}>
+        <span style={{width:10,height:10,borderRadius:2,border:'1px dashed var(--fg-3)',flexShrink:0}}/>
+        <span style={{flex:1,textAlign:'left',color:'var(--fg-2)'}}>Sin ocasión</span>
+      </button>
     </div>
   );
 }
