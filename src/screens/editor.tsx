@@ -486,6 +486,104 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
   docRef.current = doc;
   varsRef.current = vars;
 
+  // ─── Undo / redo for `doc` ───────────────────────────────────────
+  // Snapshots are pushed by a useEffect that watches `doc`. Bursts of edits
+  // within HISTORY_COALESCE_MS collapse into a single undo step (typing in a
+  // text field shouldn't create dozens of entries). The skip flag suppresses
+  // the snapshot when the change is itself an undo/redo. Stack capped at
+  // HISTORY_MAX entries to bound memory.
+  const HISTORY_MAX = 50;
+  const HISTORY_COALESCE_MS = 500;
+  const undoStackRef = React.useRef([]);
+  const redoStackRef = React.useRef([]);
+  const lastSnapshotRef = React.useRef(null);
+  const lastPushAtRef = React.useRef(0);
+  const skipHistoryRef = React.useRef(true);
+  const [historyState, setHistoryState] = React.useState({ canUndo:false, canRedo:false });
+  const refreshHistoryState = React.useCallback(() => {
+    setHistoryState({
+      canUndo: undoStackRef.current.length > 0,
+      canRedo: redoStackRef.current.length > 0,
+    });
+  }, []);
+
+  React.useEffect(() => {
+    if (!loaded) return;
+    if (skipHistoryRef.current) {
+      skipHistoryRef.current = false;
+      lastSnapshotRef.current = doc;
+      return;
+    }
+    const now = Date.now();
+    const coalesce = (now - lastPushAtRef.current) < HISTORY_COALESCE_MS && undoStackRef.current.length > 0;
+    if (!coalesce) {
+      undoStackRef.current.push(lastSnapshotRef.current);
+      if (undoStackRef.current.length > HISTORY_MAX) undoStackRef.current.shift();
+      redoStackRef.current = [];
+    }
+    lastSnapshotRef.current = doc;
+    lastPushAtRef.current = now;
+    refreshHistoryState();
+  }, [doc, loaded, refreshHistoryState]);
+
+  // Reset history when switching template — old snapshots belong to old doc.
+  React.useEffect(() => {
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    lastSnapshotRef.current = null;
+    lastPushAtRef.current = 0;
+    skipHistoryRef.current = true;
+    refreshHistoryState();
+  }, [template?.id, refreshHistoryState]);
+
+  const undo = React.useCallback(() => {
+    if (!undoStackRef.current.length) return;
+    redoStackRef.current.push(lastSnapshotRef.current);
+    const prev = undoStackRef.current.pop();
+    skipHistoryRef.current = true;
+    lastSnapshotRef.current = prev;
+    setDoc(prev);
+    refreshHistoryState();
+  }, [refreshHistoryState]);
+
+  const redo = React.useCallback(() => {
+    if (!redoStackRef.current.length) return;
+    undoStackRef.current.push(lastSnapshotRef.current);
+    const next = redoStackRef.current.pop();
+    skipHistoryRef.current = true;
+    lastSnapshotRef.current = next;
+    setDoc(next);
+    refreshHistoryState();
+  }, [refreshHistoryState]);
+
+  const undoRef = React.useRef(undo);
+  const redoRef = React.useRef(redo);
+  undoRef.current = undo;
+  redoRef.current = redo;
+
+  // ⌘Z / ⌘⇧Z (Ctrl+Z / Ctrl+Shift+Z, Ctrl+Y on Win). Only intercept when we
+  // actually have something to do — otherwise let the browser handle native
+  // input undo (e.g. user typing in template-name field).
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const k = e.key.toLowerCase();
+      const isRedo = (k === 'z' && e.shiftKey) || (k === 'y' && !e.shiftKey);
+      const isUndo = (k === 'z' && !e.shiftKey);
+      if (isRedo) {
+        if (!redoStackRef.current.length) return;
+        e.preventDefault();
+        redoRef.current();
+      } else if (isUndo) {
+        if (!undoStackRef.current.length) return;
+        e.preventDefault();
+        undoRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   React.useEffect(() => {
     const h = (e) => setImproveBlock(e.detail.block);
     window.addEventListener('st:improve', h);
@@ -767,8 +865,8 @@ function Editor({ template, onBack, onPreview, onExport, onTestSend, onOpenVars,
 
         {/* Zone C — utility cluster */}
         <div className="icon-cluster">
-          <button className="btn icon ghost sm" title="Deshacer (⌘Z)" aria-label="Deshacer"><I.undo size={13}/></button>
-          <button className="btn icon ghost sm" title="Rehacer (⌘⇧Z)" aria-label="Rehacer"><I.redo size={13}/></button>
+          <button className="btn icon ghost sm" title="Deshacer (⌘Z)" aria-label="Deshacer" disabled={!historyState.canUndo} onClick={undo}><I.undo size={13}/></button>
+          <button className="btn icon ghost sm" title="Rehacer (⌘⇧Z)" aria-label="Rehacer" disabled={!historyState.canRedo} onClick={redo}><I.redo size={13}/></button>
           <SaveBtn saveState={saveState} onClick={()=>flushSaveRef.current()}/>
           <ThemeToggleBtn/>
           <button className="btn icon ghost sm" onClick={()=>window.dispatchEvent(new CustomEvent('st:cmd-open'))} title="Buscar (⌘K)" aria-label="Buscar"><I.search size={13}/></button>
