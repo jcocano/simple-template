@@ -112,6 +112,16 @@ const HISTORY = [
 //   bg / padding         → the inner content card (max `width` wide, centered
 //                          inside the outer band).
 //   width                → content width of THIS section (per-row, not global).
+//
+// Optional responsive/extra fields (all backward-compat — may be undefined):
+//   border        → {w, style, color, sides?: {top,right,bottom,left}} for
+//                   content-card border (if sides is set, per-side widths).
+//   radius        → number (content-card border-radius all corners).
+//   radiusCorners → {tl, tr, br, bl} when per-corner radius differs.
+//   vAlign        → 'top' | 'middle' | 'bottom' (vertical align of columns).
+//   bgImage       → url of content-card background image.
+//   bgImagePosition, bgImageRepeat, bgImageSize → CSS passthrough.
+//   stackOnMobile → boolean (default true) — stack columns on mobile.
 const defaultSectionStyle = (over = {}) => ({
   bg: '#ffffff',
   text: '#1a1a17',
@@ -121,6 +131,17 @@ const defaultSectionStyle = (over = {}) => ({
   outerBg: 'transparent',
   outerPadY: 0,
   width: 600,
+  ...over,
+});
+
+// Column style shape. All fields optional; column.style may be undefined on
+// legacy docs (pre-R2) and renderers must degrade gracefully. Separate from
+// block style so column-level bg/padding/border doesn't leak into blocks.
+const defaultColumnStyle = (over = {}) => ({
+  bg: 'transparent',
+  padding: 0,
+  // border: {w, style, color, sides?}
+  // align: 'left' | 'center' | 'right'
   ...over,
 });
 
@@ -238,4 +259,5 @@ Object.assign(window, {
   BLOCKS_BASIC, BLOCKS_LAYOUT, BLOCKS_CONTENT, BLOCKS_SOCIAL, BLOCKS_ECOM, BLOCKS_MEDIA, BLOCKS_ADV,
   VARIABLES, HISTORY, DEFAULT_DOC, BLANK_DOC,
   SECTION_PRESETS, SECTION_STYLE_PRESETS, FONT_OPTIONS, defaultSectionStyle,
+  defaultColumnStyle,
 });
