@@ -430,6 +430,17 @@ function Dashboard({ onOpen, onNew }) {
   const [dragOverOccId, setDragOverOccId] = React.useState(null);
   const inTrash = folder === 'trash';
 
+  const [selected, setSelected] = React.useState(() => new Set());
+  const toggleSelect = (id) => setSelected(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const clearSelection = () => setSelected(s => s.size === 0 ? s : new Set());
+  React.useEffect(() => {
+    if (!inTrash || trashedItems.length === 0) clearSelection();
+  }, [inTrash, trashedItems.length]);
+
   // Resolve each template's occasion once per render — honors explicit
   // `occasionId` on the doc and falls back to matching the legacy `folder`
   // string, so seed/older templates still show a color without a disk write.
@@ -631,6 +642,55 @@ function Dashboard({ onOpen, onNew }) {
           </div>
         </div>
 
+        {inTrash && trashedItems.length > 0 && (
+          <div className="dash-toolbar" style={{background:'var(--surface-2)'}}>
+            {selected.size > 0 ? (
+              <>
+                <span style={{fontSize:13,fontWeight:500}}>{t('dash.trash.bulk.selected', {n: selected.size})}</span>
+                <button className="btn ghost sm" onClick={clearSelection}>
+                  <I.x size={12}/> {t('dash.trash.bulk.clear')}
+                </button>
+                <button className="btn ghost sm" onClick={()=>setSelected(new Set(items.map(x => x.id)))}
+                  disabled={selected.size === items.length}>
+                  {t('dash.trash.bulk.selectAll')}
+                </button>
+                <div className="grow"/>
+                <button className="btn sm" onClick={()=>{
+                  const ids = Array.from(selected);
+                  for (const id of ids) window.stTemplates.restore(id);
+                  clearSelection();
+                }}>
+                  <I.undo size={12}/> {t('dash.trash.bulk.restore')}
+                </button>
+                <button className="btn sm" onClick={()=>{
+                  const ids = Array.from(selected);
+                  if (ids.length === 0) return;
+                  if (!window.confirm(t('dash.confirm.purgeMany', {n: ids.length}))) return;
+                  for (const id of ids) window.stTemplates.purge(id);
+                  clearSelection();
+                }} style={{color:'var(--danger)',borderColor:'color-mix(in oklab, var(--danger) 40%, var(--line))'}}>
+                  <I.trash size={12}/> {t('dash.trash.bulk.purge')}
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="btn ghost sm" onClick={()=>setSelected(new Set(items.map(x => x.id)))}>
+                  <I.check size={12}/> {t('dash.trash.bulk.selectAll')}
+                </button>
+                <div className="grow"/>
+                <button className="btn sm" onClick={()=>{
+                  if (trashedItems.length === 0) return;
+                  if (!window.confirm(t('dash.confirm.emptyTrash', {n: trashedItems.length}))) return;
+                  for (const tpl of trashedItems) window.stTemplates.purge(tpl.id);
+                  clearSelection();
+                }} style={{color:'var(--danger)',borderColor:'color-mix(in oklab, var(--danger) 40%, var(--line))'}}>
+                  <I.trash size={12}/> {t('dash.action.emptyTrash')}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         <div className="dash-body">
           {items.length === 0 && (
             <EmptyState
@@ -672,10 +732,11 @@ function Dashboard({ onOpen, onNew }) {
               )}
               {items.map(tpl => {
                 const oc = occasionByTplId[tpl.id];
+                const isSelected = inTrash && selected.has(tpl.id);
                 return (
                 <div key={tpl.id} className="tpl-card"
                   draggable={!inTrash}
-                  onClick={inTrash ? undefined : ()=>onOpen('editor', tpl)}
+                  onClick={inTrash ? ()=>toggleSelect(tpl.id) : ()=>onOpen('editor', tpl)}
                   onDragStart={(e)=>{
                     if (inTrash) return;
                     e.dataTransfer.setData('text/x-mc-template', tpl.id);
@@ -683,9 +744,27 @@ function Dashboard({ onOpen, onNew }) {
                     e.currentTarget.classList.add('dragging');
                   }}
                   onDragEnd={(e)=>e.currentTarget.classList.remove('dragging')}
-                  style={inTrash ? {cursor:'default',opacity:0.85} : undefined}>
+                  style={inTrash ? {
+                    cursor:'pointer',
+                    opacity: isSelected ? 1 : 0.85,
+                    outline: isSelected ? '2px solid var(--accent)' : undefined,
+                    outlineOffset: isSelected ? 2 : undefined,
+                  } : undefined}>
                   <div className="tpl-thumb">
-                    {inTrash && <div className="badge"><div className="chip">{t('dash.badge.trash')}</div></div>}
+                    {inTrash && (
+                      <div className="badge" title={t('dash.action.select')}>
+                        <div style={{
+                          width:22,height:22,borderRadius:6,
+                          background: isSelected ? 'var(--accent)' : 'rgba(255,255,255,0.92)',
+                          border: `1.5px solid ${isSelected ? 'var(--accent)' : 'var(--line-2)'}`,
+                          display:'grid',placeItems:'center',
+                          boxShadow:'0 2px 6px rgba(0,0,0,.12)',
+                          transition:'background 120ms, border-color 120ms',
+                        }}>
+                          {isSelected && <I.check size={14} style={{color:'#fff'}}/>}
+                        </div>
+                      </div>
+                    )}
                     {!inTrash && tpl.starred && <div className="badge"><div className="chip accent"><I.star size={10}/> {t('dash.badge.favorite')}</div></div>}
                     {!inTrash && tpl.status==='draft' && !tpl.starred && <div className="badge"><div className="chip">{t('dash.badge.unpublished')}</div></div>}
                     <div className="tpl-actions">
@@ -761,19 +840,31 @@ function Dashboard({ onOpen, onNew }) {
               </div>
               {items.map(tpl => {
                 const oc = occasionByTplId[tpl.id];
+                const isSelected = inTrash && selected.has(tpl.id);
                 return (
                 <div key={tpl.id}
                   draggable={!inTrash}
-                  onClick={inTrash ? undefined : ()=>onOpen('editor', tpl)}
+                  onClick={inTrash ? ()=>toggleSelect(tpl.id) : ()=>onOpen('editor', tpl)}
                   onDragStart={(e)=>{
                     if (inTrash) return;
                     e.dataTransfer.setData('text/x-mc-template', tpl.id);
                     e.dataTransfer.effectAllowed = 'move';
                   }}
-                  style={{display:'grid',gridTemplateColumns:'32px 1fr 160px 140px 120px 80px',padding:'12px 16px',borderBottom:'1px solid var(--line)',alignItems:'center',cursor:inTrash?'default':'pointer',fontSize:13,opacity:inTrash?0.85:1}}
-                  onMouseEnter={e=>{ if(!inTrash) e.currentTarget.style.background='var(--surface-2)'; }}
-                  onMouseLeave={e=>{ if(!inTrash) e.currentTarget.style.background=''; }}>
-                  <div>{!inTrash && tpl.starred && <I.star2 size={14} style={{color:'var(--warn)'}}/>}</div>
+                  style={{display:'grid',gridTemplateColumns:'32px 1fr 160px 140px 120px 80px',padding:'12px 16px',borderBottom:'1px solid var(--line)',alignItems:'center',cursor:'pointer',fontSize:13,opacity:inTrash && !isSelected ? 0.85 : 1,background:isSelected?'color-mix(in oklab, var(--accent) 10%, var(--surface))':undefined}}
+                  onMouseEnter={e=>{ if(!isSelected) e.currentTarget.style.background='var(--surface-2)'; }}
+                  onMouseLeave={e=>{ if(!isSelected) e.currentTarget.style.background=''; }}>
+                  <div>
+                    {inTrash ? (
+                      <div style={{
+                        width:18,height:18,borderRadius:4,
+                        background: isSelected ? 'var(--accent)' : 'transparent',
+                        border: `1.5px solid ${isSelected ? 'var(--accent)' : 'var(--line-2)'}`,
+                        display:'grid',placeItems:'center',
+                      }}>
+                        {isSelected && <I.check size={12} style={{color:'#fff'}}/>}
+                      </div>
+                    ) : (tpl.starred && <I.star2 size={14} style={{color:'var(--warn)'}}/>)}
+                  </div>
                   <div style={{fontWeight:500}}>{tpl.name}</div>
                   <div style={{color:'var(--fg-2)',display:'flex',alignItems:'center',gap:8,minWidth:0}}>
                     {oc && <span className="oc-dot" style={{background:oc.color}}/>}
