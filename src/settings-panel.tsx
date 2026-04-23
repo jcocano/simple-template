@@ -1411,6 +1411,20 @@ function VariablesSection({ onChange }) {
   const [vars, setVars] = React.useState(() => window.stStorage.getWSSetting('vars', null) || VARIABLES);
   const save = (next) => { setVars(next); window.stStorage.setWSSetting('vars', next); onChange(); };
   const setVal = (i,v) => save(vars.map((x,j)=>j===i?{...x,sample:v}:x));
+  const [creating, setCreating] = React.useState(false);
+  const [draft, setDraft] = React.useState({ key:'', label:'', sample:'' });
+  const addVar = () => {
+    const key = draft.key.trim().replace(/^@/,'').replace(/\s+/g,'_');
+    if (!key) return;
+    if (vars.some(v => v.key === key)) {
+      window.toast && window.toast({ kind:'err', title: t('modals.vars.alreadyExists', { key }) });
+      return;
+    }
+    save([...vars, { key, label: draft.label.trim() || key, sample: draft.sample.trim() || '', type:'texto' }]);
+    setCreating(false);
+    setDraft({ key:'', label:'', sample:'' });
+  };
+  const removeVar = (i) => save(vars.filter((_, vi) => vi !== i));
 
   return (
     <>
@@ -1431,6 +1445,15 @@ function VariablesSection({ onChange }) {
         <div style={{fontSize:12.5,color:'var(--fg-2)',lineHeight:1.55,paddingBottom:16}}>
           {t('settings.variables.description')}
         </div>
+        {/* Inline form copiado del flujo de VariablesModal (src/modals.tsx) */}
+        {creating && (
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 28px',gap:6,padding:10,marginBottom:10,background:'var(--accent-soft)',borderRadius:'var(--r-md)',alignItems:'center'}}>
+            <input className="field" value={draft.key} onChange={e=>setDraft(d=>({...d,key:e.target.value}))} onKeyDown={e=>{if(e.key==='Enter')addVar();if(e.key==='Escape')setCreating(false);}} placeholder={t('modals.vars.placeholder.key')} autoFocus style={{fontSize:12,padding:'4px 6px'}}/>
+            <input className="field" value={draft.label} onChange={e=>setDraft(d=>({...d,label:e.target.value}))} onKeyDown={e=>{if(e.key==='Enter')addVar();if(e.key==='Escape')setCreating(false);}} placeholder={t('modals.vars.placeholder.label')} style={{fontSize:12,padding:'4px 6px'}}/>
+            <input className="field" value={draft.sample} onChange={e=>setDraft(d=>({...d,sample:e.target.value}))} onKeyDown={e=>{if(e.key==='Enter')addVar();if(e.key==='Escape')setCreating(false);}} placeholder={t('modals.vars.placeholder.sample')} style={{fontSize:12,padding:'4px 6px'}}/>
+            <button className="btn icon sm" onClick={addVar} disabled={!draft.key.trim()} title={t('modals.vars.btn.create.tooltip')}><I.check size={11}/></button>
+          </div>
+        )}
         <div style={{border:'1px solid var(--line)',borderRadius:'var(--r-md)',overflow:'hidden'}}>
           {vars.map((v,i) => (
             <div key={v.key} style={{
@@ -1441,11 +1464,14 @@ function VariablesSection({ onChange }) {
               <code style={{fontFamily:'var(--font-mono)',fontSize:11.5,color:'var(--accent)'}}>{`{{${v.key}}}`}</code>
               <input className="field" value={v.sample} onChange={e=>setVal(i,e.target.value)} style={{height:30,fontSize:12.5}}/>
               <span style={{fontSize:11,color:'var(--fg-3)'}}>{t(`settings.variables.type.${VAR_TYPE_KEY[v.type] || v.type}`)}</span>
-              <button className="btn icon sm ghost"><I.dotsV size={12}/></button>
+              <button className="btn icon sm ghost" title={t('modals.vars.delete.tooltip')} style={{color:'var(--err,#e04f4f)'}}
+                onClick={()=>{ if (window.confirm(t('modals.vars.delete.confirm', { key: v.key }))) removeVar(i); }}>
+                <I.trash size={11}/>
+              </button>
             </div>
           ))}
         </div>
-        <button className="btn sm" style={{marginTop:12}}><I.plus size={12}/> {t('settings.variables.btn.new')}</button>
+        <button className="btn sm" style={{marginTop:12}} onClick={()=>setCreating(true)}><I.plus size={12}/> {t('settings.variables.btn.new')}</button>
       </SGroup>
     </>
   );
