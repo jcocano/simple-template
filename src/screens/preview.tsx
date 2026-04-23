@@ -98,11 +98,13 @@ function Preview({ template, onBack }) {
     };
   }, [previewHtml]);
 
-  // Ancho del card del cliente: en desktop, lo suficientemente ancho para ver
-  // la sección más grande con slack; en mobile, 390px fijo.
+  // Ancho del card del cliente. En desktop, card e iframe comparten ancho para
+  // evitar que el chromeBg asome a los lados del email (se notaba en dark por
+  // la diferencia contra el bg del iframe). En mobile el card es 15px más
+  // ancho para acomodar el bisel/borde tipo teléfono.
   const docMaxWidth = (doc.sections || []).reduce((m, s) => Math.max(m, s.style?.width || 600), 600);
-  const emailWidth = isMobile ? 390 : Math.max(640, docMaxWidth + 40);
   const iframeWidth = isMobile ? 375 : docMaxWidth;
+  const emailWidth = isMobile ? 390 : iframeWidth;
 
   // Chrome del cliente
   const clientBg     = isDark ? '#0b0b0d' : '#edece6';
