@@ -538,8 +538,8 @@ function AppearanceSection({ onChange }) {
         <SRow label={t('settings.appearance.density.label')} hint={t('settings.appearance.density.hint')}>
           <div className="seg" style={{width:'fit-content'}}>
             <button
-              className={tw.density==='comfy'?'on':''}
-              onClick={()=>set('density','comfy')}
+              className={tw.density==='comfortable'?'on':''}
+              onClick={()=>set('density','comfortable')}
               style={{padding:'0 14px',height:30}}>{t('settings.appearance.density.comfy')}</button>
             <button
               className={tw.density==='compact'?'on':''}
@@ -1298,6 +1298,17 @@ function EditorSection({ onChange }) {
     onChange();
   };
 
+  const [tweaks, setTweaks] = React.useState(() => window.__mcTweaks || window.TWEAKS);
+  React.useEffect(() => {
+    const h = () => setTweaks({...window.__mcTweaks});
+    window.addEventListener('st:tweaks-change', h);
+    return () => window.removeEventListener('st:tweaks-change', h);
+  }, []);
+  const setTweak = (k, v) => {
+    window.__mcSetTweaks?.(tw => ({...tw, [k]: v}));
+    onChange();
+  };
+
   const Seg = ({value, options, onPick}) => (
     <div style={{display:'inline-flex',background:'var(--surface-2)',padding:3,borderRadius:'var(--r-sm)',gap:2,border:'1px solid var(--line)'}}>
       {options.map(o => (
@@ -1322,7 +1333,7 @@ function EditorSection({ onChange }) {
       <SoonBanner msg={t('settings.editor.soon')}/>
       <SGroup title={t('settings.editor.group.appearance')}>
         <SRow label={t('settings.editor.theme.label')} hint={t('settings.editor.theme.hint')}>
-          <Seg value={ed.theme||'system'} onPick={v=>set('theme',v)} options={[
+          <Seg value={tweaks.mode||'light'} onPick={v=>setTweak('mode',v)} options={[
             {id:'light',label:t('settings.editor.theme.light'),icon:'sun'},
             {id:'dark',label:t('settings.editor.theme.dark'),icon:'moon'},
             {id:'system',label:t('settings.editor.theme.system')},
@@ -1339,7 +1350,7 @@ function EditorSection({ onChange }) {
           </select>
         </SRow>
         <SRow label={t('settings.editor.density.label')} hint={t('settings.editor.density.hint')}>
-          <Seg value={ed.density||'comfortable'} onPick={v=>set('density',v)} options={[
+          <Seg value={tweaks.density||'comfortable'} onPick={v=>setTweak('density',v)} options={[
             {id:'compact',label:t('settings.editor.density.compact')},
             {id:'comfortable',label:t('settings.editor.density.comfortable')},
             {id:'spacious',label:t('settings.editor.density.spacious')},
@@ -1357,22 +1368,11 @@ function EditorSection({ onChange }) {
         <SRow label={t('settings.editor.ruler.label')} hint={t('settings.editor.ruler.hint')}>
           <label className="switch"><input type="checkbox" defaultChecked={ed.ruler!==false} onChange={e=>set('ruler',e.target.checked)}/><span/></label>
         </SRow>
-        <SRow label={t('settings.editor.snap.label')} hint={t('settings.editor.snap.hint')}>
-          <label className="switch"><input type="checkbox" defaultChecked={ed.snap!==false} onChange={e=>set('snap',e.target.checked)}/><span/></label>
-        </SRow>
       </SGroup>
 
       <SGroup title={t('settings.editor.group.save')}>
         <SRow label={t('settings.editor.autosave.label')} hint={t('settings.editor.autosave.hint')}>
           <label className="switch"><input type="checkbox" defaultChecked={ed.autosave!==false} onChange={e=>set('autosave',e.target.checked)}/><span/></label>
-        </SRow>
-        <SRow label={t('settings.editor.saveInterval.label')} hint={t('settings.editor.saveInterval.hint')}>
-          <select className="field" value={ed.saveInterval||30} onChange={e=>set('saveInterval',Number(e.target.value))} style={{width:200}}>
-            <option value="10">{t('settings.editor.saveInterval.10s')}</option>
-            <option value="30">{t('settings.editor.saveInterval.30s')}</option>
-            <option value="60">{t('settings.editor.saveInterval.1m')}</option>
-            <option value="300">{t('settings.editor.saveInterval.5m')}</option>
-          </select>
         </SRow>
       </SGroup>
 

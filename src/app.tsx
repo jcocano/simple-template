@@ -20,7 +20,11 @@ function App() {
   const [modal, setModal] = React.useState(null);
   const [settingsSection, setSettingsSection] = React.useState('account');
   const [onboard, setOnboard] = React.useState(() => !window.stStorage.getSetting('onboard', false));
-  const [tweaks, setTweaks] = React.useState(() => ({...window.TWEAKS, ...window.stStorage.getSetting('tweaks', {})}));
+  const [tweaks, setTweaks] = React.useState(() => {
+    const saved = window.stStorage.getSetting('tweaks', {});
+    if (saved.density === 'comfy') saved.density = 'comfortable';
+    return {...window.TWEAKS, ...saved};
+  });
   React.useEffect(() => {
     window.stStorage.setSetting('tweaks', tweaks);
     window.__mcTweaks = tweaks;
@@ -88,8 +92,13 @@ function App() {
 
   // Apply theme/density/radius to :root
   React.useEffect(() => {
-    const theme = `${tweaks.theme}-${tweaks.mode}`;
-    document.documentElement.setAttribute('data-theme', theme);
+    const applyTheme = () => {
+      const effective = tweaks.mode === 'system'
+        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        : tweaks.mode;
+      document.documentElement.setAttribute('data-theme', `${tweaks.theme}-${effective}`);
+    };
+    applyTheme();
     document.documentElement.setAttribute('data-density', tweaks.density);
     document.documentElement.setAttribute('data-radius', tweaks.radius);
     document.documentElement.setAttribute('data-panels', tweaks.layoutPanels);
@@ -99,6 +108,11 @@ function App() {
       'instrument-serif':'"Instrument Serif", Georgia, serif',
     };
     document.documentElement.style.setProperty('--font-sans', fontMap[tweaks.font] || fontMap['inter-tight']);
+    if (tweaks.mode === 'system') {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      mq.addEventListener('change', applyTheme);
+      return () => mq.removeEventListener('change', applyTheme);
+    }
   }, [tweaks]);
 
   const finishOnboarding = () => {
