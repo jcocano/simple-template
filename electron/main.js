@@ -1,8 +1,9 @@
 const electron = require("electron");
-const { app, BrowserWindow } = electron;
+const { app, BrowserWindow, protocol } = electron;
 const path = require("path");
 const db = require("./storage/db");
 const seed = require("./storage/seed");
+const imageFiles = require("./storage/image-files");
 const storageIpc = require("./ipc/storage");
 const secretsIpc = require("./ipc/secrets");
 const smtpIpc = require("./ipc/smtp");
@@ -10,6 +11,23 @@ const shellIpc = require("./ipc/shell");
 const oauthIpc = require("./ipc/oauth");
 const aiIpc = require("./ipc/ai");
 const cdnIpc = require("./ipc/cdn");
+const imagesLocalIpc = require("./ipc/images-local");
+
+// st-img://{wsId}/{filename} — protocolo custom para servir imágenes del disco
+// sin relajar webSecurity. Hay que registrarlo como `secure` + `standard`
+// ANTES de whenReady, si no el renderer bloquea el request por CORS.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "st-img",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      corsEnabled: true,
+    },
+  },
+]);
 
 if (!app || !BrowserWindow) {
   console.error(
@@ -62,6 +80,27 @@ function createWindow() {
 app.whenReady().then(() => {
   db.init();
   seed.ensureFirstWorkspace();
+
+  // Actual handler del protocolo custom. Devuelve los bytes del archivo o 404.
+  protocol.handle("st-img", async (request) => {
+    try {
+      const parsed = imageFiles.parseStImgUrl(request.url);
+      if (!parsed) return new Response(null, { status: 400 });
+      const data = imageFiles.read(parsed.workspaceId, parsed.localPath);
+      if (!data) return new Response(null, { status: 404 });
+      return new Response(data.bytes, {
+        status: 200,
+        headers: {
+          "Content-Type": data.mime,
+          "Cache-Control": "no-cache",
+        },
+      });
+    } catch (err) {
+      console.error("[st-img] handler error", err);
+      return new Response(null, { status: 500 });
+    }
+  });
+
   storageIpc.register();
   secretsIpc.register();
   smtpIpc.register();
@@ -69,6 +108,7 @@ app.whenReady().then(() => {
   oauthIpc.register();
   aiIpc.register();
   cdnIpc.register();
+  imagesLocalIpc.register();
   createWindow();
 
   app.on("activate", () => {

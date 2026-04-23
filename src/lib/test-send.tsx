@@ -106,7 +106,10 @@ async function send({ template, recipients, fromOverride } = {}) {
   if (loaded.error) return { ok: false, error: loaded.error };
   const { provider, cfg } = loaded;
 
-  const html = window.stExport.renderHTML(template, { resolveVars: true });
+  // Inline any st-img:// URLs as data: URLs — nodemailer va a mandar el
+  // HTML tal cual, así que las imágenes locales tienen que viajar dentro.
+  let html = window.stExport.renderHTML(template, { resolveVars: true });
+  html = await window.stExport.inlineImages(html);
   const text = window.stExport.renderTXT(template, { resolveVars: true });
 
   const fromEmail = String(fromOverride?.email || cfg.fromEmail || cfg.user || '').trim();

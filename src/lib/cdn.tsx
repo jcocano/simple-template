@@ -60,16 +60,17 @@ async function fileToUint8Array(file) {
   throw new Error('No se pudo leer el archivo.');
 }
 
-// Local (base64) path: read the file into a data URL so it can be used as
-// <img src> directly. Size-limited — email clients truncate >150 KB bodies.
+// Base64 path: reads the file into a data URL. Opcional, para HTML
+// self-contained. No es el default — el modo recomendado es `local`.
+// El cap se mantiene permisivo (1024 KB) pero avisa si se excede.
 async function uploadBase64(file, opts = {}) {
   const bytes = await fileToUint8Array(file);
   const sizeKB = Math.round(bytes.length / 1024);
-  const maxKB = opts.maxKB || 500;
+  const maxKB = opts.maxKB || 1024;
   if (sizeKB > maxKB) {
     return {
       ok: false,
-      error: `La imagen pesa ${sizeKB} KB. Máximo ${maxKB} KB para Base64 (los clientes de correo truncan correos grandes). Configurá un CDN en Ajustes → Almacenamiento.`,
+      error: `La imagen pesa ${sizeKB} KB. En modo Base64 el recomendado es quedarse debajo de ${maxKB} KB — algunos clientes truncan correos grandes. Cambiá a almacenamiento local en Ajustes → Almacenamiento.`,
       code: 'PAYLOAD_TOO_LARGE',
     };
   }
@@ -81,6 +82,62 @@ async function uploadBase64(file, opts = {}) {
     sizeKB,
     mode: 'base64',
   };
+}
+
+// Local (disco del usuario) path: delega a cdn.saveLocal en el main. El
+// archivo queda en userData/workspaces/{wsId}/images/{id}.{ext} y se sirve
+// via protocolo custom st-img://. Sin cap duro — solo un soft cap de 50MB
+// para prevenir OOM accidentales (drag de un video, p.ej.).
+const LOCAL_SOFT_CAP = 50 * 1024 * 1024;
+function randomImageId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return `img_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
+  }
+  return `img_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+}
+function extFrom(file) {
+  const name = file?.name || '';
+  const fromName = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+  if (fromName) return fromName;
+  const mime = file?.type || '';
+  const m = mime.match(/^image\/(\w+)/);
+  if (m) {
+    const sub = m[1].toLowerCase();
+    return sub === 'jpeg' ? 'jpg' : sub;
+  }
+  return 'png';
+}
+async function uploadLocal(file, opts = {}) {
+  if (!window.cdn || typeof window.cdn.saveLocal !== 'function') {
+    return { ok: false, error: 'El puente de almacenamiento local no está disponible (abrí la app en Electron).', code: 'IPC' };
+  }
+  const workspaceId = window.stStorage?.getCurrentWorkspaceId?.();
+  if (!workspaceId) {
+    return { ok: false, error: 'Workspace no inicializado. Esperá un instante.', code: 'CONFIG' };
+  }
+  const bytes = await fileToUint8Array(file);
+  if (bytes.length > LOCAL_SOFT_CAP) {
+    return {
+      ok: false,
+      error: `La imagen pesa ${Math.round(bytes.length / 1024 / 1024)} MB. Máximo ${Math.round(LOCAL_SOFT_CAP / 1024 / 1024)} MB — reducí el tamaño o comprimila.`,
+      code: 'PAYLOAD_TOO_LARGE',
+    };
+  }
+  const imageId = opts.imageId || randomImageId();
+  const ext = extFrom(file);
+  try {
+    const result = await window.cdn.saveLocal({ workspaceId, imageId, ext, bytes });
+    if (!result?.ok) return result || { ok: false, error: 'Error desconocido al guardar.', code: 'IO' };
+    return {
+      ok: true,
+      url: result.url,
+      localPath: result.localPath,
+      mode: 'local',
+      sizeKB: Math.round(bytes.length / 1024),
+    };
+  } catch (err) {
+    return { ok: false, error: err?.message || 'Error llamando al puente local.', code: 'IPC' };
+  }
 }
 
 function uint8ToBase64(bytes) {
@@ -98,15 +155,14 @@ async function upload(file, opts = {}) {
   if (!file) return { ok: false, error: 'Falta archivo.' };
 
   const storageCfg = window.stStorage.getWSSetting('storage', {}) || {};
-  const mode = opts.provider || storageCfg.mode || 'base64';
+  const mode = opts.provider || storageCfg.mode || 'local';
 
-  // Optional optimization: resize + recompress before anything touches the
-  // network. Controlled by `storage.optimize` toggle in Settings. Skipped
-  // entirely for base64 (that mode already has its own size ceiling) and
-  // for SVG (resize would rasterize the vector — undesirable).
+  // Optimización por default: resize a máx 2000 px + re-encode manteniendo
+  // el formato original. Activada salvo que el usuario la apague explícitamente
+  // (storage.optimize === false) o el caller pase skipOptimize. Se excluye
+  // solo SVG (resize rasterizaría el vector — indeseable).
   const shouldOptimize =
-    storageCfg.optimize === true
-    && mode !== 'base64'
+    storageCfg.optimize !== false
     && opts.skipOptimize !== true
     && !(file?.type && /svg/i.test(file.type));
   if (shouldOptimize) {
@@ -115,6 +171,10 @@ async function upload(file, opts = {}) {
     } catch (err) {
       console.warn('[stCDN] optimize failed, using original', err);
     }
+  }
+
+  if (mode === 'local') {
+    return await uploadLocal(file, opts);
   }
 
   if (mode === 'base64') {
@@ -174,15 +234,21 @@ function guessContentType(filename) {
 }
 
 // Downscale + recompress an image before upload. Runs entirely in the
-// renderer via Canvas — no deps, no native bindings. Preserves PNG when the
-// source has alpha (to avoid matting artifacts); WebP otherwise for size.
+// renderer via Canvas — no deps, no native bindings. Mantiene el formato
+// original (JPG → JPG, PNG → PNG) para máxima compatibilidad con clientes
+// de correo (Outlook desktop viejo no soporta WebP). GIF pierde animación
+// al pasar por canvas, así que lo dejamos como PNG estático.
 //
-// Returns a Blob with `name` + `type` properties set, so the rest of
-// `upload()` can treat it identically to the original File.
+// Returns a File con `name` + `type` seteados, para que el resto de
+// `upload()` lo trate igual que al original.
 async function optimizeImage(file, { maxDim = 2000, quality = 0.85 } = {}) {
   const srcType = file?.type || 'image/png';
-  const preserveAlpha = /png|gif/i.test(srcType);
-  const outType = preserveAlpha ? 'image/png' : 'image/webp';
+  const isPng  = /png/i.test(srcType);
+  const isGif  = /gif/i.test(srcType);
+  const isJpeg = /jpe?g/i.test(srcType);
+  // PNG con alpha → PNG. GIF → PNG (pierde animación pero mantiene calidad
+  // del primer frame). JPG (y el resto) → JPG con calidad 85%.
+  const outType = (isPng || isGif) ? 'image/png' : 'image/jpeg';
 
   const bytes = await fileToUint8Array(file);
   const blob = new Blob([bytes], { type: srcType });
@@ -234,7 +300,7 @@ async function optimizeImage(file, { maxDim = 2000, quality = 0.85 } = {}) {
   // Rename extension to match the new codec so S3/GitHub/etc. save with
   // the right file type on disk.
   const base = (file?.name || 'imagen').replace(/\.[^.]+$/, '');
-  const ext = outType === 'image/webp' ? 'webp' : outType === 'image/png' ? 'png' : 'jpg';
+  const ext = outType === 'image/png' ? 'png' : 'jpg';
   const named = new File([outBlob], `${base}.${ext}`, { type: outType });
   return named;
 }

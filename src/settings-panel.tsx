@@ -790,7 +790,7 @@ function useCDNSecret(provider, field) {
 
 function StorageSection({ onChange }) {
   const [s, setS] = React.useState(() => ({
-    mode: 'base64',
+    mode: 'local',
     s3: { endpoint:'https://s3.amazonaws.com', region:'us-east-1', bucket:'', key:'', publicUrl:'' },
     r2: { accountId:'', bucket:'', key:'', publicUrl:'' },
     cloudinary: { cloudName:'', uploadPreset:'' },
@@ -838,15 +838,17 @@ function StorageSection({ onChange }) {
   };
 
   const providers = [
-    { id:'base64',     name:'Base64 embebido',  tag:'Por defecto', icon:'code',     desc:'Incrusta las imágenes dentro del HTML del correo. Funciona sin configurar nada, pero algunos clientes las bloquean o limitan el tamaño.' },
-    { id:'s3',         name:'S3 compatible',    tag:'Popular',     icon:'server',   desc:'AWS S3, Cloudflare R2, Backblaze B2, MinIO, Wasabi. Sube y sirve con tu propio bucket.' },
+    { id:'local',      name:'Disco local',      tag:'Por defecto',     icon:'folder',   desc:'Las imágenes se guardan en tu equipo, dentro de la carpeta del espacio. Sin límite de tamaño y sin configurar nada. Al exportar o enviar, se embeben automáticamente.' },
+    { id:'base64',     name:'Base64 embebido',  tag:'HTML self-contained', icon:'code',  desc:'Incrusta las imágenes dentro del HTML del correo al subirlas. Útil si querés que cada plantilla sea autosuficiente, pero con imágenes grandes algunos clientes truncan.' },
+    { id:'s3',         name:'S3 compatible',    tag:'Popular',         icon:'server',   desc:'AWS S3, Cloudflare R2, Backblaze B2, MinIO, Wasabi. Sube y sirve con tu propio bucket — útil si vas a publicar el correo con URLs remotas.' },
     { id:'cloudinary', name:'Cloudinary',       tag:'Plan gratuito amplio', icon:'image', desc:'Servicio optimizado para imágenes con CDN global. Tier gratuito generoso.' },
-    { id:'imgbb',      name:'imgbb',            tag:'Más simple',  icon:'upload',   desc:'Subida rápida con solo una API key. Ideal para prototipos y pruebas.' },
-    { id:'github',     name:'GitHub Pages',     tag:'Gratis',      icon:'code',     desc:'Sube las imágenes como commits a un repo público servido por GitHub Pages.' },
-    { id:'ftp',        name:'FTP / SFTP',       tag:'Tu servidor', icon:'folder',   desc:'Conecta a tu propio hosting o VPS. Control total sobre las URLs y el almacenamiento.' },
+    { id:'imgbb',      name:'imgbb',            tag:'Más simple',      icon:'upload',   desc:'Subida rápida con solo una API key. Ideal para prototipos y pruebas.' },
+    { id:'github',     name:'GitHub Pages',     tag:'Gratis',          icon:'code',     desc:'Sube las imágenes como commits a un repo público servido por GitHub Pages.' },
+    { id:'ftp',        name:'FTP / SFTP',       tag:'Tu servidor',     icon:'folder',   desc:'Conecta a tu propio hosting o VPS. Control total sobre las URLs y el almacenamiento.' },
   ];
 
   const isSet = (p) => {
+    if (p.id==='local') return true;
     if (p.id==='base64') return true;
     if (p.id==='s3') return s.s3.bucket && s.s3.key;
     if (p.id==='cloudinary') return s.cloudinary.cloudName && s.cloudinary.uploadPreset;
@@ -870,8 +872,8 @@ function StorageSection({ onChange }) {
           <div style={{color:'var(--accent)',marginTop:2}}><I.info size={16}/></div>
           <div style={{flex:1,minWidth:0}}>
             <p style={{fontSize:12.5,lineHeight:1.55,margin:0,color:'var(--fg-2)'}}>
-              Los clientes de correo (Gmail, Outlook, Apple Mail) no muestran imágenes locales: necesitan una URL pública.
-              Elige dónde se subirán las imágenes de tus plantillas. Si no configuras nada, Simple Template las incrustará en Base64 — funciona, pero con limitaciones.
+              Por defecto, Simple Template guarda las imágenes en tu equipo, dentro de la carpeta del espacio. Al exportar o enviar, las embebe automáticamente para que el correo funcione en cualquier cliente.
+              Configurá un CDN (S3, Cloudinary, etc.) solo si preferís que las imágenes vivan en una URL pública — útil para publicar correos pesados o compartirlos con tu equipo.
             </p>
           </div>
         </div>
@@ -930,6 +932,20 @@ function StorageSection({ onChange }) {
       </SGroup>
 
       {/* Config form for the selected provider */}
+      {s.mode==='local' && (
+        <SGroup title="Configuración · Disco local">
+          <div style={{padding:14,background:'var(--surface-2)',border:'1px solid var(--line)',borderRadius:'var(--r-md)'}}>
+            <div style={{fontSize:12.5,color:'var(--fg-2)',lineHeight:1.6,marginBottom:10}}>
+              Las imágenes se guardan en <code style={{fontFamily:'var(--font-mono)',fontSize:11.5}}>userData/workspaces/&#123;id&#125;/images</code> y se sirven en el editor vía un protocolo interno (<code style={{fontFamily:'var(--font-mono)',fontSize:11.5}}>st-img://</code>).
+            </div>
+            <div style={{fontSize:11.5,color:'var(--fg-3)',lineHeight:1.6}}>
+              · Sin límite estricto de tamaño (cap blando 50 MB por archivo).<br/>
+              · Al <strong style={{color:'var(--fg-1)'}}>exportar</strong> o <strong style={{color:'var(--fg-1)'}}>enviar una prueba</strong>, las imágenes se embeben automáticamente como Base64 para que el correo sea autosuficiente.<br/>
+              · Si querés publicar un correo con URLs remotas (p.ej. en tu web), cambiá el proveedor a S3/Cloudinary/etc. y las próximas subidas irán ahí.
+            </div>
+          </div>
+        </SGroup>
+      )}
       {s.mode==='base64' && (
         <SGroup title="Configuración · Base64">
           <div style={{padding:14,background:'var(--surface-2)',border:'1px solid var(--line)',borderRadius:'var(--r-md)'}}>
@@ -1084,8 +1100,8 @@ function StorageSection({ onChange }) {
       )}
 
       <SGroup title="Comportamiento">
-        <SRow label="Optimizar imágenes antes de subir" hint="Reduce a máx 2000px y re-comprime a WebP (o mantiene PNG si tiene transparencia). Ahorra ancho de banda y tamaño del correo.">
-          <Switch checked={s.optimize === true} onChange={v => save({...s, optimize: v})}/>
+        <SRow label="Optimizar imágenes al guardar" hint="Redimensiona a máximo 2000 px y re-comprime manteniendo el formato original (JPG sigue JPG, PNG sigue PNG). Ahorra hasta 80 % del peso sin perder compatibilidad con clientes de correo. Recomendado dejarlo activado.">
+          <Switch checked={s.optimize !== false} onChange={v => save({...s, optimize: v})}/>
         </SRow>
       </SGroup>
     </>

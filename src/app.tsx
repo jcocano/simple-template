@@ -134,6 +134,7 @@ function App() {
               if (s==='editor') openEditor(t);
               else if (s==='gallery') setScreen('gallery');
               else if (s==='library') setScreen('library');
+              else if (s==='images') setScreen('images');
               else if (s==='settings') { setSettingsSection(t || 'account'); setModal('settings'); }
               else if (s==='smtp') { setSettingsSection('delivery'); setModal('settings'); }
             }}
@@ -166,6 +167,13 @@ function App() {
 
         {screen==='library' && (
           <Library onBack={()=>setScreen('dashboard')}/>
+        )}
+
+        {screen==='images' && (
+          <ImageLibraryScreen
+            onBack={()=>setScreen('dashboard')}
+            onOpenSettings={(sec)=>{ setSettingsSection(sec || 'storage'); setModal('settings'); }}
+          />
         )}
       </div>
 

@@ -492,7 +492,7 @@ function Dashboard({ onOpen, onNew }) {
             <I.braces size={15}/>
             <span>Mis etiquetas</span>
           </div>
-          <div className="nav-item">
+          <div className="nav-item" onClick={()=>onOpen('images')}>
             <I.image size={15}/>
             <span>Mis imágenes</span>
           </div>

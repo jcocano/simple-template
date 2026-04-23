@@ -1,91 +1,51 @@
 // Modal de selección de imagen — 3 tabs: Biblioteca local / URL / CDN
 // + Emoji picker para bloque Icono
+//
+// La biblioteca lee del store real (stImages), que es workspace-scoped y
+// persiste en SQLite. Al subir un archivo, se sube al provider configurado
+// (stCDN) y luego se guarda el registro para que aparezca en la grid y en
+// la pantalla dedicada Biblioteca de imágenes.
 
-// ---- Mock data de biblioteca local (simulación de SQLite) ----
-const IMG_LIB_MOCK = [
-  { id:'img1', name:'hero-noviembre.jpg',       folder:'Noviembre',     w:1440, h:720,  size:'182 KB', thumb:'#e8ddff', pattern:'wave' },
-  { id:'img2', name:'producto-taza.png',        folder:'Productos',     w:800,  h:800,  size:'92 KB',  thumb:'#ffdccf', pattern:'dots' },
-  { id:'img3', name:'producto-cuaderno.png',    folder:'Productos',     w:800,  h:800,  size:'104 KB', thumb:'#d4e8d2', pattern:'grid' },
-  { id:'img4', name:'logo-acme.svg',            folder:'Marca',         w:200,  h:80,   size:'3 KB',   thumb:'#fff',    pattern:'mono' },
-  { id:'img5', name:'equipo-retrato.jpg',       folder:'Fotografía',    w:1200, h:800,  size:'240 KB', thumb:'#ccd4e8', pattern:'wave' },
-  { id:'img6', name:'banner-bienvenida.png',    folder:'Campañas',      w:1600, h:600,  size:'156 KB', thumb:'#f7e3ca', pattern:'grid' },
-  { id:'img7', name:'icon-check.svg',           folder:'Iconos',        w:64,   h:64,   size:'1 KB',   thumb:'#d1f5e1', pattern:'mono' },
-  { id:'img8', name:'icon-star.svg',            folder:'Iconos',        w:64,   h:64,   size:'1 KB',   thumb:'#fff4c0', pattern:'mono' },
-  { id:'img9', name:'paisaje-montaña.jpg',      folder:'Fotografía',    w:1800, h:1200, size:'412 KB', thumb:'#c9d9e5', pattern:'wave' },
-  { id:'img10',name:'pattern-lineas.png',       folder:'Texturas',      w:1000, h:1000, size:'48 KB',  thumb:'#ece8dd', pattern:'lines' },
-  { id:'img11',name:'boton-cta-sombra.png',     folder:'Componentes',   w:400,  h:100,  size:'22 KB',  thumb:'#1a1a17', pattern:'mono',dark:true },
-  { id:'img12',name:'ilustracion-abstracta.svg',folder:'Ilustraciones', w:800,  h:800,  size:'8 KB',   thumb:'#f0e8d8', pattern:'curve' },
-];
+function formatBytes(n) {
+  if (n == null) return '—';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
 
-const IMG_FOLDERS = [
-  { id:'all',     name:'Toda la biblioteca', count:12 },
-  { id:'Campañas', name:'Campañas', count:1 },
-  { id:'Productos', name:'Productos', count:2 },
-  { id:'Marca', name:'Marca', count:1 },
-  { id:'Fotografía', name:'Fotografía', count:2 },
-  { id:'Iconos', name:'Iconos', count:2 },
-  { id:'Ilustraciones', name:'Ilustraciones', count:1 },
-  { id:'Texturas', name:'Texturas', count:1 },
-  { id:'Componentes', name:'Componentes', count:1 },
-  { id:'Noviembre', name:'Noviembre', count:1 },
-];
+// Hook pequeño: leer y suscribirse al cache de stImages. Cargamos on mount
+// si el cache está frío. Devuelve siempre la lista más reciente.
+function useImageLibrary() {
+  const [items, setItems] = React.useState(() => window.stImages?.listCached?.() || []);
+  React.useEffect(() => {
+    const refresh = () => setItems(window.stImages?.listCached?.() || []);
+    window.addEventListener('st:images-change', refresh);
+    // Kick off an async reload so the cache reflects reality after reloads.
+    window.stImages?.list?.().catch(() => {});
+    return () => window.removeEventListener('st:images-change', refresh);
+  }, []);
+  return items;
+}
 
 function ImageThumb({ item, large=false }) {
-  // Real uploaded image — render the actual bytes. Otherwise fall back to
-  // the mock pattern placeholders used for seed data.
-  if (item?.url) {
-    return (
-      <div style={{
-        width:'100%', aspectRatio: large ? '4/3' : '1/1',
-        background:'var(--surface-2)', overflow:'hidden',
-        borderRadius: large ? 'var(--r-md)' : 'var(--r-sm)',
-      }}>
+  return (
+    <div style={{
+      width:'100%', aspectRatio: large ? '4/3' : '1/1',
+      background:'var(--surface-2)', overflow:'hidden',
+      borderRadius: large ? 'var(--r-md)' : 'var(--r-sm)',
+    }}>
+      {item?.url ? (
         <img
           src={item.url}
           alt={item.name || ''}
           style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}
           loading="lazy"
         />
-      </div>
-    );
-  }
-  const patterns = {
-    wave: (
-      <svg viewBox="0 0 100 60" style={{width:'100%',height:'100%',display:'block'}}>
-        <rect width="100" height="60" fill={item.thumb}/>
-        <path d="M0 42 Q20 30 40 42 T80 42 T120 42 L120 60 L0 60 Z" fill="color-mix(in oklab, currentColor 10%, transparent)"/>
-        <circle cx="78" cy="16" r="8" fill="color-mix(in oklab, currentColor 25%, transparent)"/>
-      </svg>
-    ),
-    dots: (
-      <div style={{background:item.thumb,width:'100%',height:'100%',backgroundImage:'radial-gradient(circle, rgba(0,0,0,.12) 1px, transparent 1px)',backgroundSize:'10px 10px'}}/>
-    ),
-    grid: (
-      <div style={{background:item.thumb,width:'100%',height:'100%',backgroundImage:'linear-gradient(rgba(0,0,0,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,.05) 1px, transparent 1px)',backgroundSize:'8px 8px'}}/>
-    ),
-    lines: (
-      <div style={{background:item.thumb,width:'100%',height:'100%',backgroundImage:'repeating-linear-gradient(45deg, rgba(0,0,0,.08) 0 2px, transparent 2px 8px)'}}/>
-    ),
-    mono: (
-      <div style={{background:item.thumb,width:'100%',height:'100%',display:'grid',placeItems:'center',fontFamily:'var(--font-mono)',fontSize:large?14:10,color:item.dark?'#fff':'#1a1a17',opacity:0.65,padding:6,textAlign:'center'}}>
-        {item.name.replace(/\.[a-z]+$/,'')}
-      </div>
-    ),
-    curve: (
-      <svg viewBox="0 0 100 60" style={{width:'100%',height:'100%',display:'block'}}>
-        <rect width="100" height="60" fill={item.thumb}/>
-        <path d="M10 50 C 20 10, 40 10, 50 30 S 80 50, 90 10" stroke="color-mix(in oklab, currentColor 40%, transparent)" strokeWidth="2" fill="none"/>
-      </svg>
-    ),
-  };
-  return (
-    <div style={{
-      width:'100%', aspectRatio: large ? '4/3' : '1/1',
-      background:'var(--surface-2)', overflow:'hidden',
-      borderRadius: large ? 'var(--r-md)' : 'var(--r-sm)',
-      position:'relative',
-    }}>
-      {patterns[item.pattern] || patterns.mono}
+      ) : (
+        <div style={{width:'100%',height:'100%',display:'grid',placeItems:'center',color:'var(--fg-3)',fontSize:11}}>
+          <I.image size={20}/>
+        </div>
+      )}
     </div>
   );
 }
@@ -98,17 +58,18 @@ function ImagePickerModal({ open, onClose, onSelect }) {
   const [urlInput, setUrlInput] = React.useState('');
   const [uploading, setUploading] = React.useState(false);
   const [uploadError, setUploadError] = React.useState(null);
-  const [recentUploads, setRecentUploads] = React.useState([]);
   const [dragOver, setDragOver] = React.useState(false);
   const fileInputRef = React.useRef(null);
 
+  const library = useImageLibrary();
+
   if (!open) return null;
 
-  const cdnConfig = window.stStorage.getWSSetting('storage', {}).mode || 'base64';
+  const cdnConfig = window.stStorage.getWSSetting('storage', {}).mode || 'local';
 
-  // Upload any file through stCDN. On success, push into the in-memory
-  // recent-uploads list so it's visible in the grid and pre-selected.
-  // Scope: no persistence yet — the list resets when the modal closes.
+  // Upload any file through stCDN and persist it to the workspace's image
+  // library (stImages) on success. The newly-saved entry is the authoritative
+  // reference — the grid re-renders from the cache.
   const handleFile = async (file) => {
     if (!file) return;
     setUploadError(null);
@@ -119,17 +80,19 @@ function ImagePickerModal({ open, onClose, onSelect }) {
         setUploadError(result.error || 'No se pudo subir la imagen.');
         return;
       }
-      const entry = {
-        id: `up-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        name: file.name || 'imagen',
+      const dim = await window.stImages.readImageSize(file);
+      const saved = await window.stImages.save({
         url: result.url,
+        name: file.name || 'imagen',
         folder: 'Subidas',
-        w: '?', h: '?',
-        size: `${Math.round((file.size || 0) / 1024)} KB`,
-        uploaded: true,
-      };
-      setRecentUploads((r) => [entry, ...r]);
-      setSel(entry);
+        mime: file.type || null,
+        sizeBytes: file.size || null,
+        width: dim.width,
+        height: dim.height,
+        provider: result.mode || cdnConfig,
+        localPath: result.localPath || null,
+      });
+      if (saved) setSel(saved);
     } catch (err) {
       setUploadError(err?.message || 'Error inesperado al subir.');
     } finally {
@@ -150,12 +113,15 @@ function ImagePickerModal({ open, onClose, onSelect }) {
     if (file) await handleFile(file);
   };
 
-  const items = [
-    ...recentUploads.filter((i) => folder === 'all' || i.folder === folder)
-      .filter((i) => i.name.toLowerCase().includes(q.toLowerCase())),
-    ...IMG_LIB_MOCK
-      .filter((i) => folder === 'all' || i.folder === folder)
-      .filter((i) => i.name.toLowerCase().includes(q.toLowerCase())),
+  const items = library
+    .filter((i) => folder === 'all' || i.folder === folder)
+    .filter((i) => !q || (i.name || '').toLowerCase().includes(q.toLowerCase()));
+
+  // Folders derived from the live library. "Toda la biblioteca" is always
+  // first; the rest are sorted by the facade (alphabetical).
+  const folderList = [
+    { id:'all', name:'Toda la biblioteca', count: library.length },
+    ...window.stImages.folders().map(f => ({ id: f.folder, name: f.folder, count: f.count })),
   ];
 
   return (
@@ -183,7 +149,13 @@ function ImagePickerModal({ open, onClose, onSelect }) {
           </div>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontFamily:'var(--font-display)',fontSize:15,fontWeight:600}}>Seleccionar imagen</div>
-            <div style={{fontSize:11.5,color:'var(--fg-3)'}}>Biblioteca local · Las imágenes se convierten a Base64 para embeberlas en el correo</div>
+            <div style={{fontSize:11.5,color:'var(--fg-3)'}}>
+              {cdnConfig === 'local'
+                ? 'Biblioteca del espacio · Guardadas en tu equipo'
+                : cdnConfig === 'base64'
+                  ? 'Biblioteca del espacio · Las imágenes se embeben en Base64'
+                  : `Biblioteca del espacio · Subidas van a ${cdnConfig.toUpperCase()}`}
+            </div>
           </div>
           <button className="btn icon ghost" onClick={onClose}><I.x size={14}/></button>
         </div>
@@ -191,9 +163,9 @@ function ImagePickerModal({ open, onClose, onSelect }) {
         {/* Tabs */}
         <div style={{display:'flex',gap:2,padding:'6px 10px 0',borderBottom:'1px solid var(--line)'}}>
           {[
-            {id:'library', icon:'folder', label:'Biblioteca local', badge:IMG_LIB_MOCK.length},
+            {id:'library', icon:'folder', label:'Biblioteca', badge:library.length},
             {id:'url',     icon:'external', label:'URL externa'},
-            {id:'cdn',     icon:'server', label:`CDN · ${cdnConfig==='base64'?'no configurado':cdnConfig}`, disabled:cdnConfig==='base64'},
+            {id:'cdn',     icon:'server', label:`CDN · ${cdnConfig==='local'||cdnConfig==='base64'?'no configurado':cdnConfig}`, disabled:cdnConfig==='local'||cdnConfig==='base64'},
           ].map(t => {
             const Ico = I[t.icon];
             const active = tab===t.id;
@@ -229,7 +201,7 @@ function ImagePickerModal({ open, onClose, onSelect }) {
                 padding:14, overflow:'auto',
               }}>
                 <div style={{fontSize:10.5,textTransform:'uppercase',letterSpacing:'0.06em',color:'var(--fg-3)',fontWeight:600,marginBottom:8}}>Carpetas</div>
-                {IMG_FOLDERS.map(f => (
+                {folderList.map(f => (
                   <button key={f.id}
                     onClick={()=>setFolder(f.id)}
                     style={{
@@ -246,15 +218,14 @@ function ImagePickerModal({ open, onClose, onSelect }) {
                     <span style={{fontSize:10,color:'var(--fg-3)'}}>{f.count}</span>
                   </button>
                 ))}
-                <button style={{
-                  display:'flex',alignItems:'center',gap:8,
-                  width:'100%',padding:'6px 8px',marginTop:8,
-                  border:'1px dashed var(--line)',background:'transparent',
-                  borderRadius:'var(--r-sm)',cursor:'pointer',
-                  fontSize:11.5,color:'var(--fg-3)',
-                }}>
-                  <I.plus size={11}/> Nueva carpeta
-                </button>
+                {library.length === 0 && (
+                  <div style={{
+                    marginTop:8,padding:'10px 8px',
+                    fontSize:11,color:'var(--fg-3)',lineHeight:1.4,
+                  }}>
+                    Aún no subes imágenes. Arrastra una al panel o pulsa «Subir».
+                  </div>
+                )}
               </div>
 
               {/* Main */}
@@ -331,9 +302,11 @@ function ImagePickerModal({ open, onClose, onSelect }) {
                         {uploading ? 'Subiendo…' : 'Arrastra aquí'}
                       </div>
                       <div style={{textAlign:'center',lineHeight:1.3}}>
-                        {cdnConfig === 'base64'
-                          ? 'Se embeberá en Base64 · máx 500 KB'
-                          : `Se subirá a ${cdnConfig.toUpperCase()}`}
+                        {cdnConfig === 'local'
+                          ? 'Se guardará en tu equipo'
+                          : cdnConfig === 'base64'
+                            ? 'Se embeberá en Base64'
+                            : `Se subirá a ${cdnConfig.toUpperCase()}`}
                       </div>
                     </button>
 
@@ -352,7 +325,9 @@ function ImagePickerModal({ open, onClose, onSelect }) {
                         <ImageThumb item={it}/>
                         <div style={{padding:'0 2px'}}>
                           <div style={{fontSize:11,fontWeight:500,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{it.name}</div>
-                          <div style={{fontSize:10,color:'var(--fg-3)',fontFamily:'var(--font-mono)',marginTop:1}}>{it.w}×{it.h} · {it.size}</div>
+                          <div style={{fontSize:10,color:'var(--fg-3)',fontFamily:'var(--font-mono)',marginTop:1}}>
+                            {it.width && it.height ? `${it.width}×${it.height}` : '—'} · {formatBytes(it.sizeBytes)}
+                          </div>
                         </div>
                       </button>
                     ))}
@@ -371,18 +346,22 @@ function ImagePickerModal({ open, onClose, onSelect }) {
                   <ImageThumb item={sel} large/>
                   <div style={{fontFamily:'var(--font-display)',fontSize:13,fontWeight:600,marginTop:12,wordBreak:'break-word'}}>{sel.name}</div>
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginTop:10,fontSize:11}}>
-                    <div><div style={{color:'var(--fg-3)',fontSize:10}}>Dimensiones</div><div style={{fontFamily:'var(--font-mono)'}}>{sel.w}×{sel.h}</div></div>
-                    <div><div style={{color:'var(--fg-3)',fontSize:10}}>Tamaño</div><div style={{fontFamily:'var(--font-mono)'}}>{sel.size}</div></div>
+                    <div><div style={{color:'var(--fg-3)',fontSize:10}}>Dimensiones</div><div style={{fontFamily:'var(--font-mono)'}}>{sel.width && sel.height ? `${sel.width}×${sel.height}` : '—'}</div></div>
+                    <div><div style={{color:'var(--fg-3)',fontSize:10}}>Tamaño</div><div style={{fontFamily:'var(--font-mono)'}}>{formatBytes(sel.sizeBytes)}</div></div>
                     <div><div style={{color:'var(--fg-3)',fontSize:10}}>Carpeta</div><div>{sel.folder}</div></div>
-                    <div><div style={{color:'var(--fg-3)',fontSize:10}}>Formato</div><div style={{fontFamily:'var(--font-mono)',textTransform:'uppercase'}}>{(sel.name.split('.').pop()||'').toUpperCase()}</div></div>
-                  </div>
-                  <div style={{marginTop:14,padding:10,background:'var(--surface)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',fontSize:10.5,color:'var(--fg-3)',lineHeight:1.5}}>
-                    <div style={{color:'var(--fg-2)',fontWeight:500,marginBottom:2}}>Al usar esta imagen</div>
-                    Se embedará en el correo como Base64 ({sel.size} aprox.). Cambia el proveedor en Ajustes → Almacenamiento para subir a un CDN.
+                    <div><div style={{color:'var(--fg-3)',fontSize:10}}>Origen</div><div style={{fontFamily:'var(--font-mono)',textTransform:'uppercase'}}>{sel.provider || '—'}</div></div>
                   </div>
                   <button className="btn primary" style={{width:'100%',marginTop:12}}
                     onClick={()=>{onSelect && onSelect(sel); onClose();}}>
                     <I.check size={13}/> Usar esta imagen
+                  </button>
+                  <button className="btn ghost" style={{width:'100%',marginTop:6,color:'var(--danger)'}}
+                    onClick={async ()=>{
+                      if (!window.confirm(`Quitar «${sel.name}» de la biblioteca? No se borra del CDN.`)) return;
+                      await window.stImages.remove(sel.id);
+                      setSel(null);
+                    }}>
+                    <I.trash size={12}/> Quitar de la biblioteca
                   </button>
                 </div>
               )}
@@ -555,4 +534,4 @@ function EmojiPicker({ onSelect }) {
   );
 }
 
-Object.assign(window, { ImagePickerModal, EmojiPicker, IMG_LIB_MOCK });
+Object.assign(window, { ImagePickerModal, EmojiPicker, ImageThumb });

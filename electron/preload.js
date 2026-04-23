@@ -32,6 +32,14 @@ contextBridge.exposeInMainWorld('storage', {
     set: (workspaceId, key, value) => invoke('storage:wsSettings:set', workspaceId, key, value),
     remove: (workspaceId, key) => invoke('storage:wsSettings:remove', workspaceId, key),
     list: (workspaceId) => invoke('storage:wsSettings:list', workspaceId)
+  },
+  images: {
+    list: (workspaceId) => invoke('storage:images:list', workspaceId),
+    add: (workspaceId, entry) => invoke('storage:images:add', workspaceId, entry),
+    remove: (workspaceId, id) => invoke('storage:images:remove', workspaceId, id),
+    updateFolder: (workspaceId, id, folder) => invoke('storage:images:updateFolder', workspaceId, id, folder),
+    rename: (workspaceId, id, name) => invoke('storage:images:rename', workspaceId, id, name),
+    folders: (workspaceId) => invoke('storage:images:folders', workspaceId)
   }
 });
 
@@ -67,5 +75,7 @@ contextBridge.exposeInMainWorld('ai', {
 });
 
 contextBridge.exposeInMainWorld('cdn', {
-  upload: (payload) => invoke('cdn:upload', payload)
+  upload: (payload) => invoke('cdn:upload', payload),
+  saveLocal: (payload) => invoke('images:saveLocal', payload),
+  readLocalAsDataUrl: (url) => invoke('images:readLocalAsDataUrl', url)
 });

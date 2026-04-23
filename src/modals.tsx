@@ -295,19 +295,30 @@ function DevsTab({ onClose }) {
     return () => { alive = false; };
   }, []);
 
-  const output = React.useMemo(() => {
-    if (!template) return null;
+  // Output se computa en un effect porque `inlineImages` es async (lee bytes
+  // del disco via IPC por cada st-img:// URL). Para HTML/MJML pasa por inline;
+  // TXT no tiene imágenes, va directo.
+  const [output, setOutput] = React.useState(null);
+  React.useEffect(() => {
+    if (!template) { setOutput(null); return; }
     const ex = window.stExport;
-    if (!ex) return null;
-    try {
-      return {
-        html: ex.renderHTML(template, { minify, includeTxt }),
-        mjml: ex.renderMJML(template),
-        txt:  ex.renderTXT(template),
-      };
-    } catch (err) {
-      return { error: err?.message || String(err) };
-    }
+    if (!ex) { setOutput(null); return; }
+    let alive = true;
+    (async () => {
+      try {
+        const htmlRaw = ex.renderHTML(template, { minify, includeTxt });
+        const mjmlRaw = ex.renderMJML(template);
+        const [html, mjml] = await Promise.all([
+          ex.inlineImages(htmlRaw),
+          ex.inlineImages(mjmlRaw),
+        ]);
+        if (!alive) return;
+        setOutput({ html, mjml, txt: ex.renderTXT(template) });
+      } catch (err) {
+        if (alive) setOutput({ error: err?.message || String(err) });
+      }
+    })();
+    return () => { alive = false; };
   }, [template, minify, includeTxt]);
 
   const current = output && !output.error ? (output[fmt] || '') : '';

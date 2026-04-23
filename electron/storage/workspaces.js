@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const db = require('./db');
-const { workspaceTemplatesDir } = require('./paths');
+const { workspaceTemplatesDir, workspaceImagesDir } = require('./paths');
 
 function list() {
   return db
@@ -79,6 +79,15 @@ function remove(id) {
   try {
     if (fs.existsSync(wsDir)) fs.rmdirSync(wsDir);
   } catch {}
+
+  // Carpeta de imágenes locales del workspace (mode='local'). La tabla
+  // images ya se limpió por el CASCADE; acá borramos los archivos del disco.
+  const imgDir = workspaceImagesDir(id);
+  try {
+    if (fs.existsSync(imgDir)) fs.rmSync(imgDir, { recursive: true, force: true });
+  } catch (err) {
+    console.error('[workspaces] remove images dir', id, err);
+  }
 
   return { id, templatesRemoved: templateIds.length };
 }

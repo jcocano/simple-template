@@ -593,10 +593,51 @@ function downloadFile(filename, content, mime = 'text/plain') {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// Reemplaza todas las URLs `st-img://{wsId}/{file}` que aparecen en `src="…"`
+// o `href="…"` dentro de un string (HTML o MJML) por data URLs base64 leídas
+// del disco vía IPC. Las URLs repetidas se resuelven una sola vez (cache).
+//
+// Idempotente: si no hay matches, devuelve el string sin overhead. Si alguna
+// URL no se puede leer (archivo borrado, etc.), la deja tal cual y sigue —
+// el correo renderizará con imagen rota, pero no falla todo el export.
+async function inlineImages(str) {
+  if (typeof str !== 'string' || !str.includes('st-img://')) return str;
+  if (!window.cdn || typeof window.cdn.readLocalAsDataUrl !== 'function') return str;
+
+  const urls = Array.from(new Set(
+    (str.match(/st-img:\/\/[^\s"'<>)]+/g) || [])
+  ));
+  if (urls.length === 0) return str;
+
+  const cache = new Map();
+  await Promise.all(urls.map(async (url) => {
+    try {
+      const result = await window.cdn.readLocalAsDataUrl(url);
+      if (result?.ok && result.dataUrl) cache.set(url, result.dataUrl);
+    } catch (err) {
+      console.warn('[stExport] inline failed', url, err);
+    }
+  }));
+
+  let out = str;
+  for (const [url, dataUrl] of cache) {
+    // Regex-escape the URL for global replace (no special chars expected but
+    // be safe). `split/join` avoids needing a full escape.
+    out = out.split(url).join(dataUrl);
+  }
+
+  const sizeKB = Math.round(new Blob([out]).size / 1024);
+  if (sizeKB > 100) {
+    console.info(`[stExport] Salida grande: ${sizeKB} KB tras inline. Algunos clientes truncan correos pesados.`);
+  }
+  return out;
+}
+
 const stExport = {
   renderHTML,
   renderMJML,
   renderTXT,
+  inlineImages,
   downloadFile,
   safeFilename,
 };

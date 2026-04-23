@@ -31,6 +31,7 @@ function CommandPalette({ onNavigate, onClose }) {
       { id:'n-dash',  t:'Ir a Mis plantillas',          s:'Biblioteca principal',                      g:'Ir a',    icon:'grid',      run:()=>onNavigate('dashboard') },
       { id:'n-gal',   t:'Ir a Galería de ejemplos',     s:'Plantillas listas por ocasión',             g:'Ir a',    icon:'layers',    run:()=>onNavigate('gallery') },
       { id:'n-lib',   t:'Ir a Bloques guardados',       s:'Tus bloques reutilizables',                 g:'Ir a',    icon:'folder',    run:()=>onNavigate('library') },
+      { id:'n-img',   t:'Ir a Biblioteca de imágenes',  s:'Todas tus imágenes subidas',                g:'Ir a',    icon:'image',     run:()=>onNavigate('images') },
       { id:'n-prev',  t:'Ver vista previa',             s:'Multi-dispositivo',                         g:'Ir a',    icon:'eye',       run:()=>onNavigate('preview') },
       // Ajustes
       { id:'s-all',   t:'Abrir ajustes',                s:'Perfil, marca, envío, IA…',                 g:'Ajustes', icon:'settings',  run:()=>onNavigate('settings') },

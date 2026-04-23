@@ -3,6 +3,7 @@ const templates = require('../storage/templates');
 const settings = require('../storage/settings');
 const workspaces = require('../storage/workspaces');
 const workspaceSettings = require('../storage/workspace-settings');
+const images = require('../storage/images');
 
 function register() {
   // Templates — always scoped by workspaceId
@@ -52,6 +53,14 @@ function register() {
     return true;
   });
   ipcMain.handle('storage:wsSettings:list', (_e, workspaceId) => workspaceSettings.list(workspaceId));
+
+  // Image library (workspace-scoped)
+  ipcMain.handle('storage:images:list', (_e, workspaceId) => images.list(workspaceId));
+  ipcMain.handle('storage:images:add', (_e, workspaceId, entry) => images.add(workspaceId, entry));
+  ipcMain.handle('storage:images:remove', (_e, workspaceId, id) => images.remove(workspaceId, id));
+  ipcMain.handle('storage:images:updateFolder', (_e, workspaceId, id, folder) => images.updateFolder(workspaceId, id, folder));
+  ipcMain.handle('storage:images:rename', (_e, workspaceId, id, name) => images.rename(workspaceId, id, name));
+  ipcMain.handle('storage:images:folders', (_e, workspaceId) => images.folders(workspaceId));
 }
 
 module.exports = { register };
