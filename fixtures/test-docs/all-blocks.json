@@ -1,0 +1,52 @@
+{
+  "sections": [
+    {
+      "id": "sec-all",
+      "name": "All Blocks",
+      "layout": "1col",
+      "style": {
+        "bg": "#ffffff",
+        "padding": 16
+      },
+      "columns": [
+        {
+          "w": 100,
+          "blocks": [
+            { "id": "b01", "type": "header", "data": { "content": { "brand": "Acme", "sub": "Noticias" } } },
+            { "id": "b02", "type": "hero", "data": { "content": { "heading": "Hola {{nombre}}", "body": "Novedades del mes" } } },
+            { "id": "b03", "type": "image", "data": { "content": { "src": "https://example.com/image.jpg", "alt": "Imagen" } } },
+            { "id": "b04", "type": "heading", "data": { "content": { "text": "Titular" } } },
+            { "id": "b05", "type": "text", "data": { "content": { "body": "Texto de prueba" } } },
+            { "id": "b06", "type": "button", "data": { "content": { "label": "CTA", "url": "https://example.com" } } },
+            { "id": "b07", "type": "divider", "data": {} },
+            { "id": "b08", "type": "spacer", "data": { "style": { "h": 20 } } },
+            { "id": "b09", "type": "icon", "data": { "content": { "emoji": "⭐", "text": "Destacado" }, "style": { "mode": "icon-text" } } },
+            { "id": "b10", "type": "product", "data": { "content": { "name": "Producto", "price": "$100", "image": "https://example.com/product.jpg" } } },
+            { "id": "b11", "type": "footer", "data": { "content": { "company": "Acme Inc", "notice": "Todos los derechos reservados." } } },
+            { "id": "b12", "type": "social", "data": { "content": { "active": ["f", "i", "in"] } } },
+            {
+              "id": "b13",
+              "type": "html",
+              "data": {
+                "content": {
+                  "code": "<div onclick=\"alert(1)\">Hola<script>alert(1)</script><a href=\"javascript:alert(2)\">link</a></div>"
+                }
+              }
+            },
+            { "id": "b14", "type": "video", "data": { "content": { "videoUrl": "https://youtu.be/dQw4w9WgXcQ", "url": "https://example.com/video", "caption": "Video", "alt": "Video cover" } } },
+            { "id": "b15", "type": "gif", "data": { "content": { "src": "https://example.com/anim.gif", "alt": "GIF" } } },
+            { "id": "b16", "type": "qr", "data": { "content": { "qrContent": "https://example.com", "dataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO6p8U8AAAAASUVORK5CYII=", "alt": "QR" } } },
+            { "id": "b17", "type": "countdown", "data": { "content": { "mode": "live", "imageUrl": "https://example.com/countdown.png", "linkUrl": "https://example.com/promo", "alt": "Countdown" } } },
+            { "id": "b18", "type": "testimonial", "data": { "content": { "quote": "Excelente producto", "name": "Ana", "role": "CMO", "company": "Acme" } } },
+            { "id": "b19", "type": "signature", "data": { "content": { "name": "Juan Pérez", "title": "Ventas", "company": "Acme", "email": "juan@example.com" } } },
+            { "id": "b20", "type": "accordion", "data": { "content": { "items": [{ "title": "FAQ 1", "body": "Respuesta 1" }, { "title": "FAQ 2", "body": "Respuesta 2" }] } } },
+            { "id": "b21", "type": "attachment", "data": { "content": { "filename": "brochure.pdf", "size": "1.2 MB", "fileUrl": "https://example.com/brochure.pdf" } } },
+            { "id": "b22", "type": "cart", "data": { "content": { "currency": "USD", "items": [{ "name": "Item 1", "qty": 1, "price": 10 }, { "name": "Item 2", "qty": 2, "price": 20 }], "subtotal": 50, "tax": 5, "total": 55 } } },
+            { "id": "b23", "type": "receipt", "data": { "content": { "orderNumber": "A-100", "orderDate": "2026-04-23", "items": [{ "name": "Item 1", "qty": 1, "price": 10 }], "subtotal": 10, "tax": 1, "total": 11 } } },
+            { "id": "b24", "type": "map", "data": { "content": { "imageUrl": "https://example.com/map.png", "destinationUrl": "https://maps.google.com/?q=Mexico", "label": "Sucursal Centro" } } }
+          ]
+        }
+      ]
+    }
+  ]
+}

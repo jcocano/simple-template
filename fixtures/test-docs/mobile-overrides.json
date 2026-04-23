@@ -1,0 +1,89 @@
+{
+  "sections": [
+    {
+      "id": "mobsec",
+      "name": "Mobile Hidden Section",
+      "layout": "1col",
+      "style": {
+        "bg": "#ffffff",
+        "padding": 20
+      },
+      "hidden": {
+        "mobile": true
+      },
+      "columns": [
+        {
+          "w": 100,
+          "blocks": [
+            {
+              "id": "mob-a",
+              "type": "text",
+              "data": {
+                "content": { "body": "Solo desktop section" }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sec2",
+      "name": "Overrides",
+      "layout": "2col",
+      "style": {
+        "bg": "#f9f9f9",
+        "padding": {
+          "top": 16,
+          "right": 20,
+          "bottom": 16,
+          "left": 20
+        }
+      },
+      "mobile": {
+        "bg": "#eeeeff",
+        "padding": 8,
+        "align": "center"
+      },
+      "columns": [
+        {
+          "w": 60,
+          "mobile": {
+            "w": 100,
+            "padding": 4
+          },
+          "blocks": [
+            {
+              "id": "mob-visible",
+              "type": "text",
+              "data": {
+                "content": { "body": "Texto visible en todos lados" },
+                "mobileSpacing": { "padding": 6 }
+              }
+            },
+            {
+              "id": "mob-hidden",
+              "type": "button",
+              "data": {
+                "content": { "label": "No en mobile", "url": "https://example.com" },
+                "hidden": { "mobile": true }
+              }
+            }
+          ]
+        },
+        {
+          "w": 40,
+          "hidden": { "mobile": true },
+          "blocks": [
+            {
+              "id": "mob-col-hidden-block",
+              "type": "image",
+              "data": {
+                "content": { "src": "https://example.com/pic.jpg", "alt": "Imagen" }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
