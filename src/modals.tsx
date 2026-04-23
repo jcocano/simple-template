@@ -281,10 +281,8 @@ function DevsTab({ onClose }) {
   // abierto (overkill para un caso borde).
   const [fmt, setFmt] = React.useState(() => {
     const ex = window.stStorage?.getWSSetting?.('export', {}) || {};
-    // `zip` aún no está implementado en el modal (follow-up Fix #6). Si Settings
-    // dice zip, caemos a html para no romper el render.
     const f = ex.format;
-    return (f === 'html' || f === 'mjml' || f === 'txt') ? f : 'html';
+    return (f === 'html' || f === 'mjml' || f === 'txt' || f === 'zip') ? f : 'html';
   });
   const [minify, setMinify] = React.useState(() => {
     const ex = window.stStorage?.getWSSetting?.('export', {}) || {};
@@ -369,13 +367,14 @@ function DevsTab({ onClose }) {
     return () => { alive = false; };
   }, [template, minify, includeTxt, dialect, lang]);
 
-  const current = output && !output.error ? (output[fmt] || '') : '';
+  const current = fmt === 'zip' ? '' : (output && !output.error ? (output[fmt] || '') : '');
   const sizeKB = current ? Math.max(1, Math.round(new Blob([current]).size / 1024)) : 0;
 
   const FORMATS = React.useMemo(() => [
     { id:'html', label: t('modals.export.fmt.html'),       d: t('modals.export.fmt.html.desc'), ext:'html', mime:'text/html' },
     { id:'mjml', label: t('modals.export.fmt.mjml'),       d: t('modals.export.fmt.mjml.desc'), ext:'mjml', mime:'text/plain' },
     { id:'txt',  label: t('modals.export.fmt.txt'),        d: t('modals.export.fmt.txt.desc'),  ext:'txt',  mime:'text/plain' },
+    { id:'zip',  label: t('modals.export.fmt.zip'),        d: t('modals.export.fmt.zip.desc'),  ext:'zip',  mime:'application/zip' },
   ], [lang]);
   const currentFormat = FORMATS.find(f => f.id === fmt) || FORMATS[0];
 
@@ -395,6 +394,22 @@ function DevsTab({ onClose }) {
     const filename = `${base}.${currentFormat.ext}`;
     window.stExport.downloadFile(filename, current, currentFormat.mime);
     window.notify && window.notify('exportDone', { kind:'ok', title: t('modals.export.download.toast.title'), msg: filename });
+  };
+
+  const doDownloadZip = async () => {
+    if (!template) return;
+    try {
+      const { blob, filename } = await window.stExport.buildZip(template, { mergeDialect: dialect, minify, lang });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      window.notify && window.notify('exportDone', { kind:'ok', title: t('modals.export.download.toast.title'), msg: filename });
+    } catch (err) {
+      window.toast && window.toast({ kind:'error', title: t('modals.export.generate.failed'), msg: err?.message || String(err) });
+    }
   };
 
   return (
@@ -460,7 +475,7 @@ function DevsTab({ onClose }) {
           )}
         </div>
         <div style={{fontSize:12,color:'var(--fg-3)',lineHeight:1.5}}>
-          {template ? <>{t('modals.export.size')}: <b style={{color:'var(--fg)'}}>{sizeKB} KB</b><br/></> : null}
+          {template && fmt !== 'zip' ? <>{t('modals.export.size')}: <b style={{color:'var(--fg)'}}>{sizeKB} KB</b><br/></> : null}
           {t('modals.export.compat')}
         </div>
       </div>
@@ -493,17 +508,23 @@ function DevsTab({ onClose }) {
           <I.code size={13}/>
           <span style={{fontFamily:'var(--font-mono)'}}>{template ? window.stExport.safeFilename(template.name) : 'correo'}.{currentFormat.ext}</span>
           <div className="grow"/>
-          <button className="btn icon sm ghost" onClick={doCopy} disabled={!current} title={t('modals.export.btn.copy')}><I.copy size={12}/></button>
+          <button className="btn icon sm ghost" onClick={doCopy} disabled={fmt==='zip' || !current} title={t('modals.export.btn.copy')}><I.copy size={12}/></button>
         </div>
-        <pre style={{margin:0,padding:14,fontFamily:'var(--font-mono)',fontSize:11.5,lineHeight:1.6,overflow:'auto',maxHeight:340,color:'var(--fg-2)',whiteSpace:'pre-wrap',wordBreak:'break-word'}}>
-          {output?.error
-            ? `⚠ ${t('modals.export.generate.failed')}: ${output.error}`
-            : (current || t('modals.export.empty'))}
-        </pre>
+        {fmt === 'zip' ? (
+          <div style={{padding:14,fontSize:12,color:'var(--fg-3)',lineHeight:1.5}}>
+            {t('modals.export.zip.preview')}
+          </div>
+        ) : (
+          <pre style={{margin:0,padding:14,fontFamily:'var(--font-mono)',fontSize:11.5,lineHeight:1.6,overflow:'auto',maxHeight:340,color:'var(--fg-2)',whiteSpace:'pre-wrap',wordBreak:'break-word'}}>
+            {output?.error
+              ? `⚠ ${t('modals.export.generate.failed')}: ${output.error}`
+              : (current || t('modals.export.empty'))}
+          </pre>
+        )}
         <div className="row" style={{padding:'10px 12px',borderTop:'1px solid var(--line)',justifyContent:'flex-end'}}>
           <button className="btn ghost" onClick={onClose}>{t('modals.common.close')}</button>
-          <button className="btn" onClick={doCopy} disabled={!current}><I.copy size={13}/> {t('modals.export.btn.copy')}</button>
-          <button className="btn primary" onClick={doDownload} disabled={!current}><I.download size={13}/> {t('modals.export.btn.download', { fmt: fmt.toUpperCase() })}</button>
+          <button className="btn" onClick={doCopy} disabled={fmt==='zip' || !current}><I.copy size={13}/> {t('modals.export.btn.copy')}</button>
+          <button className="btn primary" onClick={fmt==='zip' ? doDownloadZip : doDownload} disabled={fmt==='zip' ? !template : !current}><I.download size={13}/> {t('modals.export.btn.download', { fmt: fmt.toUpperCase() })}</button>
         </div>
       </div>
     </div>

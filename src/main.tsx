@@ -31,6 +31,7 @@ import "./ui.tsx";
 import "./email-blocks.tsx";
 import "./lib/html-minify.tsx";
 import "./lib/export-html.tsx";
+import "./lib/export-zip.tsx";
 import "./block-controls.tsx";
 import "./image-picker.tsx";
 import "./modals/map-picker-modal.tsx";
