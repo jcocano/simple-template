@@ -1312,6 +1312,52 @@ function Editor({ template, block, onBack, onPreview, onExport, onTestSend, onOp
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Editor shortcuts (⌘S / ⌘D / ⌫ / ⌘P / ⌘⇧T). ⌫/Delete must respect the
+  // activeElement guard or we'd nuke the selection while the user is typing
+  // in any input (template name, block text fields, etc.).
+  React.useEffect(() => {
+    const onKey = (e) => {
+      const mod = e.metaKey || e.ctrlKey;
+      const k = e.key.toLowerCase();
+      const ae = document.activeElement;
+      const tag = ae?.tagName?.toLowerCase();
+      const inField = tag === 'input' || tag === 'textarea' || ae?.isContentEditable;
+      if (mod && k === 's' && !e.shiftKey) {
+        e.preventDefault();
+        flushSaveRef.current();
+        return;
+      }
+      if (mod && k === 'd' && !e.shiftKey) {
+        e.preventDefault();
+        if (sel?.type === 'block') duplicateBlock(sel.sectionId, sel.id);
+        else if (sel?.type === 'section') duplicateSection(sel.id);
+        return;
+      }
+      if (mod && k === 'p' && !e.shiftKey) {
+        e.preventDefault();
+        (async () => { await flushSaveRef.current(); onPreview(); })();
+        return;
+      }
+      if (mod && e.shiftKey && k === 't') {
+        e.preventDefault();
+        onTestSend();
+        return;
+      }
+      if ((k === 'backspace' || k === 'delete') && !mod && !e.shiftKey && !e.altKey) {
+        if (inField) return;
+        if (sel?.type === 'block') {
+          e.preventDefault();
+          deleteBlock(sel.sectionId, sel.id);
+        } else if (sel?.type === 'section' && doc.length > 1) {
+          e.preventDefault();
+          deleteSection(sel.id);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [sel, doc, onPreview, onTestSend]);
+
   React.useEffect(() => {
     const h = (e) => setImproveBlock(e.detail.block);
     window.addEventListener('st:improve', h);
@@ -1553,6 +1599,18 @@ function Editor({ template, block, onBack, onPreview, onExport, onTestSend, onOp
       copy.columns.forEach(c => c.blocks.forEach(b => b.id = 'b'+Math.random().toString(36).slice(2,8)));
       return [...d.slice(0,i+1), copy, ...d.slice(i+1)];
     });
+  };
+  const duplicateBlock = (sectionId, blockId) => {
+    setDoc(d => d.map(s => {
+      if (s.id !== sectionId) return s;
+      return {...s, columns: s.columns.map(col => {
+        const i = col.blocks.findIndex(b => b.id===blockId);
+        if (i < 0) return col;
+        const copy = JSON.parse(JSON.stringify(col.blocks[i]));
+        copy.id = 'b'+Math.random().toString(36).slice(2,8);
+        return {...col, blocks: [...col.blocks.slice(0,i+1), copy, ...col.blocks.slice(i+1)]};
+      })};
+    }));
   };
   const moveSection = (id, dir) => {
     setDoc(d => {
