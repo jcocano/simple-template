@@ -598,11 +598,107 @@ async function inlineImages(str) {
   return out;
 }
 
+// Replaces every `st-img://` URL in the HTML with a `cid:` reference and
+// returns the parallel attachment list. Unlike inlineImages (which inflates
+// the HTML with base64 data URLs), CID attachments travel as MIME parts so
+// Gmail won't clip the message above its ~102 KB HTML threshold.
+//
+// `maxBytes` triggers in-flight recompression for legacy oversized images
+// that were stored before the optimizer had a size budget. Safety net so
+// existing workspaces don't need a manual reupload pass.
+async function extractImagesAsAttachments(html, { maxBytes = 400_000 } = {}) {
+  if (typeof html !== 'string' || !html.includes('st-img://')) {
+    return { html, attachments: [] };
+  }
+  if (!window.cdn || typeof window.cdn.readLocalAsDataUrl !== 'function') {
+    return { html, attachments: [] };
+  }
+
+  const urls = Array.from(new Set(
+    (html.match(/st-img:\/\/[^\s"'<>)]+/g) || [])
+  ));
+  if (urls.length === 0) return { html, attachments: [] };
+
+  const attachments = [];
+  const cidMap = new Map();
+
+  await Promise.all(urls.map(async (url, idx) => {
+    try {
+      const result = await window.cdn.readLocalAsDataUrl(url);
+      if (!result?.ok || !result.dataUrl) return;
+      const match = /^data:([^;]+);base64,(.*)$/.exec(result.dataUrl);
+      if (!match) return;
+      let mime = match[1];
+      let base64 = match[2];
+      let sizeBytes = Math.floor(base64.length * 3 / 4);
+
+      const isSvg = /svg/i.test(mime);
+      if (sizeBytes > maxBytes && !isSvg && window.stCDN?.optimizeImage) {
+        try {
+          const raw = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+          const fileName = url.split('/').pop() || `image-${idx}`;
+          const tmpFile = new File([raw], fileName, { type: mime });
+          const optimized = await window.stCDN.optimizeImage(tmpFile, { maxBytes });
+          const optBytes = new Uint8Array(await optimized.arrayBuffer());
+          base64 = uint8ToBase64Export(optBytes);
+          mime = optimized.type || mime;
+          sizeBytes = optBytes.byteLength;
+        } catch (err) {
+          console.warn('[stExport] in-flight optimize failed, sending as-is', err);
+        }
+      }
+
+      const cid = `img-${idx}-${shortHashExport(url)}@st.local`;
+      const ext = mimeToExtExport(mime);
+      attachments.push({
+        filename: `image-${idx}.${ext}`,
+        contentBase64: base64,
+        contentType: mime,
+        cid,
+      });
+      cidMap.set(url, `cid:${cid}`);
+    } catch (err) {
+      console.warn('[stExport] attachment extract failed', url, err);
+    }
+  }));
+
+  let out = html;
+  for (const [url, cidRef] of cidMap) {
+    out = out.split(url).join(cidRef);
+  }
+  return { html: out, attachments };
+}
+
+function shortHashExport(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+  return Math.abs(h).toString(36).slice(0, 8);
+}
+
+function mimeToExtExport(mime) {
+  if (/png/i.test(mime)) return 'png';
+  if (/jpe?g/i.test(mime)) return 'jpg';
+  if (/webp/i.test(mime)) return 'webp';
+  if (/gif/i.test(mime)) return 'gif';
+  if (/svg/i.test(mime)) return 'svg';
+  return 'bin';
+}
+
+function uint8ToBase64Export(bytes) {
+  const chunkSize = 0x8000;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
 const stExport = {
   renderHTML,
   renderMJML,
   renderTXT,
   inlineImages,
+  extractImagesAsAttachments,
   downloadFile,
   safeFilename,
 };

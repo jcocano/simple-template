@@ -96,6 +96,19 @@ function register() {
       sizeBytes: data.bytes.length,
     };
   });
+
+  // Batch existence check for `st-img://` URLs. Used by the Review panel's
+  // orphan-image check to flag broken references without reading bytes.
+  ipcMain.handle('images:checkExists', async (_e, urls) => {
+    if (!Array.isArray(urls)) return { ok: false, results: {} };
+    const results = {};
+    for (const url of urls) {
+      const parsed = imageFiles.parseStImgUrl(url);
+      if (!parsed) { results[url] = false; continue; }
+      results[url] = imageFiles.exists(parsed.workspaceId, parsed.localPath);
+    }
+    return { ok: true, results };
+  });
 }
 
 module.exports = { register };

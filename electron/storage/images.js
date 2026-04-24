@@ -46,7 +46,7 @@ function add(workspaceId, entry) {
       workspaceId,
       entry.url,
       entry.name || 'imagen',
-      entry.folder || 'Sin carpeta',
+      entry.folder || null,
       entry.mime || null,
       entry.sizeBytes != null ? entry.sizeBytes : null,
       entry.width != null ? entry.width : null,
@@ -106,7 +106,7 @@ function updateFolder(workspaceId, id, folder) {
   if (!workspaceId || !id) return null;
   db.get()
     .prepare('UPDATE images SET folder = ? WHERE workspace_id = ? AND id = ?')
-    .run(folder || 'Sin carpeta', workspaceId, id);
+    .run(folder || null, workspaceId, id);
   return get(workspaceId, id);
 }
 

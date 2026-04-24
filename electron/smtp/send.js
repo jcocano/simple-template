@@ -5,7 +5,8 @@
 // localize them via its i18n dictionaries.
 //
 // Payload shape (from renderer via IPC):
-//   { host, port, secure, auth:{user,pass}, from, to, subject, html, text, replyTo }
+//   { host, port, secure, auth:{user,pass}, from, to, subject, html, text, replyTo,
+//     attachments?:[{filename, contentBase64, contentType, cid}] }
 //
 // Returns: { ok:true, messageId, accepted, rejected }
 //       or { ok:false, errorKey, errorParams, error, code, detail }
@@ -19,6 +20,7 @@ async function send(payload = {}) {
     from, to, subject,
     html, text,
     replyTo,
+    attachments,
   } = payload;
 
   if (!host || !auth || !auth.user) {
@@ -66,6 +68,15 @@ async function send(payload = {}) {
     ? { type: 'OAuth2', user: auth.user, accessToken: auth.accessToken }
     : { user: auth.user, pass: auth.pass };
 
+  const mailAttachments = Array.isArray(attachments)
+    ? attachments.map((a) => ({
+        filename: a.filename,
+        content: Buffer.from(a.contentBase64 || '', 'base64'),
+        contentType: a.contentType,
+        cid: a.cid,
+      }))
+    : undefined;
+
   try {
     const transport = nodemailer.createTransport({
       host,
@@ -84,6 +95,7 @@ async function send(payload = {}) {
       html,
       text,
       replyTo: replyTo || from,
+      attachments: mailAttachments,
     });
 
     return {

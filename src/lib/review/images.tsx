@@ -38,6 +38,9 @@
     'review.check.i2.mid': 'Peso total ~{totalMb} MB, aceptable pero ajustado.',
     'review.check.i2.big': 'Peso total ~{totalMb} MB, puede ser problemático en 4G.',
     'review.check.i2.htmlOnly': '{kb} KB de HTML, dentro del límite de Gmail.',
+    'review.check.i3.ok': 'Todas las imágenes locales existen.',
+    'review.check.i3.missing': '{count} imagen(es) locales referencian archivos que ya no existen en disco.',
+    'review.check.i3.fix.focus': 'Ir a la imagen rota',
   });
 
   Object.assign(window.stI18nDict.en, {
@@ -50,6 +53,9 @@
     'review.check.i2.mid': 'Total weight ~{totalMb} MB, acceptable but tight.',
     'review.check.i2.big': 'Total weight ~{totalMb} MB, may struggle on 4G.',
     'review.check.i2.htmlOnly': '{kb} KB of HTML, well under Gmail limit.',
+    'review.check.i3.ok': 'All local images exist.',
+    'review.check.i3.missing': '{count} local image(s) reference files that no longer exist on disk.',
+    'review.check.i3.fix.focus': 'Go to broken image',
   });
 
   Object.assign(window.stI18nDict.pt, {
@@ -62,6 +68,9 @@
     'review.check.i2.mid': 'Peso total ~{totalMb} MB, aceitável mas no limite.',
     'review.check.i2.big': 'Peso total ~{totalMb} MB, pode ter problemas no 4G.',
     'review.check.i2.htmlOnly': '{kb} KB de HTML, bem dentro do limite do Gmail.',
+    'review.check.i3.ok': 'Todas as imagens locais existem.',
+    'review.check.i3.missing': '{count} imagem(ns) local(is) referenciam arquivos que não existem mais em disco.',
+    'review.check.i3.fix.focus': 'Ir para a imagem quebrada',
   });
 
   Object.assign(window.stI18nDict.fr, {
@@ -74,6 +83,9 @@
     'review.check.i2.mid': 'Poids total ~{totalMb} MB, acceptable mais juste.',
     'review.check.i2.big': 'Poids total ~{totalMb} MB, peut poser problème en 4G.',
     'review.check.i2.htmlOnly': '{kb} KB de HTML, bien en deçà de la limite Gmail.',
+    'review.check.i3.ok': 'Toutes les images locales existent.',
+    'review.check.i3.missing': '{count} image(s) locale(s) référencent des fichiers qui n\'existent plus sur le disque.',
+    'review.check.i3.fix.focus': 'Aller à l\'image manquante',
   });
 
   Object.assign(window.stI18nDict.ja, {
@@ -86,6 +98,9 @@
     'review.check.i2.mid': '合計サイズ 約 {totalMb} MB、許容範囲ですが余裕はありません。',
     'review.check.i2.big': '合計サイズ 約 {totalMb} MB、4G で問題が生じる可能性があります。',
     'review.check.i2.htmlOnly': 'HTML サイズ {kb} KB、Gmail の上限内に十分収まっています。',
+    'review.check.i3.ok': 'ローカル画像はすべて存在します。',
+    'review.check.i3.missing': '{count} 個のローカル画像が、ディスク上に存在しないファイルを参照しています。',
+    'review.check.i3.fix.focus': '欠落した画像へ移動',
   });
 
   Object.assign(window.stI18nDict.zh, {
@@ -98,6 +113,9 @@
     'review.check.i2.mid': '总大小约 {totalMb} MB，可接受但接近上限。',
     'review.check.i2.big': '总大小约 {totalMb} MB，在 4G 下可能有问题。',
     'review.check.i2.htmlOnly': 'HTML {kb} KB，远低于 Gmail 限制。',
+    'review.check.i3.ok': '所有本地图片均存在。',
+    'review.check.i3.missing': '{count} 张本地图片引用的文件在磁盘上已不存在。',
+    'review.check.i3.fix.focus': '前往缺失的图片',
   });
 
   const t = function (key, params) {
@@ -345,6 +363,48 @@
       return {
         kind: 'warn',
         detail: t('review.check.i2.big', { totalMb: (total / 1048576).toFixed(1) }),
+      };
+    },
+  });
+
+  // ── i3 — Broken local image references ─────────────────────────────
+  // Flags `st-img://` URLs that no longer resolve to a file on disk.
+  // Happens when a user deletes an image from the library but the block
+  // still references it, or after a workspace restore with missing files.
+  window.stReview.register({
+    id: 'i3',
+    cat: 'images',
+    run: async function (tpl) {
+      const imgs = _collectImageBlocks(tpl);
+      const localImgs = imgs.filter(function (it) {
+        return typeof it.url === 'string' && it.url.startsWith('st-img://');
+      });
+      if (localImgs.length === 0) return null;
+
+      if (!window.cdn || typeof window.cdn.checkExists !== 'function') return null;
+
+      const uniqueUrls = Array.from(new Set(localImgs.map(function (it) { return it.url; })));
+      let results = {};
+      try {
+        const resp = await window.cdn.checkExists(uniqueUrls);
+        if (resp && resp.ok) results = resp.results || {};
+      } catch (e) {
+        return null;
+      }
+
+      const missing = localImgs.filter(function (it) { return results[it.url] === false; });
+      if (missing.length === 0) {
+        return { kind: 'ok', detail: t('review.check.i3.ok') };
+      }
+
+      const first = missing[0];
+      return {
+        kind: 'error',
+        detail: t('review.check.i3.missing', { count: missing.length }),
+        fixes: [{
+          focusBlock: { si: first.si, ci: first.ci, bi: first.bi },
+          label: t('review.check.i3.fix.focus'),
+        }],
       };
     },
   });

@@ -113,10 +113,13 @@ async function send({ template, recipients, fromOverride } = {}) {
   if (loaded.error) return { ok: false, error: loaded.error };
   const { provider, cfg } = loaded;
 
-  // Inline `st-img://` URLs as data URLs because nodemailer sends HTML as-is,
-  // so local images must travel embedded in the payload.
+  // Move `st-img://` URLs into CID attachments instead of inlining base64.
+  // Inline data URLs inflate the HTML past Gmail's ~102 KB clipping threshold;
+  // CID attachments travel as separate MIME parts and are delivered intact.
   let html = window.stExport.renderHTML(template, { resolveVars: true });
-  html = await window.stExport.inlineImages(html);
+  const extracted = await window.stExport.extractImagesAsAttachments(html);
+  html = extracted.html;
+  const attachments = extracted.attachments;
   const text = window.stExport.renderTXT(template, { resolveVars: true });
 
   const fromEmail = String(fromOverride?.email || cfg.fromEmail || cfg.user || '').trim();
@@ -192,6 +195,7 @@ async function send({ template, recipients, fromOverride } = {}) {
     html,
     text,
     replyTo: fromEmail,
+    attachments,
   };
 
   try {

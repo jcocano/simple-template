@@ -93,7 +93,8 @@ contextBridge.exposeInMainWorld('ai', {
 contextBridge.exposeInMainWorld('cdn', {
   upload: (payload) => invoke('cdn:upload', payload),
   saveLocal: (payload) => invoke('images:saveLocal', payload),
-  readLocalAsDataUrl: (url) => invoke('images:readLocalAsDataUrl', url)
+  readLocalAsDataUrl: (url) => invoke('images:readLocalAsDataUrl', url),
+  checkExists: (urls) => invoke('images:checkExists', urls)
 });
 
 contextBridge.exposeInMainWorld('share', {

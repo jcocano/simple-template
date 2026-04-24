@@ -171,46 +171,62 @@ async function upload(file, opts = {}) {
     storageCfg.optimize !== false
     && opts.skipOptimize !== true
     && !(file?.type && /svg/i.test(file.type));
+  let outFile = file;
   if (shouldOptimize) {
     try {
-      file = await optimizeImage(file, { maxDim: 2000, quality: 0.85 });
+      outFile = await optimizeImage(file, { maxDim: 2000, quality: 0.85 });
     } catch (err) {
       console.warn('[stCDN] optimize failed, using original', err);
     }
   }
 
+  let providerResult;
   if (mode === 'local') {
-    return await uploadLocal(file, opts);
-  }
-
-  if (mode === 'base64') {
-    return await uploadBase64(file, opts);
-  }
-
-  if (!window.cdn || typeof window.cdn.upload !== 'function') {
+    providerResult = await uploadLocal(outFile, opts);
+  } else if (mode === 'base64') {
+    providerResult = await uploadBase64(outFile, opts);
+  } else if (!window.cdn || typeof window.cdn.upload !== 'function') {
     return { ok: false, error: window.stI18n.t('cdn.err.uploadBridgeUnavailable') };
+  } else {
+    const providerConfig = storageCfg[mode] || {};
+    const secrets = await resolveSecrets(mode, providerConfig);
+    const data = await fileToUint8Array(outFile);
+    const filename = buildFilename(outFile, opts);
+    const contentType = outFile?.type || opts.contentType || guessContentType(filename);
+    try {
+      providerResult = await window.cdn.upload({
+        provider: mode,
+        config: providerConfig,
+        secrets,
+        file: data,
+        filename,
+        contentType,
+      });
+    } catch (err) {
+      return { ok: false, error: err?.message || 'Error llamando al puente de subida.', code: 'IPC' };
+    }
   }
 
-  const providerConfig = storageCfg[mode] || {};
-  const secrets = await resolveSecrets(mode, providerConfig);
+  if (!providerResult?.ok) return providerResult;
 
-  const data = await fileToUint8Array(file);
-  const filename = buildFilename(file, opts);
-  const contentType = file?.type || opts.contentType || guessContentType(filename);
-
+  // Expose the post-optimization metadata so callers persist the real file
+  // attributes, not the pre-compression ones from the original input.
+  let width = null;
+  let height = null;
   try {
-    const result = await window.cdn.upload({
-      provider: mode,
-      config: providerConfig,
-      secrets,
-      file: data,
-      filename,
-      contentType,
-    });
-    return result;
-  } catch (err) {
-    return { ok: false, error: err?.message || 'Error llamando al puente de subida.', code: 'IPC' };
-  }
+    if (window.stImages && typeof window.stImages.readImageSize === 'function') {
+      const dim = await window.stImages.readImageSize(outFile);
+      if (dim) { width = dim.width; height = dim.height; }
+    }
+  } catch {}
+
+  return {
+    ...providerResult,
+    sizeBytes: outFile.size ?? null,
+    mime: outFile.type || null,
+    width,
+    height,
+  };
 }
 
 // Generate a unique-ish filename. S3 and similar path-based providers rely
@@ -255,18 +271,23 @@ function guessContentType(filename) {
 // email-client compatibility (older Outlook desktop does not support WebP).
 // GIF loses animation through canvas, so we emit static PNG.
 //
+// `maxBytes` is a size budget (post-encode). If the re-encoded output exceeds
+// it, we escalate: PNG without meaningful alpha -> JPEG, then iteratively
+// shrink dimensions. The budget exists because otherwise a 500x500 PNG can
+// still weigh 1+ MB and push emails past Gmail's clipping threshold.
+//
 // Returns a `File` with `name` and `type` set so downstream `upload()` treats
 // it exactly like the original input.
-async function optimizeImage(file, { maxDim = 2000, quality = 0.85 } = {}) {
+async function optimizeImage(file, { maxDim = 2000, quality = 0.85, maxBytes = 400_000 } = {}) {
   const srcType = file?.type || 'image/png';
   const isPng  = /png/i.test(srcType);
   const isGif  = /gif/i.test(srcType);
-  const isJpeg = /jpe?g/i.test(srcType);
   // PNG with alpha -> PNG. GIF -> PNG (drops animation, keeps first-frame
-  // quality). JPG (and fallback types) -> JPG at quality 85%.
-  const outType = (isPng || isGif) ? 'image/png' : 'image/jpeg';
+  // quality). JPG (and fallback types) -> JPG.
+  const initialOutType = (isPng || isGif) ? 'image/png' : 'image/jpeg';
 
   const bytes = await fileToUint8Array(file);
+  const sourceSize = bytes.byteLength;
   const blob = new Blob([bytes], { type: srcType });
   const url = URL.createObjectURL(blob);
 
@@ -282,43 +303,99 @@ async function optimizeImage(file, { maxDim = 2000, quality = 0.85 } = {}) {
   }
 
   const { naturalWidth: w, naturalHeight: h } = img;
-  // No-op if already within the target dimensions AND we're not changing
-  // the codec. Keeps the original bytes (smaller in most cases than a
-  // re-encoded copy at the same pixel count).
-  if (w <= maxDim && h <= maxDim && srcType === outType) {
+  // Skip re-encoding only when the source is already within BOTH budgets
+  // (dimensions AND bytes) and we're not changing codecs. Re-encoding a
+  // small-and-light PNG doesn't help; re-encoding a small-but-heavy PNG does.
+  if (w <= maxDim && h <= maxDim && sourceSize <= maxBytes && srcType === initialOutType) {
     URL.revokeObjectURL(url);
     return file;
   }
 
   const scale = Math.min(1, maxDim / Math.max(w, h));
-  const tw = Math.max(1, Math.round(w * scale));
-  const th = Math.max(1, Math.round(h * scale));
+  let tw = Math.max(1, Math.round(w * scale));
+  let th = Math.max(1, Math.round(h * scale));
 
-  const canvas = document.createElement('canvas');
-  canvas.width = tw;
-  canvas.height = th;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) {
-    URL.revokeObjectURL(url);
-    throw new Error(window.stI18n.t('cdn.err.canvasInitFailed'));
+  let currentOutType = initialOutType;
+  let currentQuality = quality;
+  let best = null;
+
+  // Escalation ladder, stops as soon as an attempt fits within maxBytes:
+  //   1. Re-encode at full resolution with the initial codec.
+  //   2. If still over budget and the PNG has no significant alpha, switch
+  //      to JPEG (typically 5-10x smaller for photos).
+  //   3. Shrink dimensions 20% and retry. Max 3 shrink passes.
+  // If nothing fits, return the smallest attempt produced (`best`).
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const canvas = document.createElement('canvas');
+    canvas.width = tw;
+    canvas.height = th;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      URL.revokeObjectURL(url);
+      throw new Error(window.stI18n.t('cdn.err.canvasInitFailed'));
+    }
+    ctx.drawImage(img, 0, 0, tw, th);
+
+    const outBlob = await new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error(window.stI18n.t('cdn.err.canvasToBlobNull')))),
+        currentOutType,
+        currentQuality,
+      );
+    });
+
+    if (!best || outBlob.size < best.blob.size) {
+      best = { blob: outBlob, type: currentOutType };
+    }
+
+    if (outBlob.size <= maxBytes) break;
+
+    // First escalation: try JPEG when we're emitting PNG with no alpha.
+    // Only attempted once — after that we switch to shrinking.
+    if (currentOutType === 'image/png' && !hasSignificantAlpha(ctx, tw, th)) {
+      currentOutType = 'image/jpeg';
+      continue;
+    }
+
+    // Subsequent escalations: shrink by 20%. Stop if the image would become
+    // tinier than usable for an email hero.
+    const nextW = Math.max(1, Math.round(tw * 0.8));
+    const nextH = Math.max(1, Math.round(th * 0.8));
+    if (nextW < 128 || nextH < 128) break;
+    tw = nextW;
+    th = nextH;
   }
-  ctx.drawImage(img, 0, 0, tw, th);
+
   URL.revokeObjectURL(url);
 
-  const outBlob = await new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error(window.stI18n.t('cdn.err.canvasToBlobNull')))),
-      outType,
-      quality,
-    );
-  });
-
-  // Rename extension to match the new codec so S3/GitHub/etc. save with
-  // the right file type on disk.
+  const outType = best.type;
   const base = (file?.name || 'imagen').replace(/\.[^.]+$/, '');
   const ext = outType === 'image/png' ? 'png' : 'jpg';
-  const named = new File([outBlob], `${base}.${ext}`, { type: outType });
-  return named;
+  return new File([best.blob], `${base}.${ext}`, { type: outType });
+}
+
+// Samples up to 256 pixels from the canvas to decide whether transparency
+// is load-bearing. Anything below `alphaThreshold` in more than 0.5% of samples
+// counts as "has alpha" — flat fully-opaque PNGs pass, photo-like PNGs with a
+// few anti-aliased edges pass too, screenshots with real transparency fail.
+function hasSignificantAlpha(ctx, w, h) {
+  try {
+    const img = ctx.getImageData(0, 0, w, h);
+    const data = img.data;
+    const total = w * h;
+    const step = Math.max(1, Math.floor(total / 256));
+    const alphaThreshold = 250;
+    let transparentCount = 0;
+    let sampled = 0;
+    for (let i = 0; i < total; i += step) {
+      const a = data[i * 4 + 3];
+      if (a < alphaThreshold) transparentCount++;
+      sampled++;
+    }
+    return sampled > 0 && transparentCount / sampled > 0.005;
+  } catch {
+    return true;
+  }
 }
 
 // Lightweight connectivity test — uploads a 1x1 transparent PNG and reports

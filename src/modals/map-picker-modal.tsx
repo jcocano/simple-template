@@ -182,15 +182,21 @@ function MapPickerModal({ open, onClose, onSave, initial = {} }) {
         setUploadError(window.stIpcErr.localize(result));
         return;
       }
-      const dim = await window.stImages.readImageSize(file);
+      let width = result.width ?? null;
+      let height = result.height ?? null;
+      if (width == null || height == null) {
+        const dim = await window.stImages.readImageSize(file);
+        width = dim.width;
+        height = dim.height;
+      }
       const saved = await window.stImages.save({
         url: result.url,
         name: file.name || 'map.png',
-        folder: t('imagePicker.folder.uploads'),
-        mime: file.type || null,
-        sizeBytes: file.size || null,
-        width: dim.width,
-        height: dim.height,
+        folder: null,
+        mime: result.mime ?? file.type ?? null,
+        sizeBytes: result.sizeBytes ?? file.size ?? null,
+        width,
+        height,
         provider: result.mode || 'local',
         localPath: result.localPath || null,
       });
