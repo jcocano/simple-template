@@ -722,6 +722,8 @@ window.stI18nDict.ja = {
   'modals.export.tab.share': '共有とテスト',
   'modals.export.tab.share.sub': '自分宛てのテストまたはプライベートリンク',
   'modals.export.title': 'メールを共有またはエクスポート',
+  'modals.test.btn.send.one': '{n} 件のテストを送信',
+  'modals.test.btn.send.other': '{n} 件のテストを送信',
   'modals.test.cannotSend': 'まだ送信できません。',
   'modals.test.error.unknown': '送信中に不明なエラーが発生しました。',
   'modals.test.quota.note': 'テスト送信は月間クォータには加算されません。好きなだけテストできます。',

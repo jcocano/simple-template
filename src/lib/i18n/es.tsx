@@ -721,6 +721,8 @@ window.stI18nDict.es = {
   'modals.export.tab.share': 'Compartir y probar',
   'modals.export.tab.share.sub': 'Prueba a ti mismo o link privado',
   'modals.export.title': 'Compartir o exportar el correo',
+  'modals.test.btn.send.one': 'Mandar {n} prueba',
+  'modals.test.btn.send.other': 'Mandar {n} pruebas',
   'modals.test.cannotSend': 'No podés enviar aún.',
   'modals.test.error.unknown': 'Error desconocido al enviar.',
   'modals.test.quota.note': 'Los envíos de prueba no se cuentan en tu cuota mensual. Puedes mandarte todas las pruebas que quieras.',

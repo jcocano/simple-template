@@ -721,6 +721,8 @@ window.stI18nDict.pt = {
   'modals.export.tab.share': 'Compartilhar e testar',
   'modals.export.tab.share.sub': 'Teste para você ou link privado',
   'modals.export.title': 'Compartilhar ou exportar o e-mail',
+  'modals.test.btn.send.one': 'Enviar {n} teste',
+  'modals.test.btn.send.other': 'Enviar {n} testes',
   'modals.test.cannotSend': 'Você ainda não pode enviar.',
   'modals.test.error.unknown': 'Erro desconhecido ao enviar.',
   'modals.test.quota.note': 'Os envios de teste não entram na sua cota mensal. Envie quantos testes quiser.',

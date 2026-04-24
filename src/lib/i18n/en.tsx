@@ -724,6 +724,8 @@ window.stI18nDict.en = {
   'modals.export.tab.share': 'Share and test',
   'modals.export.tab.share.sub': 'Send a test to yourself or a private link',
   'modals.export.title': 'Share or export the email',
+  'modals.test.btn.send.one': 'Send {n} test',
+  'modals.test.btn.send.other': 'Send {n} tests',
   'modals.test.cannotSend': 'You can’t send yet.',
   'modals.test.error.unknown': 'Unknown error while sending.',
   'modals.test.quota.note': 'Test sends don’t count toward your monthly quota. Send as many tests as you like.',

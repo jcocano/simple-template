@@ -722,6 +722,8 @@ window.stI18nDict.zh = {
   'modals.export.tab.share': '分享与测试',
   'modals.export.tab.share.sub': '发送给自己或生成私密链接',
   'modals.export.title': '分享或导出邮件',
+  'modals.test.btn.send.one': '发送 {n} 封测试',
+  'modals.test.btn.send.other': '发送 {n} 封测试',
   'modals.test.cannotSend': '当前无法发送。',
   'modals.test.error.unknown': '发送时出现未知错误。',
   'modals.test.quota.note': '测试发送不计入月度配额,可随意发送测试。',
