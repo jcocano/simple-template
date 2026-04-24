@@ -13,6 +13,7 @@ const oauthIpc = require("./ipc/oauth");
 const aiIpc = require("./ipc/ai");
 const cdnIpc = require("./ipc/cdn");
 const imagesLocalIpc = require("./ipc/images-local");
+const shareIpc = require("./ipc/share");
 
 // st-img://{wsId}/{filename} — protocolo custom para servir imágenes del disco
 // sin relajar webSecurity. Hay que registrarlo como `secure` + `standard`
@@ -27,6 +28,10 @@ protocol.registerSchemesAsPrivileged([
       stream: true,
       corsEnabled: true,
     },
+  },
+  {
+    scheme: "simpletemplete",
+    privileges: { standard: true, secure: true },
   },
 ]);
 
@@ -44,6 +49,18 @@ const APP_NAME = "Simple Template";
 app.setName(APP_NAME);
 process.title = APP_NAME;
 
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+  return;
+}
+
+if (process.defaultApp && process.argv.length >= 2) {
+  app.setAsDefaultProtocolClient("simpletemplete", process.execPath, [path.resolve(process.argv[1])]);
+} else {
+  app.setAsDefaultProtocolClient("simpletemplete");
+}
+
 crashReporter.start({ uploadToServer: false });
 
 function logCrash(kind, err) {
@@ -60,6 +77,25 @@ function logCrash(kind, err) {
 
 process.on("uncaughtException", (err) => logCrash("uncaughtException", err));
 process.on("unhandledRejection", (reason) => logCrash("unhandledRejection", reason));
+
+let pendingDeepLink = null;
+let mainWindow = null;
+
+function forwardDeepLink(url) {
+  if (!url || typeof url !== "string" || !url.startsWith("simpletemplete://")) return;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+    mainWindow.webContents.send("share:deeplink", url);
+  } else {
+    pendingDeepLink = url;
+  }
+}
+
+function findDeepLinkInArgv(argv) {
+  if (!Array.isArray(argv)) return null;
+  return argv.find((a) => typeof a === "string" && a.startsWith("simpletemplete://")) || null;
+}
 
 function createWindow() {
   const isMac = process.platform === "darwin";
@@ -89,6 +125,19 @@ function createWindow() {
       sandbox: true,
       preload: path.join(__dirname, "preload.js")
     }
+  });
+
+  mainWindow = win;
+
+  win.webContents.on("did-finish-load", () => {
+    if (pendingDeepLink) {
+      win.webContents.send("share:deeplink", pendingDeepLink);
+      pendingDeepLink = null;
+    }
+  });
+
+  win.on("closed", () => {
+    mainWindow = null;
   });
 
   const devUrl = process.env.ELECTRON_START_URL;
@@ -165,13 +214,31 @@ app.whenReady().then(() => {
   aiIpc.register();
   cdnIpc.register();
   imagesLocalIpc.register();
+  shareIpc.register();
   createWindow();
+
+  const coldStartUrl = findDeepLinkInArgv(process.argv);
+  if (coldStartUrl) forwardDeepLink(coldStartUrl);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     }
   });
+});
+
+app.on("second-instance", (_event, argv) => {
+  const url = findDeepLinkInArgv(argv);
+  if (url) forwardDeepLink(url);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+});
+
+app.on("open-url", (event, url) => {
+  event.preventDefault();
+  forwardDeepLink(url);
 });
 
 app.on("window-all-closed", () => {

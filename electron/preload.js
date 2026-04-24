@@ -95,3 +95,15 @@ contextBridge.exposeInMainWorld('cdn', {
   saveLocal: (payload) => invoke('images:saveLocal', payload),
   readLocalAsDataUrl: (url) => invoke('images:readLocalAsDataUrl', url)
 });
+
+contextBridge.exposeInMainWorld('share', {
+  upload: (bytes, filename) => invoke('share:upload', bytes, filename),
+  download: (url) => invoke('share:download', url),
+  onDeepLink: (cb) => {
+    const listener = (_e, url) => {
+      try { cb(url); } catch (err) { console.error('[share.onDeepLink]', err); }
+    };
+    ipcRenderer.on('share:deeplink', listener);
+    return () => ipcRenderer.removeListener('share:deeplink', listener);
+  }
+});

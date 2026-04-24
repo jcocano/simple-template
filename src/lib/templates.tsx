@@ -165,6 +165,8 @@ async function enrichRows(rows) {
       starred: !!doc?.starred,
       variant: doc?.variant,
       color: doc?.color,
+      sharedFrom: doc?.sharedFrom || null,
+      sharedAt: doc?.sharedAt || null,
     };
   }));
 }
