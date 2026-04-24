@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v0.1.0). Must already exist."
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            artifact_glob: |
+              release/*.dmg
+              release/*.zip
+          - os: windows-latest
+            artifact_glob: |
+              release/*.exe
+              release/*.msi
+          - os: ubuntu-latest
+            artifact_glob: |
+              release/*.AppImage
+              release/*.deb
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build renderer
+        run: npm run build:web
+
+      - name: Build installers (electron-builder)
+        # Unsigned builds: CSC_LINK / CSC_KEY_PASSWORD (mac) and
+        # WIN_CSC_LINK / WIN_CSC_KEY_PASSWORD (win) are intentionally not set.
+        # See README "Pre-built binaries" for how end users open unsigned artifacts.
+        run: npx --no-install electron-builder --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: simple-template-${{ matrix.os }}
+          path: |
+            ${{ matrix.artifact_glob }}
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/') || inputs.tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          draft: true
+          fail_on_unmatched_files: false
+          generate_release_notes: true
+          files: |
+            ${{ matrix.artifact_glob }}
