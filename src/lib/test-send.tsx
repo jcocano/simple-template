@@ -6,8 +6,9 @@
 //   1. Resolve the current workspace's delivery provider + cfg (from secrets).
 //   2. Render the template with `{ resolveVars: true }` so recipients see
 //      substituted values, not {{literal}}.
-//   3. Subject also gets vars resolved, and is prefixed with [PRUEBA] so
-//      recipients distinguish it from production sends.
+//   3. Subject also gets vars resolved, and is prefixed with a localized
+//      test badge (e.g. [PRUEBA] / [TEST]) so recipients distinguish it
+//      from production sends.
 //   4. Invoke window.smtp.send (IPC → electron/smtp/send.js → nodemailer).
 //
 // Return shape:
@@ -118,7 +119,8 @@ async function send({ template, recipients, fromOverride } = {}) {
 
   let subject = template.meta?.subject || template.name || '(sin asunto)';
   subject = resolveSubject(subject, template.vars);
-  subject = `[PRUEBA] ${subject}`;
+  const badge = window.stI18n?.t('modals.test.tag.badge') || '[TEST]';
+  subject = `${badge} ${subject}`;
 
   // Resolve the nodemailer auth object based on provider kind. Password-based
   // providers use {user, pass}; OAuth providers refresh the access token if
