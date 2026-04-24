@@ -2,7 +2,7 @@
 
 Gracias por tomarte el tiempo de contribuir. Toda forma de ayuda — reportar un bug, sugerir una feature, corregir un typo, traducir un string, escribir código — mejora el proyecto.
 
-**Idiomas:** [English](./CONTRIBUTING.md) · [Español](./CONTRIBUTING.es.md)
+**Idiomas:** [English](../../CONTRIBUTING.md) · [Español](./CONTRIBUTING.md)
 
 > **¿No estás listo para escribir código?** Una [estrella en GitHub](https://github.com/jcocano/simple-templete) o un [café](https://buymeacoffee.com/jesuscocana) también ayudan un montón.
 
@@ -23,7 +23,7 @@ Gracias por tomarte el tiempo de contribuir. Toda forma de ayuda — reportar un
 
 ## Código de Conducta
 
-Este proyecto sigue el [Contributor Covenant](./CODE_OF_CONDUCT.es.md). Al participar aceptás respetarlo. Reportá comportamientos inaceptables a `jesus.cocano@gmail.com`.
+Este proyecto sigue el [Contributor Covenant](./CODE_OF_CONDUCT.md). Al participar aceptás respetarlo. Reportá comportamientos inaceptables a `jesus.cocano@gmail.com`.
 
 ## Formas de contribuir
 
@@ -46,7 +46,7 @@ Antes de abrir un issue, por favor:
 
 Después abrí el [template de bug report](https://github.com/jcocano/simple-templete/issues/new?template=bug_report.yml).
 
-Para issues de seguridad, mirá [SECURITY.es.md](./SECURITY.es.md) — por favor **no** abras un issue público.
+Para issues de seguridad, mirá [SECURITY.md](./SECURITY.md) — por favor **no** abras un issue público.
 
 ## Sugerir features
 
@@ -135,7 +135,7 @@ No hay un test runner completo configurado (ver [Arquitectura del proyecto](#arq
 
 ## Arquitectura del proyecto
 
-Para el contexto completo, mirá [CLAUDE.md](./CLAUDE.md). En resumen:
+Para el contexto completo, mirá [CLAUDE.md](../../CLAUDE.md). En resumen:
 
 - **El renderer no es una app ES-module estándar.** Los archivos en `src/` cargan en un orden específico desde `src/main.tsx` y adjuntan sus exports a `window`. El orden importa — registrá módulos nuevos correctamente.
 - **Principios de arquitectura (no negociables para código nuevo):**
@@ -207,7 +207,7 @@ Mantené los commits enfocados. No mezcles una feature con un refactor no relaci
 
 ## Seguridad
 
-Por favor reportá vulnerabilidades de forma privada. Mirá [SECURITY.es.md](./SECURITY.es.md).
+Por favor reportá vulnerabilidades de forma privada. Mirá [SECURITY.md](./SECURITY.md).
 
 ## Comunidad
 

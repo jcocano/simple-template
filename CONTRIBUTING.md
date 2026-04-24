@@ -2,7 +2,7 @@
 
 Thanks for taking the time to contribute. Every form of help — filing a bug, suggesting a feature, fixing a typo, translating a string, writing code — makes the project better.
 
-**Languages:** [English](./CONTRIBUTING.md) · [Español](./CONTRIBUTING.es.md)
+**Languages:** [English](./CONTRIBUTING.md) · [Español](./docs/es/CONTRIBUTING.md)
 
 > **Not ready to write code?** A [GitHub star](https://github.com/jcocano/simple-templete) or a [coffee](https://buymeacoffee.com/jesuscocana) also helps a lot.
 

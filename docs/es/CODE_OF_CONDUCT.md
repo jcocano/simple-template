@@ -1,6 +1,6 @@
 # Código de Conducta
 
-**Idiomas:** [English](./CODE_OF_CONDUCT.md) · [Español](./CODE_OF_CONDUCT.es.md)
+**Idiomas:** [English](../../CODE_OF_CONDUCT.md) · [Español](./CODE_OF_CONDUCT.md)
 
 ## Nuestro compromiso
 

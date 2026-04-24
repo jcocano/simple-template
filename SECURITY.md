@@ -1,6 +1,6 @@
 # Security Policy
 
-**Languages:** [English](./SECURITY.md) · [Español](./SECURITY.es.md)
+**Languages:** [English](./SECURITY.md) · [Español](./docs/es/SECURITY.md)
 
 ## Supported versions
 
