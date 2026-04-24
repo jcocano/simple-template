@@ -108,3 +108,32 @@ contextBridge.exposeInMainWorld('share', {
     return () => ipcRenderer.removeListener('share:deeplink', listener);
   }
 });
+
+contextBridge.exposeInMainWorld('mcp', {
+  status: () => invoke('mcp:status'),
+  setEnabled: (enabled) => invoke('mcp:setEnabled', enabled),
+  setPort: (port) => invoke('mcp:setPort', port),
+  rotateToken: () => invoke('mcp:rotateToken'),
+  forceRelease: () => invoke('mcp:forceRelease'),
+  onActivity: (cb) => {
+    const listener = (_e, detail) => {
+      try { cb(detail); } catch (err) { console.error('[mcp.onActivity]', err); }
+    };
+    ipcRenderer.on('st:mcp-activity', listener);
+    return () => ipcRenderer.removeListener('st:mcp-activity', listener);
+  },
+  onExternalChange: (cb) => {
+    const listener = (_e, detail) => {
+      try { cb(detail); } catch (err) { console.error('[mcp.onExternalChange]', err); }
+    };
+    ipcRenderer.on('st:template-change-external', listener);
+    return () => ipcRenderer.removeListener('st:template-change-external', listener);
+  },
+  onOpenTemplate: (cb) => {
+    const listener = (_e, detail) => {
+      try { cb(detail); } catch (err) { console.error('[mcp.onOpenTemplate]', err); }
+    };
+    ipcRenderer.on('st:mcp-open-template', listener);
+    return () => ipcRenderer.removeListener('st:mcp-open-template', listener);
+  },
+});

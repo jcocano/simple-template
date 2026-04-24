@@ -14,6 +14,8 @@ const aiIpc = require("./ipc/ai");
 const cdnIpc = require("./ipc/cdn");
 const imagesLocalIpc = require("./ipc/images-local");
 const shareIpc = require("./ipc/share");
+const mcpIpc = require("./ipc/mcp");
+const mcp = require("./mcp");
 
 // st-img://{wsId}/{filename} custom protocol serves workspace images from disk
 // without relaxing webSecurity. Must be registered as `secure` + `standard`
@@ -215,7 +217,13 @@ app.whenReady().then(() => {
   cdnIpc.register();
   imagesLocalIpc.register();
   shareIpc.register();
+  mcpIpc.register();
   createWindow();
+
+  // MCP server starts after the window is created so activity/change events
+  // have a webContents to target. init() also reads persisted settings and
+  // boots the HTTP server if `mcp:enabled` is true.
+  mcp.init({ mainWindow }).catch((err) => logCrash("mcp:init", err));
 
   const coldStartUrl = findDeepLinkInArgv(process.argv);
   if (coldStartUrl) forwardDeepLink(coldStartUrl);
@@ -244,5 +252,13 @@ app.on("open-url", (event, url) => {
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
+  }
+});
+
+app.on("before-quit", async (event) => {
+  try {
+    await mcp.shutdown();
+  } catch (err) {
+    logCrash("mcp:shutdown", err);
   }
 });
