@@ -111,6 +111,9 @@ function createWindow() {
     backgroundColor: "#10131a",
     autoHideMenuBar: true,
     titleBarStyle: "hidden",
+    // Runtime window icon — used by Linux taskbar and Windows title bar/dock.
+    // macOS ignores this and uses the .icns from the packaged app bundle.
+    icon: path.join(__dirname, "..", "build", "icon.png"),
     ...(isMac ? { trafficLightPosition: { x: 10, y: 6 } } : {}),
     ...(isWin
       ? {

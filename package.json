@@ -24,7 +24,8 @@
     "pack": "npm run build:web && electron-builder --dir",
     "dist": "npm run build:web && electron-builder",
     "postinstall": "electron-builder install-app-deps",
-    "test:export": "node scripts/smoke-test-export.mjs"
+    "test:export": "node scripts/smoke-test-export.mjs",
+    "build:icons": "node scripts/build-icons.mjs"
   },
   "build": {
     "appId": "com.simpletemplate.app",
@@ -83,6 +84,8 @@
     "electron": "^37.2.0",
     "electron-builder": "^26.8.1",
     "esbuild": "^0.28.0",
+    "png2icons": "^2.0.1",
+    "sharp": "^0.34.5",
     "vite": "^8.0.9",
     "wait-on": "^9.0.3"
   }

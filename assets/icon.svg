@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" shape-rendering="geometricPrecision">
+  
+  <defs>
+    <linearGradient id="env1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3B82F6"></stop>
+      <stop offset="1" stop-color="#2563EB"></stop>
+    </linearGradient>
+  </defs>
+
+  
+  <rect x="128" y="368" width="768" height="488" rx="40" ry="40" fill="url(#env1)"></rect>
+
+  
+  <g>
+    <rect x="232" y="152" width="560" height="520" rx="28" ry="28" fill="#FFFFFF"></rect>
+    
+    <rect x="280" y="208" width="464" height="80" rx="14" ry="14" fill="#3B82F6"></rect>
+    
+    <rect x="280" y="328" width="180" height="160" rx="14" ry="14" fill="#DBEAFE"></rect>
+    
+    <rect x="488" y="340" width="256" height="16" rx="8" ry="8" fill="#E5E7EB"></rect>
+    <rect x="488" y="372" width="220" height="16" rx="8" ry="8" fill="#E5E7EB"></rect>
+    <rect x="488" y="404" width="180" height="16" rx="8" ry="8" fill="#E5E7EB"></rect>
+    <rect x="488" y="436" width="140" height="16" rx="8" ry="8" fill="#EEF0F3"></rect>
+    
+    <rect x="280" y="516" width="400" height="16" rx="8" ry="8" fill="#E5E7EB"></rect>
+    <rect x="280" y="548" width="340" height="16" rx="8" ry="8" fill="#EEF0F3"></rect>
+  </g>
+
+  
+  <path d="M 128 408&#xA;           L 512 720&#xA;           L 896 408&#xA;           L 896 816&#xA;           Q 896 856 856 856&#xA;           L 168 856&#xA;           Q 128 856 128 816&#xA;           Z" fill="url(#env1)"></path>
+
+  
+  <path d="M 128 408 L 512 720 L 896 408" fill="none" stroke="#1E40AF" stroke-width="6" stroke-linejoin="round" opacity="0.45"></path>
+</svg>
