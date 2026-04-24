@@ -1301,7 +1301,7 @@ function AIGenerateModal({ onClose, onGenerated }) {
         </div>
         <div className="modal-foot">
           <div style={{fontSize:11,color:'var(--fg-3)',flex:1}}>
-            Usando <b style={{color:'var(--fg-2)'}}>{aiCfg.provider==='openai'?'OpenAI':aiCfg.provider==='google'?'Gemini':aiCfg.provider==='ollama'?'Ollama':'Claude'}</b> · {aiCfg.model || 'modelo por defecto'}
+            Usando <b style={{color:'var(--fg-2)'}}>{aiCfg.provider==='openai'?'OpenAI':aiCfg.provider==='google'?'Gemini':aiCfg.provider==='ollama'?'Ollama':aiCfg.provider==='openrouter'?'OpenRouter':'Claude'}</b> · {aiCfg.model || 'modelo por defecto'}
           </div>
           <button className="btn" onClick={onClose}>Cancelar</button>
           <button className="btn primary" disabled={!prompt.trim() || loading || !configured} onClick={handleGen}>

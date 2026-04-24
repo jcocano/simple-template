@@ -19,6 +19,7 @@ const PROVIDER_DEFAULTS = {
   openai: 'gpt-4.1',
   google: 'gemini-2.5-flash',
   ollama: 'llama3.3',
+  openrouter: 'openai/gpt-4o-mini',
 };
 
 const ALLOWED_BLOCK_TYPES = new Set([
@@ -68,7 +69,7 @@ function friendlyError(result) {
   }
 }
 
-async function callModel({ system, user, responseFormat, maxTokens = 1024, temperature = 0.7, op = 'other' }) {
+async function callModel({ system, user, responseFormat, maxTokens = 1024, temperature = 0.7, op = 'other', think }) {
   const aiCfg = window.stStorage.getSetting('ai', {}) || {};
   if (aiCfg.enabled === false) {
     return { ok: false, error: window.stI18n.t('ai.err.aiDisabled') };
@@ -92,6 +93,7 @@ async function callModel({ system, user, responseFormat, maxTokens = 1024, tempe
     maxTokens,
     temperature,
     responseFormat,
+    think,
   });
 
   // Fire-and-forget log when the user has history enabled. We don't await
@@ -193,12 +195,13 @@ async function improveText({ block, action = 'rewrite', extra = '', lang = 'es' 
     `Generá exactamente 3 variantes distintas entre sí. Ninguna puede ser idéntica al original.`,
   ].filter(Boolean).join('\n\n');
 
-  const result = await callModel({ system, user, responseFormat: 'json', maxTokens: 800, temperature: 0.8, op: 'improve' });
+  const result = await callModel({ system, user, responseFormat: 'json', maxTokens: 2500, temperature: 0.8, op: 'improve', think: false });
   if (!result.ok) return result;
 
   const parsed = tryParseJSON(result.text);
-  const variants = parsed?.variants;
-  if (!Array.isArray(variants) || variants.length === 0) {
+  const variants = extractVariants(parsed);
+  if (!variants || variants.length === 0) {
+    console.warn('[stAI.improveText] Could not extract variants. Raw response:', result.text);
     return { ok: false, error: window.stI18n.t('ai.err.badResponseFormat') };
   }
   return {
@@ -206,6 +209,25 @@ async function improveText({ block, action = 'rewrite', extra = '', lang = 'es' 
     variants: variants.slice(0, 3).map(v => String(v || '').trim()).filter(Boolean),
     usage: result.usage,
   };
+}
+
+// Accept multiple shapes: {variants:[...]}, [...] directly, {options:[]},
+// {variantes:[]}, {1:"",2:"",3:""}, or any object whose single array value
+// holds strings. Small models rarely match the exact schema on first try.
+function extractVariants(parsed) {
+  if (!parsed) return null;
+  if (Array.isArray(parsed)) return parsed.filter(v => typeof v === 'string');
+  if (Array.isArray(parsed.variants)) return parsed.variants;
+  if (Array.isArray(parsed.variantes)) return parsed.variantes;
+  if (Array.isArray(parsed.options)) return parsed.options;
+  if (Array.isArray(parsed.results)) return parsed.results;
+  const arrayValues = Object.values(parsed).filter(Array.isArray);
+  if (arrayValues.length === 1 && arrayValues[0].every(v => typeof v === 'string')) {
+    return arrayValues[0];
+  }
+  const stringValues = Object.values(parsed).filter(v => typeof v === 'string');
+  if (stringValues.length >= 2) return stringValues;
+  return null;
 }
 
 // generateTemplate — full doc.sections from a prompt
@@ -266,7 +288,7 @@ async function generateTemplate({ prompt, tone, length = 'medio', blocks = [] } 
     blocksHint,
   ].filter(Boolean).join('\n\n');
 
-  const result = await callModel({ system, user, responseFormat: 'json', maxTokens: 3000, temperature: 0.7, op: 'generate' });
+  const result = await callModel({ system, user, responseFormat: 'json', maxTokens: 8000, temperature: 0.7, op: 'generate' });
   if (!result.ok) return result;
 
   const parsed = tryParseJSON(result.text);
