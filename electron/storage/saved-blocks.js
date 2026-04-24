@@ -5,10 +5,11 @@ const { workspaceSavedBlocksDir, ensureDirs } = require('./paths');
 const db = require('./db');
 
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
-const VALID_KINDS = new Set([
-  'header', 'footer', 'cta', 'testimonial',
-  'product', 'social', 'signature', 'custom',
-]);
+// `kind` is a free-form string — it holds the id of the user's block
+// category (see src/lib/block-categories.tsx). The renderer is the source
+// of truth for what ids are valid; the storage layer just persists what it
+// gets. Empty string means "uncategorized" (column is NOT NULL).
+const KIND_MAX = 64;
 
 function filePath(workspaceId, id) {
   if (!ID_RE.test(workspaceId)) {
@@ -27,7 +28,8 @@ function filePath(workspaceId, id) {
 }
 
 function normalizeKind(kind) {
-  return VALID_KINDS.has(kind) ? kind : 'custom';
+  if (typeof kind !== 'string') return '';
+  return kind.length > KIND_MAX ? kind.slice(0, KIND_MAX) : kind;
 }
 
 function list(workspaceId) {

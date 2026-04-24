@@ -20,18 +20,10 @@ function formatBlockRelative(sqlDate) {
   return t(mo === 1 ? 'common.time.months.one' : 'common.time.months.other', { n: mo });
 }
 
-// Kind taxonomy — order in the sidebar + labels. Must stay in sync with the
-// `VALID_KINDS` set in src/lib/blocks.tsx (+ the SQL index).
-const BLOCK_KINDS = [
-  { id: 'header',      labelKey: 'library.cat.headers' },
-  { id: 'footer',      labelKey: 'library.cat.footers' },
-  { id: 'cta',         labelKey: 'library.cat.ctas' },
-  { id: 'testimonial', labelKey: 'library.cat.testimonials' },
-  { id: 'product',     labelKey: 'library.cat.products' },
-  { id: 'social',      labelKey: 'library.cat.social' },
-  { id: 'signature',   labelKey: 'library.cat.signatures' },
-  { id: 'custom',      labelKey: 'library.cat.custom' },
-];
+// Categories are now first-class user-editable records stored per workspace
+// (see src/lib/block-categories.tsx). Built-in seeds keep their labelKey
+// so language switches still update them. User-created categories are
+// shown by name and can be dragged to reorder.
 
 // Renders the saved block's section inside a constrained container. Uses
 // EB_RENDERERS to paint real block content; any unsupported block type
@@ -90,10 +82,22 @@ function Library({ onBack, onOpenBlock }) {
 
   const rawBlocks = window.useBlocks();
   const trashedBlocks = window.useTrashedBlocks();
-  const [filter, setFilter] = React.useState('all'); // all | favorites | trash | kind:<id>
+  const categories = window.useBlockCategories();
+  const [filter, setFilter] = React.useState('all'); // all | favorites | trash | uncategorized | kind:<id>
   const [q, setQ] = React.useState('');
   const [view, setView] = React.useState('grid');
   const [selected, setSelected] = React.useState(() => new Set());
+  const [categoryModal, setCategoryModal] = React.useState(null); // { mode:'new'|'edit', category? }
+  const [dragOverCat, setDragOverCat] = React.useState(null);
+  // Reorder DnD: tracks which category is being dragged and the hover
+  // target/position. `position` is 'before' or 'after' relative to target.
+  const [dragCat, setDragCat] = React.useState(null);
+  const [reorderHover, setReorderHover] = React.useState(null); // { id, position }
+  // Inline rename — Electron's renderer with contextIsolation doesn't
+  // support window.prompt(), so we swap the title for an input when a
+  // rename is in progress. Tracks the id being edited + the draft text.
+  const [renameTarget, setRenameTarget] = React.useState(null);
+  const [renameDraft, setRenameDraft] = React.useState('');
 
   const inTrash = filter === 'trash';
 
@@ -107,16 +111,30 @@ function Library({ onBack, onOpenBlock }) {
     if (!inTrash || trashedBlocks.length === 0) clearSelection();
   }, [inTrash, trashedBlocks.length]);
 
+  const categoryById = React.useMemo(() => {
+    const map = new Map();
+    for (const c of categories) map.set(c.id, c);
+    return map;
+  }, [categories]);
+
   const counts = React.useMemo(() => {
     const byKind = {};
-    for (const b of rawBlocks) byKind[b.kind] = (byKind[b.kind] || 0) + 1;
+    let uncategorized = 0;
+    for (const b of rawBlocks) {
+      if (b.kind && categoryById.has(b.kind)) {
+        byKind[b.kind] = (byKind[b.kind] || 0) + 1;
+      } else {
+        uncategorized++;
+      }
+    }
     return {
       all: rawBlocks.length,
       favorites: rawBlocks.filter((b) => b.starred).length,
       trash: trashedBlocks.length,
+      uncategorized,
       byKind,
     };
-  }, [rawBlocks, trashedBlocks]);
+  }, [rawBlocks, trashedBlocks, categoryById]);
 
   const items = React.useMemo(() => {
     const source = inTrash ? trashedBlocks : rawBlocks;
@@ -125,21 +143,24 @@ function Library({ onBack, onOpenBlock }) {
       if (!matchQ) return false;
       if (inTrash || filter === 'all') return true;
       if (filter === 'favorites') return !!b.starred;
+      if (filter === 'uncategorized') return !b.kind || !categoryById.has(b.kind);
       if (filter.startsWith('kind:')) return b.kind === filter.slice(5);
       return true;
     });
     return filtered;
-  }, [rawBlocks, trashedBlocks, inTrash, filter, q]);
+  }, [rawBlocks, trashedBlocks, inTrash, filter, q, categoryById]);
 
   const kindLabel = (kindId) => {
-    const k = BLOCK_KINDS.find((x) => x.id === kindId);
-    return k ? t(k.labelKey) : t('library.cat.custom');
+    const c = categoryById.get(kindId);
+    if (c) return window.stBlockCategories.displayName(c);
+    return t('library.category.uncategorized');
   };
 
   const activeLabel = (() => {
     if (filter === 'all') return t('library.filter.all');
     if (filter === 'favorites') return t('library.filter.favorites');
     if (filter === 'trash') return t('library.filter.trash');
+    if (filter === 'uncategorized') return t('library.category.uncategorized');
     if (filter.startsWith('kind:')) return kindLabel(filter.slice(5));
     return t('library.filter.all');
   })();
@@ -152,7 +173,7 @@ function Library({ onBack, onOpenBlock }) {
   const onCreate = async () => {
     const created = await window.stBlocks.create({
       name: t('library.create.defaultName'),
-      kind: filter.startsWith('kind:') ? filter.slice(5) : 'custom',
+      kind: filter.startsWith('kind:') ? filter.slice(5) : 'bc-custom',
     });
     if (!created) return;
     if (onOpenBlock) {
@@ -166,12 +187,21 @@ function Library({ onBack, onOpenBlock }) {
     }
   };
 
-  const onRename = async (blk) => {
-    const next = window.prompt(t('library.prompt.rename'), blk.name || '');
-    if (next == null) return;
-    const trimmed = next.trim();
+  const onRename = (blk) => {
+    setRenameTarget(blk.id);
+    setRenameDraft(blk.name || '');
+  };
+
+  const commitRename = async (blk) => {
+    const trimmed = renameDraft.trim();
+    setRenameTarget(null);
     if (!trimmed || trimmed === blk.name) return;
     await window.stBlocks.rename(blk.id, trimmed);
+  };
+
+  const cancelRename = () => {
+    setRenameTarget(null);
+    setRenameDraft('');
   };
 
   const onDelete = async (id) => { await window.stBlocks.remove(id); };
@@ -209,6 +239,66 @@ function Library({ onBack, onOpenBlock }) {
     clearSelection();
   };
 
+  // Category DnD — two distinct modes distinguished by the MIME type on the
+  // dragged payload:
+  //   - 'text/x-mc-saved-block': a block is being dragged onto a category →
+  //     reassign the block's `kind` to that category's id (or null when
+  //     dropping on "Uncategorized").
+  //   - 'text/x-mc-block-category': a category chip is being reordered →
+  //     splice it into its new position in the categories array.
+  const onDeleteCategory = async (c) => {
+    const name = window.stBlockCategories.displayName(c);
+    if (!window.confirm(t('library.category.deleteConfirm', { name }))) return;
+    await window.stBlockCategories.remove(c.id);
+    if (filter === `kind:${c.id}`) setFilter('all');
+  };
+
+  const dropPropsForCategory = (catId) => ({
+    onDragOver: (e) => {
+      const types = Array.from(e.dataTransfer.types);
+      if (types.includes('text/x-mc-saved-block')) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (dragOverCat !== catId) setDragOverCat(catId);
+        return;
+      }
+      if (types.includes('text/x-mc-block-category')) {
+        // Reorder: compute before/after based on cursor Y against the row midpoint.
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (catId === 'uncategorized' || catId === null) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const position = (e.clientY - rect.top) < rect.height / 2 ? 'before' : 'after';
+        if (!reorderHover || reorderHover.id !== catId || reorderHover.position !== position) {
+          setReorderHover({ id: catId, position });
+        }
+      }
+    },
+    onDragLeave: (e) => {
+      if (e.currentTarget.contains(e.relatedTarget)) return;
+      setDragOverCat((cur) => (cur === catId ? null : cur));
+      setReorderHover((cur) => (cur && cur.id === catId ? null : cur));
+    },
+    onDrop: async (e) => {
+      const blockId = e.dataTransfer.getData('text/x-mc-saved-block');
+      const catSrc = e.dataTransfer.getData('text/x-mc-block-category');
+      setDragOverCat(null);
+      const reorder = reorderHover;
+      setReorderHover(null);
+      if (blockId) {
+        e.preventDefault();
+        // catId can be null for the "Uncategorized" drop target.
+        await window.stBlocks.setCategory(blockId, catId === 'uncategorized' ? null : catId);
+        return;
+      }
+      if (catSrc && catSrc !== catId && catId !== 'uncategorized' && catId !== null) {
+        e.preventDefault();
+        const pos = reorder && reorder.id === catId ? reorder.position : 'before';
+        window.stBlockCategories.reorder(catSrc, catId, pos);
+      }
+    },
+  });
+
   return (
     <div className="editor" style={{ flexDirection: 'row' }}>
       <aside className="sidebar">
@@ -236,17 +326,68 @@ function Library({ onBack, onOpenBlock }) {
           </div>
 
           <div className="nav-label">{t('library.nav.categories')}</div>
-          {BLOCK_KINDS.map((k) => (
-            <div
-              key={k.id}
-              className={`nav-item ${filter === `kind:${k.id}` ? 'active' : ''}`}
-              onClick={() => setFilter(`kind:${k.id}`)}
-            >
-              <I.layers size={15} />
-              <span>{t(k.labelKey)}</span>
-              <span className="count">{counts.byKind[k.id] || 0}</span>
-            </div>
+          {categories.map((c) => (
+            <CategoryNavItem
+              key={c.id}
+              active={filter === `kind:${c.id}`}
+              dropOver={dragOverCat === c.id}
+              reorderHint={reorderHover && reorderHover.id === c.id ? reorderHover.position : null}
+              draggingSelf={dragCat === c.id}
+              color={c.color}
+              label={window.stBlockCategories.displayName(c)}
+              count={counts.byKind[c.id] || 0}
+              onClick={() => setFilter(`kind:${c.id}`)}
+              dropProps={dropPropsForCategory(c.id)}
+              dragProps={{
+                draggable: true,
+                onDragStart: (e) => {
+                  e.dataTransfer.setData('text/x-mc-block-category', c.id);
+                  e.dataTransfer.effectAllowed = 'move';
+                  setDragCat(c.id);
+                },
+                onDragEnd: () => { setDragCat(null); setReorderHover(null); },
+              }}
+              actions={(
+                <>
+                  <button
+                    className="btn icon sm ghost"
+                    title={t('library.category.edit')}
+                    onClick={(e) => { e.stopPropagation(); setCategoryModal({ mode: 'edit', category: c }); }}
+                  ><I.edit size={11} /></button>
+                  <button
+                    className="btn icon sm ghost"
+                    title={t('library.category.delete')}
+                    onClick={(e) => { e.stopPropagation(); onDeleteCategory(c); }}
+                  ><I.trash size={11} /></button>
+                </>
+              )}
+            />
           ))}
+
+          {counts.uncategorized > 0 && (
+            <CategoryNavItem
+              active={filter === 'uncategorized'}
+              dropOver={dragOverCat === 'uncategorized'}
+              label={t('library.category.uncategorized')}
+              count={counts.uncategorized}
+              onClick={() => setFilter('uncategorized')}
+              dropProps={dropPropsForCategory('uncategorized')}
+            />
+          )}
+
+          <button
+            className="nav-item"
+            onClick={() => setCategoryModal({ mode: 'new' })}
+            style={{
+              color: 'var(--fg-3)', background: 'transparent', border: 'none',
+              width: '100%', marginTop: 4, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 8, padding: '7px 9px',
+              fontSize: 12.5, textAlign: 'left',
+            }}
+          >
+            <I.plus size={12} />
+            <span>{t('library.category.new')}</span>
+          </button>
         </nav>
       </aside>
 
@@ -376,13 +517,19 @@ function Library({ onBack, onOpenBlock }) {
                   <div
                     key={blk.id}
                     className="tpl-card"
+                    draggable={!inTrash}
+                    onDragStart={(e) => {
+                      if (inTrash) return;
+                      e.dataTransfer.setData('text/x-mc-saved-block', blk.id);
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
                     onClick={inTrash ? () => toggleSelect(blk.id) : () => onEdit(blk)}
                     style={inTrash ? {
                       cursor: 'pointer',
                       opacity: isSelected ? 1 : 0.85,
                       outline: isSelected ? '2px solid var(--accent)' : undefined,
                       outlineOffset: isSelected ? 2 : undefined,
-                    } : { cursor: 'pointer' }}
+                    } : { cursor: 'grab' }}
                   >
                     <div className="tpl-thumb">
                       {inTrash ? (
@@ -445,7 +592,23 @@ function Library({ onBack, onOpenBlock }) {
                       <BlockThumbLoader id={blk.id} />
                     </div>
                     <div className="tpl-meta">
-                      <div className="tpl-title">{blk.name}</div>
+                      {renameTarget === blk.id ? (
+                        <input
+                          className="field"
+                          autoFocus
+                          value={renameDraft}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setRenameDraft(e.target.value)}
+                          onBlur={() => commitRename(blk)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.preventDefault(); commitRename(blk); }
+                            if (e.key === 'Escape') { e.preventDefault(); cancelRename(); }
+                          }}
+                          style={{ fontSize: 13, padding: '4px 6px', width: '100%' }}
+                        />
+                      ) : (
+                        <div className="tpl-title">{blk.name}</div>
+                      )}
                       <div className="tpl-sub">
                         <span>{kindLabel(blk.kind)}</span>
                         <span className="tpl-dot" />
@@ -489,6 +652,12 @@ function Library({ onBack, onOpenBlock }) {
                 return (
                   <div
                     key={blk.id}
+                    draggable={!inTrash}
+                    onDragStart={(e) => {
+                      if (inTrash) return;
+                      e.dataTransfer.setData('text/x-mc-saved-block', blk.id);
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
                     onClick={inTrash ? () => toggleSelect(blk.id) : () => onEdit(blk)}
                     style={{
                       display: 'grid',
@@ -496,7 +665,7 @@ function Library({ onBack, onOpenBlock }) {
                       padding: '12px 16px',
                       borderBottom: '1px solid var(--line)',
                       alignItems: 'center',
-                      cursor: 'pointer',
+                      cursor: inTrash ? 'pointer' : 'grab',
                       fontSize: 13,
                       opacity: inTrash && !isSelected ? 0.85 : 1,
                       background: isSelected ? 'color-mix(in oklab, var(--accent) 10%, var(--surface))' : undefined,
@@ -516,7 +685,23 @@ function Library({ onBack, onOpenBlock }) {
                         </div>
                       ) : blk.starred && <I.star2 size={14} style={{ color: 'var(--warn)' }} />}
                     </div>
-                    <div style={{ fontWeight: 500 }}>{blk.name}</div>
+                    <div style={{ fontWeight: 500 }}>
+                      {renameTarget === blk.id ? (
+                        <input
+                          className="field"
+                          autoFocus
+                          value={renameDraft}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setRenameDraft(e.target.value)}
+                          onBlur={() => commitRename(blk)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.preventDefault(); commitRename(blk); }
+                            if (e.key === 'Escape') { e.preventDefault(); cancelRename(); }
+                          }}
+                          style={{ fontSize: 13, padding: '4px 6px', width: '100%' }}
+                        />
+                      ) : blk.name}
+                    </div>
                     <div style={{ color: 'var(--fg-2)' }}>{kindLabel(blk.kind)}</div>
                     <div style={{ color: 'var(--fg-3)', fontSize: 12 }}>
                       {inTrash
@@ -567,6 +752,53 @@ function Library({ onBack, onOpenBlock }) {
           )}
         </div>
       </main>
+
+      {categoryModal && (
+        <BlockCategoryModal
+          mode={categoryModal.mode}
+          category={categoryModal.category}
+          onClose={() => setCategoryModal(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Sidebar row for a saved-block category. Mirrors the image-library
+// FolderNavItem shape but adds reorder hints (top/bottom border flash) so
+// the user can see where a dragged category will land.
+function CategoryNavItem({
+  active, dropOver, reorderHint, draggingSelf,
+  color, label, count, icon, onClick, dropProps, dragProps, actions,
+}) {
+  const hasColor = !!color;
+  const borderTop = reorderHint === 'before' ? '2px solid var(--accent)' : '2px solid transparent';
+  const borderBottom = reorderHint === 'after' ? '2px solid var(--accent)' : '2px solid transparent';
+  return (
+    <div
+      className={`nav-item ${active ? 'active' : ''} ${dropOver ? 'drop-active' : ''}`}
+      onClick={onClick}
+      {...(dragProps || {})}
+      {...(dropProps || {})}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        width: '100%', padding: '7px 9px',
+        background: active ? 'var(--accent-soft)' : (dropOver ? 'var(--surface-2)' : 'transparent'),
+        color: active ? 'var(--accent)' : 'var(--fg-2)',
+        borderRadius: 'var(--r-sm)', cursor: 'pointer',
+        fontSize: 12.5, textAlign: 'left', marginBottom: 2,
+        borderTop, borderBottom,
+        opacity: draggingSelf ? 0.4 : 1,
+      }}
+    >
+      {hasColor
+        ? <span style={{ width: 10, height: 10, borderRadius: 2, background: color, flexShrink: 0 }} />
+        : (icon || <I.layers size={13} />)}
+      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+      <span className="count" style={{ fontSize: 10.5, color: 'var(--fg-3)' }}>{count}</span>
+      {actions && (
+        <div className="oc-actions" onClick={(e) => e.stopPropagation()}>{actions}</div>
+      )}
     </div>
   );
 }

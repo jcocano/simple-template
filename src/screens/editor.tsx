@@ -1,18 +1,9 @@
 // Editor — section-based canvas
 
-// Maps a saved block's `kind` to the i18n key that labels its category in
-// the library. Reused by the editor breadcrumb and the "Mis bloques" panel
-// in ContentPanel.
-const KIND_LABEL_KEY = {
-  header: 'library.cat.headers',
-  footer: 'library.cat.footers',
-  cta: 'library.cat.ctas',
-  testimonial: 'library.cat.testimonials',
-  product: 'library.cat.products',
-  social: 'library.cat.social',
-  signature: 'library.cat.signatures',
-  custom: 'library.cat.custom',
-};
+// Saved-block categories are now first-class records loaded via
+// stBlockCategories (see src/lib/block-categories.tsx). The editor's
+// "Mis bloques" panel renders them in stored order, so the label + order
+// come straight from the category list instead of a hardcoded map.
 
 function BlockTile({ b, onClick }) {
   const t = window.stI18n.t;
@@ -112,6 +103,7 @@ function SavedBlocksPanel({ q, onAdd }) {
   const t = window.stI18n.t;
   window.stI18n.useLang();
   const rows = window.useBlocks();
+  const categories = window.useBlockCategories();
   const [open, setOpen] = React.useState(() => {
     try { return localStorage.getItem('mc:editor:myBlocksOpen') === '1'; } catch { return false; }
   });
@@ -131,12 +123,25 @@ function SavedBlocksPanel({ q, onAdd }) {
   if (rows.length === 0) return null;
   const total = filtered.length;
   if (searching && total === 0) return null;
+  const categoryIds = new Set(categories.map((c) => c.id));
   const grouped = filtered.reduce((acc, r) => {
-    const key = r.kind || 'custom';
+    // Blocks whose `kind` points to a deleted/unknown category are parked
+    // under the synthetic '__uncategorized' bucket so they still show up.
+    const key = r.kind && categoryIds.has(r.kind) ? r.kind : '__uncategorized';
     (acc[key] = acc[key] || []).push(r);
     return acc;
   }, {});
-  const order = ['header', 'footer', 'cta', 'testimonial', 'product', 'social', 'signature', 'custom'];
+  // Render order: stored category order, then a trailing "Uncategorized"
+  // group iff there are orphaned blocks.
+  const order = [
+    ...categories.map((c) => c.id),
+    ...(grouped.__uncategorized ? ['__uncategorized'] : []),
+  ];
+  const labelForGroup = (id) => {
+    if (id === '__uncategorized') return t('library.category.uncategorized');
+    const c = categories.find((x) => x.id === id);
+    return c ? window.stBlockCategories.displayName(c) : t('library.category.uncategorized');
+  };
   const expanded = open || searching;
   return (
     <div className="block-cat" style={{ marginTop: 4, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
@@ -195,7 +200,7 @@ function SavedBlocksPanel({ q, onAdd }) {
               fontWeight: 500,
               padding: '2px 0 4px',
             }}>
-              <span style={{ flex: 1 }}>{t(KIND_LABEL_KEY[k] || 'library.cat.custom')}</span>
+              <span style={{ flex: 1 }}>{labelForGroup(k)}</span>
               <span style={{
                 fontSize: 10,
                 color: 'var(--fg-3)',
@@ -1716,7 +1721,10 @@ function Editor({ template, block, onBack, onPreview, onExport, onTestSend, onOp
           <input value={name} onChange={e=>setName(e.target.value)}/>
           <div className="meta">
             {isBlockMode
-              ? <>{t('editor.blockBadge')}{block?.kind ? <> · {t(KIND_LABEL_KEY[block.kind] || 'library.cat.custom')}</> : null}</>
+              ? <>{t('editor.blockBadge')}{block?.kind ? <> · {(() => {
+                  const cat = window.stBlockCategories?.list?.().find((c) => c.id === block.kind);
+                  return cat ? window.stBlockCategories.displayName(cat) : t('library.category.uncategorized');
+                })()}</> : null}</>
               : <>{template?.folder || templateJsonRef.current?.folder || t('editor.noFolder')} · {t('editor.sectionsCount', { n: doc.length })}</>}
           </div>
         </div>

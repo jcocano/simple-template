@@ -13,10 +13,29 @@
 // deletes everything.
 
 const SEEDED_FLAG = 'saved_blocks_seeded';
-const VALID_KINDS = new Set([
+
+// Built-in category ids — these map 1:1 to the legacy kind enum so
+// `sectionForKind` can accept either the old kind name ('header') or the
+// new seed id ('bc-headers'). User-created categories fall through to the
+// blank default, which is what we want.
+const BUILTIN_CATEGORY_IDS = new Set([
+  'bc-headers', 'bc-footers', 'bc-ctas', 'bc-testimonials',
+  'bc-products', 'bc-social', 'bc-signatures', 'bc-custom',
+]);
+const LEGACY_KINDS = new Set([
   'header', 'footer', 'cta', 'testimonial',
   'product', 'social', 'signature', 'custom',
 ]);
+const CATEGORY_ID_TO_LEGACY = {
+  'bc-headers': 'header',
+  'bc-footers': 'footer',
+  'bc-ctas': 'cta',
+  'bc-testimonials': 'testimonial',
+  'bc-products': 'product',
+  'bc-social': 'social',
+  'bc-signatures': 'signature',
+  'bc-custom': 'custom',
+};
 
 // Each kind maps to a section preset — concrete, renderable content so
 // the user sees realistic previews in the library without having to
@@ -33,7 +52,12 @@ function mkBlockId() {
 
 function sectionForKind(kind) {
   const base = window.defaultSectionStyle || (() => ({}));
-  switch (kind) {
+  // Accept both the new seed category ids ('bc-headers', …) and the
+  // legacy kind strings ('header', …). Everything else falls through to
+  // the blank default, which is the right behavior for user-created
+  // categories that have no conceptual preset.
+  const legacy = CATEGORY_ID_TO_LEGACY[kind] || kind;
+  switch (legacy) {
     case 'header':
       return {
         id: mkSectionId(),
@@ -119,16 +143,16 @@ function sectionForKind(kind) {
 // records. Names match the original prototype so the UI looks the same
 // on first open.
 const SEED_SAVED_BLOCKS = [
-  { name: 'Mi firma con foto',           kind: 'signature'  },
-  { name: 'Footer legal con dirección',  kind: 'footer'     },
-  { name: 'Mi header con logo',          kind: 'header'     },
-  { name: 'Botón grande — reservar',     kind: 'cta'        },
-  { name: 'Mis redes sociales',          kind: 'social'     },
-  { name: 'Reseña de cliente',           kind: 'testimonial'},
-  { name: 'Dos productos destacados',    kind: 'product'    },
-  { name: 'Banner de oferta 40%',        kind: 'cta'        },
-  { name: 'Link a agendar (Calendly)',   kind: 'cta'        },
-  { name: 'Aviso legal corto',           kind: 'footer'     },
+  { name: 'Mi firma con foto',           kind: 'bc-signatures'   },
+  { name: 'Footer legal con dirección',  kind: 'bc-footers'      },
+  { name: 'Mi header con logo',          kind: 'bc-headers'      },
+  { name: 'Botón grande — reservar',     kind: 'bc-ctas'         },
+  { name: 'Mis redes sociales',          kind: 'bc-social'       },
+  { name: 'Reseña de cliente',           kind: 'bc-testimonials' },
+  { name: 'Dos productos destacados',    kind: 'bc-products'     },
+  { name: 'Banner de oferta 40%',        kind: 'bc-ctas'         },
+  { name: 'Link a agendar (Calendly)',   kind: 'bc-ctas'         },
+  { name: 'Aviso legal corto',           kind: 'bc-footers'      },
 ];
 
 function normalizeDoc(blk) {
@@ -152,7 +176,22 @@ function normalizeDoc(blk) {
       }
     : sectionForKind(blk.kind);
   blk.section = section;
-  if (!VALID_KINDS.has(blk.kind)) blk.kind = 'custom';
+  // `kind` is now a category id (string) or null for "uncategorized". Legacy
+  // rows written before the category migration carry enum names like
+  // 'header' — remap them here so downstream code only sees ids.
+  const LEGACY_KIND_MAP = {
+    header: 'bc-headers',
+    footer: 'bc-footers',
+    cta: 'bc-ctas',
+    testimonial: 'bc-testimonials',
+    product: 'bc-products',
+    social: 'bc-social',
+    signature: 'bc-signatures',
+    custom: 'bc-custom',
+  };
+  if (typeof blk.kind === 'string' && LEGACY_KIND_MAP[blk.kind]) {
+    blk.kind = LEGACY_KIND_MAP[blk.kind];
+  }
   return blk;
 }
 
@@ -164,6 +203,15 @@ async function listBlocks() {
     await seedSavedBlocks();
     rows = await window.stStorage.blocks.list();
   }
+  // One-shot: rewrite legacy enum kinds ('header', 'footer', …) to seed
+  // category ids. Pass `rows` explicitly — if the migrator re-listed via
+  // stBlocks.list() it would recurse into this very function. Guarded by
+  // a wsSetting flag inside the migrator so subsequent calls are no-ops.
+  try {
+    const didMigrate = await window.stBlockCategories?.migrateLegacy?.(rows);
+    // Only re-list if migration actually rewrote at least one row.
+    if (didMigrate) rows = await window.stStorage.blocks.list();
+  } catch {}
   return rows;
 }
 
@@ -190,7 +238,17 @@ async function writeBlock(id, doc) {
 async function createBlock(seed = {}) {
   const id = await window.stStorage.blocks.newId();
   if (!id) return null;
-  const kind = VALID_KINDS.has(seed.kind) ? seed.kind : 'custom';
+  // `kind` is now a free-form category id (built-in seed or user-created).
+  // Validate against the current category list so a stale filter id from
+  // a deleted category doesn't leak into a new row.
+  let kind = seed.kind || 'bc-custom';
+  if (typeof kind !== 'string' || !kind.trim()) kind = 'bc-custom';
+  try {
+    const cats = window.stBlockCategories?.list?.() || [];
+    if (cats.length && !cats.find((c) => c.id === kind)) {
+      kind = cats.find((c) => c.id === 'bc-custom') ? 'bc-custom' : cats[0].id;
+    }
+  } catch {}
   const doc = {
     id,
     schemaVersion: 1,
@@ -212,7 +270,8 @@ async function duplicateBlock(id) {
   const src = await readBlock(id);
   if (!src) return null;
   const newId = await window.stStorage.blocks.newId();
-  const copy = { ...src, id: newId, name: `${src.name} (copia)`, starred: false };
+  const suffix = window.stI18n?.t?.('editor.section.copySuffix') || '(copy)';
+  const copy = { ...src, id: newId, name: `${src.name} ${suffix}`, starred: false };
   const result = await window.stStorage.blocks.write(newId, copy);
   if (!result) return null;
   window.dispatchEvent(new CustomEvent('st:block-change', {
@@ -276,8 +335,10 @@ async function updateBlock(id, patch) {
 }
 
 async function setBlockKind(id, kind) {
-  if (!VALID_KINDS.has(kind)) return null;
-  return updateBlock(id, { kind });
+  // Accepts any category id (or null for "uncategorized"). Caller is
+  // responsible for passing a valid id — the category picker enforces it.
+  const clean = kind == null || kind === '' ? null : String(kind);
+  return updateBlock(id, { kind: clean });
 }
 
 // Seeds the legacy hardcoded SAVED_BLOCKS into the workspace. Idempotent
@@ -358,8 +419,9 @@ const stBlocks = {
   toggleStar: toggleBlockStar,
   update: updateBlock,
   setKind: setBlockKind,
+  setCategory: setBlockKind,
   seed: seedSavedBlocks,
-  KINDS: Array.from(VALID_KINDS),
+  BUILTIN_IDS: Array.from(BUILTIN_CATEGORY_IDS),
   sectionForKind,
 };
 

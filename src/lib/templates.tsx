@@ -81,7 +81,8 @@ async function duplicateTemplate(id) {
   const src = await readTemplate(id);
   if (!src) return null;
   const newId = await window.stStorage.templates.newId();
-  const copy = { ...src, id: newId, name: `${src.name} (copia)`, starred: false };
+  const suffix = window.stI18n?.t?.('editor.section.copySuffix') || '(copy)';
+  const copy = { ...src, id: newId, name: `${src.name} ${suffix}`, starred: false };
   const result = await window.stStorage.templates.write(newId, copy);
   if (!result) return null;
   window.dispatchEvent(new CustomEvent('st:template-change', {
