@@ -167,6 +167,9 @@ async function enrichRows(rows) {
       color: doc?.color,
       sharedFrom: doc?.sharedFrom || null,
       sharedAt: doc?.sharedAt || null,
+      // Carry the sections so dashboard thumbnails can render real content.
+      // `doc.doc` is the inner {sections} shape normalized by normalizeDoc().
+      doc: doc?.doc || { sections: [] },
     };
   }));
 }

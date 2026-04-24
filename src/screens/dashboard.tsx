@@ -1,6 +1,15 @@
 // Dashboard screen with template list and gallery.
 
 function TplThumb({ t }) {
+  // When the template has real blocks in its doc, render a faithful mini
+  // preview via the shared doc-thumb helpers. Empty/placeholder docs fall
+  // through to the variant-based synthetic mock so blank-seed cards still
+  // look like "something".
+  if (window.stDocThumb && window.stDocThumb.hasContent(t && t.doc)) {
+    const DT = window.stDocThumb.DocThumb;
+    return <DT t={t}/>;
+  }
+
   // Render a real-content mini preview. Text uses tiny but legible sizes.
   // All styles scoped inline so themes don't affect the "email" inside.
 

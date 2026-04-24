@@ -30,50 +30,13 @@ function formatBlockRelative(sqlDate) {
 // degrades to a mono-font placeholder (same fallback as the editor/preview).
 function BlockThumb({ section }) {
   if (!section) return null;
-  const st = section.style || {};
-  const cols = section.columns || [];
-  const totalW = cols.reduce((s, c) => s + (c.w || 0), 0) || 100;
-  const innerWidth = st.width || 600;
-
-  return (
-    <div style={{
-      background: st.outerBg && st.outerBg !== 'transparent' ? st.outerBg : 'var(--surface-2)',
-      width: '100%',
-      height: '100%',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      overflow: 'hidden',
-    }}>
-      <div style={{
-        width: innerWidth,
-        transformOrigin: 'center',
-        transform: 'scale(0.42)',
-        pointerEvents: 'none',
-      }}>
-        <div style={{
-          background: st.bg || '#ffffff',
-          color: st.text || '#1a1a17',
-          padding: st.padding ?? 24,
-          textAlign: st.align || 'left',
-          fontFamily: st.font ? `var(--font-${st.font}, var(--font-sans))` : 'var(--font-sans)',
-        }}>
-          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-            {cols.map((col, ci) => (
-              <div key={ci} style={{ flex: `0 0 ${(col.w / totalW) * 100 - 2}%` }}>
-                {(col.blocks || []).map((b) => {
-                  const R = window.EB_RENDERERS && window.EB_RENDERERS[b.type];
-                  return R
-                    ? <R key={b.id} data={b.data} />
-                    : <div key={b.id} style={{ padding: 12, opacity: 0.5, fontFamily: 'var(--font-mono)', fontSize: 11 }}>&lt;{b.type}/&gt;</div>;
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  // Delegate to the shared lightweight renderer used by Dashboard cards —
+  // same block-type dispatcher, same tiny sizes, section style (bg/text/
+  // padding/align/layout) preserved. Fidelity > pixel-perfect: the prior
+  // approach scaled the real EB renderers via transform, which clipped
+  // content at card size.
+  const ST = window.stDocThumb && window.stDocThumb.SectionThumb;
+  return ST ? <ST section={section}/> : null;
 }
 
 function Library({ onBack, onOpenBlock }) {
