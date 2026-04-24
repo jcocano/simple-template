@@ -1008,6 +1008,8 @@ function OccasionModal({ mode, occasion, onClose }) {
 // hidden (which exists so the thumbnail stays inside the rounded card).
 // ════════════════════════════════════════════════════════════════
 function MoveMenuPopover({ menu, occasions, onClose }) {
+  window.stI18n.useLang();
+  const t = window.stI18n.t;
   const ref = React.useRef(null);
 
   React.useEffect(() => {
@@ -1043,10 +1045,10 @@ function MoveMenuPopover({ menu, occasions, onClose }) {
 
   return (
     <div ref={ref} style={style}>
-      <div style={{fontSize:10,color:'var(--fg-3)',padding:'6px 10px',textTransform:'uppercase',letterSpacing:'.06em'}}>Mover a ocasión</div>
+      <div style={{fontSize:10,color:'var(--fg-3)',padding:'6px 10px',textTransform:'uppercase',letterSpacing:'.06em'}}>{t('dash.moveMenu.title')}</div>
       {occasions.length === 0 && (
         <div style={{padding:'8px 10px',fontSize:12,color:'var(--fg-3)'}}>
-          Aún no hay ocasiones. Crea una desde el sidebar.
+          {t('dash.moveMenu.empty')}
         </div>
       )}
       {occasions.map(oc => (
@@ -1061,7 +1063,7 @@ function MoveMenuPopover({ menu, occasions, onClose }) {
       <button className="btn ghost sm" style={{width:'100%',justifyContent:'flex-start',gap:8}}
         onClick={()=>move(null)}>
         <span style={{width:10,height:10,borderRadius:2,border:'1px dashed var(--fg-3)',flexShrink:0}}/>
-        <span style={{flex:1,textAlign:'left',color:'var(--fg-2)'}}>Sin ocasión</span>
+        <span style={{flex:1,textAlign:'left',color:'var(--fg-2)'}}>{t('dash.moveMenu.none')}</span>
       </button>
     </div>
   );
