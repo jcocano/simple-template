@@ -428,6 +428,8 @@ function Dashboard({ onOpen, onNew }) {
   const occasions = useOccasions();
   const [occasionModal, setOccasionModal] = React.useState(null);
   const [moveMenu, setMoveMenu] = React.useState(null);
+  const [kebabMenu, setKebabMenu] = React.useState(null);
+  const [shareModal, setShareModal] = React.useState(null);
   const [dragOverOccId, setDragOverOccId] = React.useState(null);
   const inTrash = folder === 'trash';
 
@@ -469,7 +471,8 @@ function Dashboard({ onOpen, onNew }) {
       const matchesName = (t.name || '').toLowerCase().includes(q.toLowerCase());
       if (!matchesName) return false;
       if (inTrash) return true;
-      if (folder === 'all' || folder === 'recent' || folder === 'shared') return true;
+      if (folder === 'all' || folder === 'recent') return true;
+      if (folder === 'shared') return !!t.sharedFrom;
       if (folder === 'starred') return !!t.starred;
       if (folder.startsWith('occ:')) return occasionByTplId[t.id]?.id === folder.slice(4);
       return false;
@@ -484,7 +487,7 @@ function Dashboard({ onOpen, onNew }) {
     all: rawItems.length,
     starred: rawItems.filter(r => r.starred).length,
     recent: rawItems.length,
-    shared: 0,
+    shared: rawItems.filter(r => r.sharedFrom).length,
     trash: trashedItems.length,
   }), [rawItems, trashedItems]);
 
@@ -795,11 +798,16 @@ function Dashboard({ onOpen, onNew }) {
                             onClick={e=>{ e.stopPropagation(); window.stTemplates.duplicate(tpl.id); }}>
                             <I.copy size={12}/>
                           </button>
-                          <button className="btn icon sm" title={t('dash.action.moveOccasion')}
+                          <button className="btn icon sm" title={t('dash.action.more')}
                             onClick={e=>{
                               e.stopPropagation();
                               const r = e.currentTarget.getBoundingClientRect();
-                              setMoveMenu({ templateId: tpl.id, x: r.right - 220, y: r.bottom + 4 });
+                              setKebabMenu({
+                                templateId: tpl.id,
+                                templateName: tpl.name,
+                                x: r.right - 220,
+                                y: r.bottom + 4,
+                              });
                             }}>
                             <I.dotsV size={12}/>
                           </button>
@@ -828,6 +836,14 @@ function Dashboard({ onOpen, onNew }) {
                             <span>{formatRelative(tpl.updated_at)}</span>
                           </>}
                     </div>
+                    {!inTrash && tpl.sharedFrom?.name && (
+                      <div className="tpl-sub" style={{display:'flex',alignItems:'center',gap:4,marginTop:2,color:'var(--fg-3)'}}>
+                        <I.user size={10}/>
+                        <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                          {t('dash.card.sharedBy', {name: tpl.sharedFrom.name})}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
                 );
@@ -896,11 +912,16 @@ function Dashboard({ onOpen, onNew }) {
                         </button>
                       </>
                     ) : (
-                      <button className="btn icon sm ghost" title={t('dash.action.moveOccasion')}
+                      <button className="btn icon sm ghost" title={t('dash.action.more')}
                         onClick={e=>{
                           e.stopPropagation();
                           const r = e.currentTarget.getBoundingClientRect();
-                          setMoveMenu({ templateId: tpl.id, x: r.right - 220, y: r.bottom + 4 });
+                          setKebabMenu({
+                            templateId: tpl.id,
+                            templateName: tpl.name,
+                            x: r.right - 220,
+                            y: r.bottom + 4,
+                          });
                         }}>
                         <I.dotsV size={14}/>
                       </button>
@@ -916,6 +937,43 @@ function Dashboard({ onOpen, onNew }) {
       {aiOpen && <AIGenerateModal onClose={()=>setAiOpen(false)} onGenerated={(tpl)=>{ setAiOpen(false); onOpen && onOpen('editor', tpl); }}/>}
       {occasionModal && <OccasionModal mode={occasionModal.mode} occasion={occasionModal.occasion} onClose={()=>setOccasionModal(null)}/>}
       {moveMenu && <MoveMenuPopover menu={moveMenu} occasions={occasions} onClose={()=>setMoveMenu(null)}/>}
+      {kebabMenu && (
+        <window.KebabMenu
+          menu={{
+            x: kebabMenu.x,
+            y: kebabMenu.y,
+            items: [
+              {
+                id: 'move',
+                label: t('dash.kebab.moveOccasion'),
+                icon: I.folder,
+                onClick: () => setMoveMenu({
+                  templateId: kebabMenu.templateId,
+                  x: kebabMenu.x,
+                  y: kebabMenu.y,
+                }),
+              },
+              {
+                id: 'share',
+                label: t('dash.kebab.share'),
+                icon: I.upload,
+                onClick: () => setShareModal({
+                  templateId: kebabMenu.templateId,
+                  templateName: kebabMenu.templateName,
+                }),
+              },
+            ],
+          }}
+          onClose={()=>setKebabMenu(null)}
+        />
+      )}
+      {shareModal && (
+        <window.ShareModal
+          templateId={shareModal.templateId}
+          templateName={shareModal.templateName}
+          onClose={()=>setShareModal(null)}
+        />
+      )}
     </div>
   );
 }

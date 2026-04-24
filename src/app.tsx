@@ -49,7 +49,18 @@ function App() {
       }
     };
     window.addEventListener('keydown', onKey);
-    const openH = () => setPaletteOpen(true);
+    const openH = (e) => {
+      const d = e && e.detail;
+      // Direct-navigate form: { id:'settings', section?:string }. Used by the
+      // ShareModal's "Go to Settings" CTA and any other entry point that
+      // wants to land on Settings without going through the palette.
+      if (d && d.id === 'settings') {
+        setSettingsSection(d.section || 'account');
+        setModal('settings');
+        return;
+      }
+      setPaletteOpen(true);
+    };
     window.addEventListener('st:cmd-open', openH);
     return () => {
       window.removeEventListener('keydown', onKey);
@@ -97,6 +108,42 @@ function App() {
     const onOpenDetails = () => { setReviewOpen(false); setModal('details'); };
     window.addEventListener('st:open-details', onOpenDetails);
     return () => window.removeEventListener('st:open-details', onOpenDetails);
+  }, []);
+
+  // Deep-link listener: the OS hands us a `simpletemplete://import?u=...`
+  // URL (single-instance second-launch on Win/Linux, open-url on macOS).
+  // We don't auto-import — the bundle is encrypted with a PIN the sender
+  // shared separately, so we open the import modal to ask for it.
+  const [importPin, setImportPin] = React.useState(null); // {url, name} | null
+  React.useEffect(() => {
+    if (!window.share || typeof window.share.onDeepLink !== 'function') return;
+    const unsubscribe = window.share.onDeepLink((url) => {
+      try {
+        const parsed = window.stSharingDeepLink.parse(url);
+        setImportPin({ url, name: parsed.name || '' });
+      } catch {
+        const tt = window.stI18n.t;
+        window.toast && window.toast({
+          kind: 'error',
+          title: tt('share.import.error.title'),
+          msg: tt('share.import.error.invalid'),
+        });
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  const onImported = React.useCallback((result) => {
+    const tt = window.stI18n.t;
+    window.toast && window.toast({
+      kind: 'ok',
+      title: tt('share.import.toast.title'),
+      msg: tt('share.import.toast.msg', {
+        name: result.name || '',
+        sharedBy: result.sharedFrom?.name || '',
+      }),
+    });
+    setScreen('dashboard');
   }, []);
 
   // Apply theme/density/radius to :root
@@ -234,6 +281,13 @@ function App() {
       {modal==='vars' && <VariablesModal onClose={()=>setModal(null)}/>}
       {modal==='details' && <DetailsModal onClose={()=>setModal(null)}/>}
       {modal==='settings' && <SettingsPanel onClose={()=>setModal(null)} initialSection={settingsSection}/>}
+
+      {importPin && <ImportPinModal
+        url={importPin.url}
+        name={importPin.name}
+        onClose={()=>setImportPin(null)}
+        onImported={onImported}
+      />}
 
       <TweaksPanel tweaks={tweaks} setTweaks={setTweaks} visible={tweaksVisible}/>
 
