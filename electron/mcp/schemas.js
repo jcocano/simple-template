@@ -70,7 +70,7 @@ const ColumnStyleSchema = z.object({
 // Block-scoped style/spacing records stay permissive — renderers read dozens of
 // optional fields (size, weight, color, radius, ratio, playSize, avatarSize…)
 // and the inspector writes more. A strict shape would reject legitimate data.
-const BlockStyleRecord = z.record(z.any()).optional();
+const BlockStyleRecord = z.record(z.string(), z.any()).optional();
 
 function blockVariant(type, dataSchema) {
   return z.object({

@@ -2,7 +2,6 @@
 
 const crypto = require('crypto');
 const { z } = require('zod');
-const { zodToJsonSchema } = require('zod-to-json-schema');
 
 const templates = require('../storage/templates');
 const savedBlocks = require('../storage/saved-blocks');
@@ -307,8 +306,8 @@ const Schemas = {
     sectionId: z.string(),
     columnIndex: z.number().int().min(0),
     type: z.enum(BLOCK_TYPES),
-    data: z.record(z.any()).optional(),
-    style: z.record(z.any()).optional(),
+    data: z.record(z.string(), z.any()).optional(),
+    style: z.record(z.string(), z.any()).optional(),
     atIndex: z.number().int().min(0).optional(),
   }),
   update_block: z.object({
@@ -316,8 +315,8 @@ const Schemas = {
     sectionId: z.string(),
     blockId: z.string(),
     patch: z.object({
-      data: z.record(z.any()).optional(),
-      style: z.record(z.any()).optional(),
+      data: z.record(z.string(), z.any()).optional(),
+      style: z.record(z.string(), z.any()).optional(),
     }),
   }),
   delete_block: z.object({ templateId: z.string(), sectionId: z.string(), blockId: z.string() }),
@@ -334,7 +333,7 @@ const Schemas = {
     subject: z.string().optional(),
     preview: z.string().optional(),
     fromName: z.string().optional(),
-    fromEmail: z.string().email().optional(),
+    fromEmail: z.email().optional(),
   }),
   set_vars: z.object({
     templateId: z.string(),
@@ -736,7 +735,7 @@ for (const name of Object.keys(Schemas)) {
 const toolDefs = Object.keys(Schemas).map((name) => ({
   name,
   description: Descriptions[name],
-  inputSchema: zodToJsonSchema(Schemas[name], { target: 'jsonSchema7' }),
+  inputSchema: z.toJSONSchema(Schemas[name], { target: 'draft-7' }),
 }));
 
 async function callTool(name, args) {

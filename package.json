@@ -73,8 +73,7 @@
     "qrcode": "^1.5.4",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "zod": "^3.23.8",
-    "zod-to-json-schema": "^3.23.5"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.4",
