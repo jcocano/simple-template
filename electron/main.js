@@ -1,5 +1,5 @@
 const electron = require("electron");
-const { app, BrowserWindow, crashReporter, protocol, session } = electron;
+const { app, BrowserWindow, crashReporter, protocol, session, nativeImage } = electron;
 const path = require("path");
 const fs = require("fs");
 const db = require("./storage/db");
@@ -111,6 +111,9 @@ function createWindow() {
     backgroundColor: "#10131a",
     autoHideMenuBar: true,
     titleBarStyle: "hidden",
+    // Runtime window icon — used by Linux taskbar and Windows title bar/dock.
+    // macOS ignores this and uses the .icns from the packaged app bundle.
+    icon: path.join(__dirname, "..", "build", "icon.png"),
     ...(isMac ? { trafficLightPosition: { x: 10, y: 6 } } : {}),
     ...(isWin
       ? {
@@ -160,6 +163,22 @@ app.whenReady().then(() => {
       applicationVersion: app.getVersion(),
       copyright: "MIT — Jesus Cocaño",
     });
+  }
+
+  // macOS Dock / App Switcher icon. In a packaged .app the OS reads this
+  // from Contents/Resources/icon.icns, but when running the Electron binary
+  // directly in dev mode the Dock shows the default Electron icon. This
+  // runtime override fixes dev and is a harmless no-op in packaged builds.
+  // Uses the squircle variant so the Dock tile matches the packaged .icns.
+  if (process.platform === "darwin" && app.dock) {
+    try {
+      const dockIcon = nativeImage.createFromPath(
+        path.join(__dirname, "..", "build", "icon-macos.png")
+      );
+      if (!dockIcon.isEmpty()) app.dock.setIcon(dockIcon);
+    } catch (err) {
+      console.error("[main] failed to set dock icon", err);
+    }
   }
   db.init();
   seed.ensureFirstWorkspace();
