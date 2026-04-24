@@ -1199,6 +1199,10 @@ function Editor({ template, block, onBack, onPreview, onExport, onTestSend, onOp
   const [showTour, setShowTour] = React.useState(() => {
     try { return !window.stStorage.getSetting('tour-seen', false); } catch(e) { return false; }
   });
+  // MCP live-edit lock: while an external agent edits this template we disable
+  // local editing + save and reload `doc` from storage on every external change.
+  // null = unlocked; { templateId } = locked for that template.
+  const [mcpLock, setMcpLock] = React.useState(null);
   const editorPrefs = useEditorPrefs();
 
   const templateIdRef = React.useRef(entity?.id || null);
@@ -1385,6 +1389,72 @@ function Editor({ template, block, onBack, onPreview, onExport, onTestSend, onOp
     };
   }, []);
 
+  // MCP live-edit integration. While an external MCP agent is editing the
+  // currently-open template, we lock the UI, pause the debounced save loop
+  // (guarded in the save effect below), and reload `doc` from storage on each
+  // external-change event so the agent's mutations render live. On 'end' we
+  // unlock, do one final reload, and toast the user.
+  React.useEffect(() => {
+    if (isBlockMode) return; // MCP edits target templates only
+    const currentTemplateId = entity?.id;
+    if (!currentTemplateId) return;
+
+    const reloadDoc = async () => {
+      try {
+        const fresh = await window.stTemplates?.read(currentTemplateId);
+        if (!fresh) return;
+        templateJsonRef.current = fresh;
+        const sections = fresh?.doc?.sections;
+        skipNextSaveRef.current = true;
+        setDoc(Array.isArray(sections) ? sections : []);
+        if (Array.isArray(fresh?.vars)) setVars(fresh.vars);
+        if (fresh?.name) setName(fresh.name);
+      } catch (err) {
+        console.error('[Editor] MCP reload failed', err);
+      }
+    };
+
+    const onActivity = (ev) => {
+      const detail = ev?.detail || {};
+      const { state, templateId } = detail;
+      if (templateId !== currentTemplateId) {
+        // Lock belongs to another template — if we were locked for this one,
+        // an 'end' on a different id should not affect us. Ignore.
+        return;
+      }
+      if (state === 'start' || state === 'tick') {
+        setMcpLock({ templateId });
+      } else if (state === 'end') {
+        setMcpLock(null);
+        (async () => {
+          await reloadDoc();
+          if (typeof window.toast === 'function') {
+            window.toast('Agente MCP actualizó la plantilla');
+          }
+        })();
+      }
+    };
+
+    const onExternal = (ev) => {
+      const detail = ev?.detail || {};
+      if (detail.templateId !== currentTemplateId) return;
+      reloadDoc();
+    };
+
+    window.addEventListener('st:mcp-activity', onActivity);
+    window.addEventListener('st:template-change-external', onExternal);
+    return () => {
+      window.removeEventListener('st:mcp-activity', onActivity);
+      window.removeEventListener('st:template-change-external', onExternal);
+    };
+  }, [entity?.id, isBlockMode]);
+
+  // If the open template changes while the lock is active, drop the lock —
+  // the new template is unrelated to the prior MCP session.
+  React.useEffect(() => {
+    setMcpLock((prev) => (prev && prev.templateId !== entity?.id ? null : prev));
+  }, [entity?.id]);
+
   // Two modes converge into the same doc shape (an array of sections).
   // Templates carry {sections:[...]}; blocks carry a single `section` that
   // we wrap into a 1-section array so the rest of the editor is oblivious.
@@ -1493,14 +1563,20 @@ function Editor({ template, block, onBack, onPreview, onExport, onTestSend, onOp
   // Schedule a save whenever doc/name/vars changes (except on initial hydration).
   // Honors editor.autosave per workspace: if disabled, leaves the editor in
   // 'dirty' state until the user clicks Guardar manually.
+  // While an MCP agent holds the lock we pause the debounce — the agent writes
+  // directly to storage and `doc` changes here only reflect those writes.
   React.useEffect(() => {
     if (!loaded) return;
+    if (mcpLock) {
+      if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+      return;
+    }
     if (skipNextSaveRef.current) { skipNextSaveRef.current = false; return; }
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     setSaveState('dirty');
     if (!editorPrefs.autosave) return;
     saveTimerRef.current = setTimeout(() => { flushSaveRef.current(); }, 800);
-  }, [doc, name, vars, loaded, editorPrefs.autosave]);
+  }, [doc, name, vars, loaded, editorPrefs.autosave, mcpLock]);
 
   // Expose contract for the workspace-switch guard in src/lib/workspaces.tsx
   // and for VariablesModal / TestSendModal which read template vars.
@@ -1713,7 +1789,10 @@ function Editor({ template, block, onBack, onPreview, onExport, onTestSend, onOp
   };
 
   return (
-    <div className="editor" data-view={device}>
+    <div className="editor" data-view={device} style={{ position: 'relative' }}>
+      {mcpLock && (
+        <style>{`@keyframes st-mcp-pulse {0%{box-shadow:0 0 0 0 rgba(142,240,160,0.7)} 70%{box-shadow:0 0 0 10px rgba(142,240,160,0)} 100%{box-shadow:0 0 0 0 rgba(142,240,160,0)}}`}</style>
+      )}
       <div className="editor-top">
         {/* Zone A — context */}
         <button className="btn icon ghost sm" onClick={async ()=>{ await flushSaveRef.current(); onBack(); }} title={t('editor.back.tooltip')} aria-label={t('editor.back.aria')}><I.chevronL size={14}/></button>
@@ -1909,6 +1988,58 @@ function Editor({ template, block, onBack, onPreview, onExport, onTestSend, onOp
         }}
       />
       {showTour && !isBlockMode && <EditorTour onClose={()=>setShowTour(false)}/>}
+      {mcpLock && (
+        <div
+          className="st-mcp-lock-overlay"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 9999,
+            background: 'rgba(10, 12, 20, 0.55)',
+            backdropFilter: 'blur(2px)',
+            WebkitBackdropFilter: 'blur(2px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'column',
+            gap: 12,
+            pointerEvents: 'auto',
+          }}
+        >
+          <div style={{ color:'#fff', fontWeight:600, fontSize:15, display:'flex', alignItems:'center', gap:10 }}>
+            <span
+              className="st-mcp-pulse"
+              style={{
+                display:'inline-block',
+                width:10,
+                height:10,
+                borderRadius:'50%',
+                background:'#8ef0a0',
+                boxShadow:'0 0 0 0 rgba(142,240,160,0.7)',
+                animation:'st-mcp-pulse 1.2s infinite',
+              }}
+            />
+            Agente MCP editando en vivo…
+          </div>
+          <button
+            onClick={() => {
+              try { window.stMCP?.forceRelease?.(); } catch (err) { console.error('[Editor] forceRelease failed', err); }
+              setMcpLock(null);
+            }}
+            style={{
+              padding:'8px 14px',
+              borderRadius:6,
+              border:'1px solid rgba(255,255,255,0.2)',
+              background:'rgba(255,255,255,0.08)',
+              color:'#fff',
+              cursor:'pointer',
+              fontSize:13,
+            }}
+          >
+            Tomar control
+          </button>
+        </div>
+      )}
     </div>
   );
 }
