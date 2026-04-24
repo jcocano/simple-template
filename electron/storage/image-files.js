@@ -41,8 +41,18 @@ function isSafeWorkspaceId(wsId) {
 // Escribe bytes a disco para un workspace/id/ext dados. Devuelve el basename
 // como `localPath` (lo que queda guardado en la columna `images.local_path`).
 function write(workspaceId, imageId, ext, bytes) {
-  if (!isSafeWorkspaceId(workspaceId)) throw new Error('workspaceId inválido');
-  if (!/^[A-Za-z0-9_-]+$/.test(imageId || '')) throw new Error('imageId inválido');
+  if (!isSafeWorkspaceId(workspaceId)) {
+    const err = new Error('Invalid workspaceId.');
+    err.errorKey = 'storage.err.invalidWorkspaceId';
+    err.errorParams = {};
+    throw err;
+  }
+  if (!/^[A-Za-z0-9_-]+$/.test(imageId || '')) {
+    const err = new Error('Invalid imageId.');
+    err.errorKey = 'storage.err.invalidImageId';
+    err.errorParams = {};
+    throw err;
+  }
   const safeExt = sanitizeExt(ext);
   ensureImagesDir(workspaceId);
   const filename = `${imageId}.${safeExt}`;

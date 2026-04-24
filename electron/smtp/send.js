@@ -1,12 +1,14 @@
 // Thin wrapper around nodemailer. Builds a transport per call (no pooling —
 // test sends are infrequent and per-workspace credentials may change) and
-// maps low-level error codes to user-facing Spanish copy.
+// maps low-level error codes to structured, localizable error responses
+// ({ errorKey, errorParams, error: <English fallback> }) so the renderer can
+// localize them via its i18n dictionaries.
 //
 // Payload shape (from renderer via IPC):
 //   { host, port, secure, auth:{user,pass}, from, to, subject, html, text, replyTo }
 //
 // Returns: { ok:true, messageId, accepted, rejected }
-//       or { ok:false, error, code, detail }
+//       or { ok:false, errorKey, errorParams, error, code, detail }
 
 const nodemailer = require('nodemailer');
 
@@ -20,17 +22,41 @@ async function send(payload = {}) {
   } = payload;
 
   if (!host || !auth || !auth.user) {
-    return { ok: false, error: 'Configuración SMTP incompleta.', code: 'EINVAL' };
+    return {
+      ok: false,
+      errorKey: 'smtp.err.configIncomplete',
+      errorParams: {},
+      error: 'Incomplete SMTP configuration.',
+      code: 'EINVAL',
+    };
   }
   const needsAccessToken = auth.type === 'OAuth2';
   if (needsAccessToken && !auth.accessToken) {
-    return { ok: false, error: 'Falta access token OAuth.', code: 'EINVAL' };
+    return {
+      ok: false,
+      errorKey: 'smtp.err.missingAccessToken',
+      errorParams: {},
+      error: 'Missing OAuth access token.',
+      code: 'EINVAL',
+    };
   }
   if (!needsAccessToken && !auth.pass) {
-    return { ok: false, error: 'Configuración SMTP incompleta.', code: 'EINVAL' };
+    return {
+      ok: false,
+      errorKey: 'smtp.err.configIncomplete',
+      errorParams: {},
+      error: 'Incomplete SMTP configuration.',
+      code: 'EINVAL',
+    };
   }
   if (!to || !from) {
-    return { ok: false, error: 'Faltan remitente o destinatarios.', code: 'EINVAL' };
+    return {
+      ok: false,
+      errorKey: 'smtp.err.missingFromOrTo',
+      errorParams: {},
+      error: 'Missing sender or recipients.',
+      code: 'EINVAL',
+    };
   }
 
   // Support both password auth (plain + app password) and XOAUTH2 (BYO OAuth
@@ -54,7 +80,7 @@ async function send(payload = {}) {
     const info = await transport.sendMail({
       from,
       to,
-      subject: subject || '(sin asunto)',
+      subject: subject || '(no subject)',
       html,
       text,
       replyTo: replyTo || from,
@@ -67,41 +93,76 @@ async function send(payload = {}) {
       rejected: info.rejected || [],
     };
   } catch (err) {
+    const mapped = mapError(err);
     return {
       ok: false,
-      error: mapError(err),
+      errorKey: mapped.errorKey,
+      errorParams: mapped.errorParams,
+      error: mapped.error,
       code: err.code || err.errno || 'UNKNOWN',
       detail: err.message,
     };
   }
 }
 
-// Map nodemailer/smtp error codes to friendly Spanish copy. Fallback to the
-// raw message so we never swallow useful information entirely.
+// Map nodemailer/smtp error codes to structured, localizable errors. Fallback
+// to the raw message so we never swallow useful information entirely.
 function mapError(err) {
   const code = err.code || err.errno;
   const msg = String(err.message || '');
   switch (code) {
     case 'EAUTH':
       if (/app(lication)?.?specific|app password|less secure/i.test(msg)) {
-        return 'Tu cuenta tiene 2FA activado y requiere una contraseña de aplicación. Generá una en los ajustes de seguridad de tu proveedor.';
+        return {
+          errorKey: 'smtp.err.authAppPasswordRequired',
+          errorParams: {},
+          error: 'Your account has 2FA enabled and requires an app password. Generate one in your provider\'s security settings.',
+        };
       }
-      return 'El servidor rechazó tus credenciales. Revisá usuario y contraseña.';
+      return {
+        errorKey: 'smtp.err.authRejected',
+        errorParams: {},
+        error: 'The server rejected your credentials. Check username and password.',
+      };
     case 'ECONNECTION':
     case 'ECONNREFUSED':
     case 'ETIMEDOUT':
-      return 'No se pudo conectar al servidor SMTP. Revisá el host, el puerto y tu firewall.';
+      return {
+        errorKey: 'smtp.err.connectionFailed',
+        errorParams: {},
+        error: 'Could not connect to the SMTP server. Check the host, port, and your firewall.',
+      };
     case 'ESOCKET':
-      return 'Falló la conexión segura. Probá cambiar entre TLS (puerto 587) y SSL (puerto 465).';
+      return {
+        errorKey: 'smtp.err.secureSocketFailed',
+        errorParams: {},
+        error: 'Secure connection failed. Try switching between TLS (port 587) and SSL (port 465).',
+      };
     case 'EDNS':
     case 'ENOTFOUND':
-      return 'No se encontró el servidor SMTP. Verificá el nombre del host.';
+      return {
+        errorKey: 'smtp.err.hostNotFound',
+        errorParams: {},
+        error: 'SMTP server not found. Verify the host name.',
+      };
     case 'EENVELOPE':
-      return 'El servidor rechazó algún destinatario. Verificá que los correos sean válidos.';
+      return {
+        errorKey: 'smtp.err.recipientRejected',
+        errorParams: {},
+        error: 'The server rejected one of the recipients. Make sure the addresses are valid.',
+      };
     case 'EMESSAGE':
-      return 'El servidor rechazó el contenido del correo.';
+      return {
+        errorKey: 'smtp.err.messageRejected',
+        errorParams: {},
+        error: 'The server rejected the message content.',
+      };
     default:
-      return msg || 'Error desconocido al enviar.';
+      return {
+        errorKey: 'smtp.err.unknown',
+        errorParams: { message: msg },
+        error: msg || 'Unknown error while sending.',
+      };
   }
 }
 

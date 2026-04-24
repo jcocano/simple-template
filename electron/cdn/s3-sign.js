@@ -63,7 +63,7 @@ function signedPutRequest({
   contentType,
 }) {
   if (!endpoint || !bucket || !key || !accessKeyId || !secretAccessKey || !body) {
-    throw new Error('signedPutRequest: faltan argumentos obligatorios.');
+    throw new Error('signedPutRequest: missing required arguments.');
   }
 
   const service = 's3';

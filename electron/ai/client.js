@@ -19,7 +19,13 @@
 
 async function complete(payload = {}) {
   const { provider } = payload;
-  if (!provider) return { ok: false, error: 'Falta provider.', code: 'EINVAL' };
+  if (!provider) return {
+    ok: false,
+    errorKey: 'ai.err.missingProvider',
+    errorParams: {},
+    error: 'Missing provider.',
+    code: 'EINVAL',
+  };
   const dispatch = {
     anthropic: callAnthropic,
     openai: callOpenAI,
@@ -27,17 +33,35 @@ async function complete(payload = {}) {
     ollama: callOllama,
   };
   const fn = dispatch[provider];
-  if (!fn) return { ok: false, error: `Provider "${provider}" no soportado.`, code: 'EINVAL' };
+  if (!fn) return {
+    ok: false,
+    errorKey: 'ai.err.unsupportedProvider',
+    errorParams: { provider },
+    error: `Provider "${provider}" not supported.`,
+    code: 'EINVAL',
+  };
   try {
     return await fn(payload);
   } catch (err) {
-    return { ok: false, error: err?.message || 'Error desconocido.', code: 'NETWORK' };
+    return {
+      ok: false,
+      errorKey: 'ai.err.unknown',
+      errorParams: { message: err?.message || '' },
+      error: err?.message || 'Unknown error.',
+      code: 'NETWORK',
+    };
   }
 }
 
 // ─── Anthropic ────────────────────────────────────────────────────
 async function callAnthropic({ model, apiKey, system, user, maxTokens = 2048, temperature = 0.7 }) {
-  if (!apiKey) return { ok: false, error: 'Falta API key de Anthropic.', code: 'AUTH' };
+  if (!apiKey) return {
+    ok: false,
+    errorKey: 'ai.err.missingApiKey',
+    errorParams: { provider: 'Anthropic' },
+    error: 'Missing Anthropic API key.',
+    code: 'AUTH',
+  };
   const body = {
     model: model || 'claude-sonnet-4-5',
     max_tokens: maxTokens,
@@ -59,20 +83,38 @@ async function callAnthropic({ model, apiKey, system, user, maxTokens = 2048, te
   let json;
   try { json = JSON.parse(text); } catch { json = { raw: text }; }
   if (!resp.ok) {
+    const fallback = `Anthropic ${resp.status}`;
+    const msg = json?.error?.message || fallback;
     return {
       ok: false,
-      error: json?.error?.message || `Anthropic ${resp.status}`,
+      errorKey: json?.error?.message ? 'ai.err.providerMessage' : 'ai.err.providerStatus',
+      errorParams: json?.error?.message
+        ? { provider: 'Anthropic', message: msg }
+        : { provider: 'Anthropic', status: resp.status },
+      error: msg,
       code: mapHttpError(resp.status),
     };
   }
   const out = json?.content?.[0]?.text || '';
-  if (!out) return { ok: false, error: 'Respuesta vacía.', code: 'PARSE' };
+  if (!out) return {
+    ok: false,
+    errorKey: 'ai.err.emptyResponse',
+    errorParams: {},
+    error: 'Empty response.',
+    code: 'PARSE',
+  };
   return { ok: true, text: out, usage: json.usage || null };
 }
 
 // ─── OpenAI ───────────────────────────────────────────────────────
 async function callOpenAI({ model, apiKey, system, user, maxTokens = 2048, temperature = 0.7, responseFormat }) {
-  if (!apiKey) return { ok: false, error: 'Falta API key de OpenAI.', code: 'AUTH' };
+  if (!apiKey) return {
+    ok: false,
+    errorKey: 'ai.err.missingApiKey',
+    errorParams: { provider: 'OpenAI' },
+    error: 'Missing OpenAI API key.',
+    code: 'AUTH',
+  };
   const messages = [];
   if (system) messages.push({ role: 'system', content: system });
   messages.push({ role: 'user', content: user || '' });
@@ -97,20 +139,38 @@ async function callOpenAI({ model, apiKey, system, user, maxTokens = 2048, tempe
   let json;
   try { json = JSON.parse(text); } catch { json = { raw: text }; }
   if (!resp.ok) {
+    const fallback = `OpenAI ${resp.status}`;
+    const msg = json?.error?.message || fallback;
     return {
       ok: false,
-      error: json?.error?.message || `OpenAI ${resp.status}`,
+      errorKey: json?.error?.message ? 'ai.err.providerMessage' : 'ai.err.providerStatus',
+      errorParams: json?.error?.message
+        ? { provider: 'OpenAI', message: msg }
+        : { provider: 'OpenAI', status: resp.status },
+      error: msg,
       code: mapHttpError(resp.status),
     };
   }
   const out = json?.choices?.[0]?.message?.content || '';
-  if (!out) return { ok: false, error: 'Respuesta vacía.', code: 'PARSE' };
+  if (!out) return {
+    ok: false,
+    errorKey: 'ai.err.emptyResponse',
+    errorParams: {},
+    error: 'Empty response.',
+    code: 'PARSE',
+  };
   return { ok: true, text: out, usage: json.usage || null };
 }
 
 // ─── Google Gemini ────────────────────────────────────────────────
 async function callGoogle({ model, apiKey, system, user, maxTokens = 2048, temperature = 0.7, responseFormat }) {
-  if (!apiKey) return { ok: false, error: 'Falta API key de Google.', code: 'AUTH' };
+  if (!apiKey) return {
+    ok: false,
+    errorKey: 'ai.err.missingApiKey',
+    errorParams: { provider: 'Google' },
+    error: 'Missing Google API key.',
+    code: 'AUTH',
+  };
   const m = model || 'gemini-2.5-flash';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
@@ -133,14 +193,26 @@ async function callGoogle({ model, apiKey, system, user, maxTokens = 2048, tempe
   let json;
   try { json = JSON.parse(text); } catch { json = { raw: text }; }
   if (!resp.ok) {
+    const fallback = `Google ${resp.status}`;
+    const msg = json?.error?.message || fallback;
     return {
       ok: false,
-      error: json?.error?.message || `Google ${resp.status}`,
+      errorKey: json?.error?.message ? 'ai.err.providerMessage' : 'ai.err.providerStatus',
+      errorParams: json?.error?.message
+        ? { provider: 'Google', message: msg }
+        : { provider: 'Google', status: resp.status },
+      error: msg,
       code: mapHttpError(resp.status),
     };
   }
   const out = json?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  if (!out) return { ok: false, error: 'Respuesta vacía.', code: 'PARSE' };
+  if (!out) return {
+    ok: false,
+    errorKey: 'ai.err.emptyResponse',
+    errorParams: {},
+    error: 'Empty response.',
+    code: 'PARSE',
+  };
   return { ok: true, text: out, usage: json.usageMetadata || null };
 }
 
@@ -173,7 +245,9 @@ async function callOllama({ model, ollamaUrl, system, user, maxTokens = 2048, te
   } catch (err) {
     return {
       ok: false,
-      error: `No se pudo conectar con Ollama en ${base}. ¿Está corriendo "ollama serve"?`,
+      errorKey: 'ai.err.ollamaUnreachable',
+      errorParams: { base },
+      error: `Could not connect to Ollama at ${base}. Is "ollama serve" running?`,
       code: 'NETWORK',
     };
   }
@@ -181,14 +255,26 @@ async function callOllama({ model, ollamaUrl, system, user, maxTokens = 2048, te
   let json;
   try { json = JSON.parse(text); } catch { json = { raw: text }; }
   if (!resp.ok) {
+    const fallback = `Ollama ${resp.status}`;
+    const msg = json?.error || fallback;
     return {
       ok: false,
-      error: json?.error || `Ollama ${resp.status}`,
+      errorKey: json?.error ? 'ai.err.providerMessage' : 'ai.err.providerStatus',
+      errorParams: json?.error
+        ? { provider: 'Ollama', message: msg }
+        : { provider: 'Ollama', status: resp.status },
+      error: msg,
       code: mapHttpError(resp.status),
     };
   }
   const out = json?.message?.content || '';
-  if (!out) return { ok: false, error: 'Respuesta vacía.', code: 'PARSE' };
+  if (!out) return {
+    ok: false,
+    errorKey: 'ai.err.emptyResponse',
+    errorParams: {},
+    error: 'Empty response.',
+    code: 'PARSE',
+  };
   return { ok: true, text: out, usage: { prompt: json.prompt_eval_count, completion: json.eval_count } };
 }
 
@@ -214,11 +300,23 @@ async function listModels(payload = {}) {
     ollama: () => listOllamaModels(ollamaUrl),
   };
   const fn = dispatch[provider];
-  if (!fn) return { ok: false, error: `Provider "${provider}" no soportado.`, code: 'EINVAL' };
+  if (!fn) return {
+    ok: false,
+    errorKey: 'ai.err.unsupportedProvider',
+    errorParams: { provider },
+    error: `Provider "${provider}" not supported.`,
+    code: 'EINVAL',
+  };
   try {
     return await fn();
   } catch (err) {
-    return { ok: false, error: err?.message || 'Error desconocido.', code: 'NETWORK' };
+    return {
+      ok: false,
+      errorKey: 'ai.err.unknown',
+      errorParams: { message: err?.message || '' },
+      error: err?.message || 'Unknown error.',
+      code: 'NETWORK',
+    };
   }
 }
 
@@ -232,7 +330,7 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
     return await fetch(url, { ...options, signal: controller.signal });
   } catch (err) {
     if (err?.name === 'AbortError') {
-      const e = new Error(`Timeout: el proveedor no respondió en ${timeoutMs / 1000}s.`);
+      const e = new Error(`Timeout: provider did not respond in ${timeoutMs / 1000}s.`);
       e.code = 'TIMEOUT';
       throw e;
     }
@@ -243,7 +341,13 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
 }
 
 async function listAnthropicModels(apiKey) {
-  if (!apiKey) return { ok: false, error: 'Configurá tu API key para listar modelos.', code: 'AUTH' };
+  if (!apiKey) return {
+    ok: false,
+    errorKey: 'ai.err.missingApiKeyForList',
+    errorParams: {},
+    error: 'Configure your API key to list models.',
+    code: 'AUTH',
+  };
   const resp = await fetchWithTimeout('https://api.anthropic.com/v1/models?limit=100', {
     headers: {
       'x-api-key': apiKey,
@@ -254,7 +358,17 @@ async function listAnthropicModels(apiKey) {
   let json;
   try { json = JSON.parse(text); } catch { json = { raw: text }; }
   if (!resp.ok) {
-    return { ok: false, error: json?.error?.message || `Anthropic ${resp.status}`, code: mapHttpError(resp.status) };
+    const fallback = `Anthropic ${resp.status}`;
+    const msg = json?.error?.message || fallback;
+    return {
+      ok: false,
+      errorKey: json?.error?.message ? 'ai.err.providerMessage' : 'ai.err.providerStatus',
+      errorParams: json?.error?.message
+        ? { provider: 'Anthropic', message: msg }
+        : { provider: 'Anthropic', status: resp.status },
+      error: msg,
+      code: mapHttpError(resp.status),
+    };
   }
   const models = (json.data || []).map(m => ({
     id: m.id,
@@ -265,7 +379,13 @@ async function listAnthropicModels(apiKey) {
 }
 
 async function listOpenAIModels(apiKey) {
-  if (!apiKey) return { ok: false, error: 'Configurá tu API key para listar modelos.', code: 'AUTH' };
+  if (!apiKey) return {
+    ok: false,
+    errorKey: 'ai.err.missingApiKeyForList',
+    errorParams: {},
+    error: 'Configure your API key to list models.',
+    code: 'AUTH',
+  };
   const resp = await fetchWithTimeout('https://api.openai.com/v1/models', {
     headers: { 'authorization': `Bearer ${apiKey}` },
   });
@@ -273,7 +393,17 @@ async function listOpenAIModels(apiKey) {
   let json;
   try { json = JSON.parse(text); } catch { json = { raw: text }; }
   if (!resp.ok) {
-    return { ok: false, error: json?.error?.message || `OpenAI ${resp.status}`, code: mapHttpError(resp.status) };
+    const fallback = `OpenAI ${resp.status}`;
+    const msg = json?.error?.message || fallback;
+    return {
+      ok: false,
+      errorKey: json?.error?.message ? 'ai.err.providerMessage' : 'ai.err.providerStatus',
+      errorParams: json?.error?.message
+        ? { provider: 'OpenAI', message: msg }
+        : { provider: 'OpenAI', status: resp.status },
+      error: msg,
+      code: mapHttpError(resp.status),
+    };
   }
   // Filter to chat-completion-capable models (gpt-*, o[1-9]*, chatgpt-*).
   // OpenAI returns embeddings, tts, whisper, dall-e, etc. in the same list.
@@ -286,13 +416,29 @@ async function listOpenAIModels(apiKey) {
 }
 
 async function listGoogleModels(apiKey) {
-  if (!apiKey) return { ok: false, error: 'Configurá tu API key para listar modelos.', code: 'AUTH' };
+  if (!apiKey) return {
+    ok: false,
+    errorKey: 'ai.err.missingApiKeyForList',
+    errorParams: {},
+    error: 'Configure your API key to list models.',
+    code: 'AUTH',
+  };
   const resp = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
   const text = await resp.text();
   let json;
   try { json = JSON.parse(text); } catch { json = { raw: text }; }
   if (!resp.ok) {
-    return { ok: false, error: json?.error?.message || `Google ${resp.status}`, code: mapHttpError(resp.status) };
+    const fallback = `Google ${resp.status}`;
+    const msg = json?.error?.message || fallback;
+    return {
+      ok: false,
+      errorKey: json?.error?.message ? 'ai.err.providerMessage' : 'ai.err.providerStatus',
+      errorParams: json?.error?.message
+        ? { provider: 'Google', message: msg }
+        : { provider: 'Google', status: resp.status },
+      error: msg,
+      code: mapHttpError(resp.status),
+    };
   }
   // Keep only models that support generateContent (excludes embedding-only models).
   const models = (json.models || [])
@@ -313,7 +459,9 @@ async function listOllamaModels(ollamaUrl) {
   } catch (err) {
     return {
       ok: false,
-      error: `No se pudo conectar a Ollama en ${base}. ¿Está corriendo "ollama serve"?`,
+      errorKey: 'ai.err.ollamaUnreachable',
+      errorParams: { base },
+      error: `Could not connect to Ollama at ${base}. Is "ollama serve" running?`,
       code: 'NETWORK',
     };
   }
@@ -321,7 +469,17 @@ async function listOllamaModels(ollamaUrl) {
   let json;
   try { json = JSON.parse(text); } catch { json = { raw: text }; }
   if (!resp.ok) {
-    return { ok: false, error: json?.error || `Ollama ${resp.status}`, code: mapHttpError(resp.status) };
+    const fallback = `Ollama ${resp.status}`;
+    const msg = json?.error || fallback;
+    return {
+      ok: false,
+      errorKey: json?.error ? 'ai.err.providerMessage' : 'ai.err.providerStatus',
+      errorParams: json?.error
+        ? { provider: 'Ollama', message: msg }
+        : { provider: 'Ollama', status: resp.status },
+      error: msg,
+      code: mapHttpError(resp.status),
+    };
   }
   const models = (json.models || []).map(m => ({
     id: m.name,

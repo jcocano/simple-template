@@ -22,9 +22,23 @@ async function uploadGithub({ config, secrets, file, filename, contentType }) {
   const prefix = normalizePath(config?.path || '');
   const publicUrl = config?.publicUrl;
 
-  if (!token) return { ok: false, error: 'Falta GitHub Personal Access Token.', code: 'AUTH' };
+  if (!token) {
+    return {
+      ok: false,
+      errorKey: 'cdn.err.githubMissingToken',
+      errorParams: {},
+      error: 'Missing GitHub Personal Access Token.',
+      code: 'AUTH',
+    };
+  }
   if (!repo || !repo.includes('/')) {
-    return { ok: false, error: 'El repositorio debe tener formato usuario/repo.', code: 'CONFIG' };
+    return {
+      ok: false,
+      errorKey: 'cdn.err.githubRepoFormat',
+      errorParams: {},
+      error: 'Repository must be in "user/repo" format.',
+      code: 'CONFIG',
+    };
   }
 
   const buf = toBuffer(file);
@@ -67,7 +81,13 @@ async function uploadGithub({ config, secrets, file, filename, contentType }) {
     : (json.content?.download_url || null);
 
   if (!finalUrl) {
-    return { ok: false, error: 'GitHub no devolvió download_url.', code: 'PARSE' };
+    return {
+      ok: false,
+      errorKey: 'cdn.err.githubNoDownloadUrl',
+      errorParams: {},
+      error: 'GitHub did not return a download_url.',
+      code: 'PARSE',
+    };
   }
   return { ok: true, url: finalUrl };
 }
@@ -121,7 +141,7 @@ function encodePathSegments(path) {
 function toBuffer(fileLike) {
   if (Buffer.isBuffer(fileLike)) return fileLike;
   if (fileLike instanceof Uint8Array) return Buffer.from(fileLike);
-  throw new Error('file debe ser Uint8Array o Buffer.');
+  throw new Error('file must be Uint8Array or Buffer.');
 }
 
 function mapHttpError(status) {

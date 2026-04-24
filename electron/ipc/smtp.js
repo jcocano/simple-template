@@ -4,7 +4,13 @@ const { send } = require('../smtp/send');
 function register() {
   ipcMain.handle('smtp:send', async (_e, payload) => {
     if (!payload || typeof payload !== 'object') {
-      return { ok: false, error: 'Payload inválido.', code: 'EINVAL' };
+      return {
+        ok: false,
+        errorKey: 'smtp.err.invalidPayload',
+        errorParams: {},
+        error: 'Invalid payload.',
+        code: 'EINVAL',
+      };
     }
     return await send(payload);
   });

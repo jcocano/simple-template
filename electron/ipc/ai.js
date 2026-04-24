@@ -5,13 +5,25 @@ const aiLog = require('../storage/ai_log');
 function register() {
   ipcMain.handle('ai:complete', async (_e, payload) => {
     if (!payload || typeof payload !== 'object') {
-      return { ok: false, error: 'Payload inválido.', code: 'EINVAL' };
+      return {
+        ok: false,
+        errorKey: 'ai.err.invalidPayload',
+        errorParams: {},
+        error: 'Invalid payload.',
+        code: 'EINVAL',
+      };
     }
     return await complete(payload);
   });
   ipcMain.handle('ai:listModels', async (_e, payload) => {
     if (!payload || typeof payload !== 'object') {
-      return { ok: false, error: 'Payload inválido.', code: 'EINVAL' };
+      return {
+        ok: false,
+        errorKey: 'ai.err.invalidPayload',
+        errorParams: {},
+        error: 'Invalid payload.',
+        code: 'EINVAL',
+      };
     }
     return await listModels(payload);
   });

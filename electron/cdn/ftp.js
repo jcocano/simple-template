@@ -27,12 +27,30 @@ async function uploadFTP({ config, secrets, file, filename }) {
   const publicUrl = config?.publicUrl;
   const secure = !!config?.secure;
 
-  if (!host) return { ok: false, error: 'Falta host FTP.', code: 'CONFIG' };
-  if (!user || !password) return { ok: false, error: 'Faltan credenciales FTP (usuario/contraseña).', code: 'AUTH' };
+  if (!host) {
+    return {
+      ok: false,
+      errorKey: 'cdn.err.ftpMissingHost',
+      errorParams: {},
+      error: 'Missing FTP host.',
+      code: 'CONFIG',
+    };
+  }
+  if (!user || !password) {
+    return {
+      ok: false,
+      errorKey: 'cdn.err.ftpMissingCreds',
+      errorParams: {},
+      error: 'Missing FTP credentials (username/password).',
+      code: 'AUTH',
+    };
+  }
   if (!publicUrl) {
     return {
       ok: false,
-      error: 'Falta la URL pública base (ej: https://tudominio.com/img). Sin ella no hay cómo saber la URL resultante.',
+      errorKey: 'cdn.err.ftpMissingPublicUrl',
+      errorParams: {},
+      error: 'Missing public base URL (e.g. https://yourdomain.com/img). Without it the resulting URL cannot be computed.',
       code: 'CONFIG',
     };
   }
@@ -49,9 +67,12 @@ async function uploadFTP({ config, secrets, file, filename }) {
     await client.uploadFrom(stream, filename);
   } catch (err) {
     client.close();
+    const friendly = friendlyFtpError(err);
     return {
       ok: false,
-      error: friendlyFtpError(err),
+      errorKey: friendly.errorKey,
+      errorParams: friendly.errorParams,
+      error: friendly.error,
       code: inferFtpCode(err),
     };
   }
@@ -73,16 +94,44 @@ function normalizePath(p) {
 function toBuffer(fileLike) {
   if (Buffer.isBuffer(fileLike)) return fileLike;
   if (fileLike instanceof Uint8Array) return Buffer.from(fileLike);
-  throw new Error('file debe ser Uint8Array o Buffer.');
+  throw new Error('file must be Uint8Array or Buffer.');
 }
 
 function friendlyFtpError(err) {
   const msg = String(err?.message || err);
-  if (/530|login/i.test(msg)) return 'El servidor rechazó tus credenciales.';
-  if (/ECONNREFUSED|ETIMEDOUT|EHOSTUNREACH/i.test(msg)) return `No se pudo conectar al servidor FTP (${msg}).`;
-  if (/ENOTFOUND/i.test(msg)) return 'No se encontró el host FTP. Revisá el nombre.';
-  if (/550/i.test(msg)) return 'El servidor rechazó la ruta (permisos o carpeta inexistente).';
-  return msg;
+  if (/530|login/i.test(msg)) {
+    return {
+      errorKey: 'cdn.err.ftpAuthRejected',
+      errorParams: {},
+      error: 'The server rejected your credentials.',
+    };
+  }
+  if (/ECONNREFUSED|ETIMEDOUT|EHOSTUNREACH/i.test(msg)) {
+    return {
+      errorKey: 'cdn.err.ftpConnectionFailed',
+      errorParams: { message: msg },
+      error: `Could not connect to the FTP server (${msg}).`,
+    };
+  }
+  if (/ENOTFOUND/i.test(msg)) {
+    return {
+      errorKey: 'cdn.err.ftpHostNotFound',
+      errorParams: {},
+      error: 'FTP host not found. Check the hostname.',
+    };
+  }
+  if (/550/i.test(msg)) {
+    return {
+      errorKey: 'cdn.err.ftpPathRejected',
+      errorParams: {},
+      error: 'The server rejected the path (permissions or missing folder).',
+    };
+  }
+  return {
+    errorKey: undefined,
+    errorParams: undefined,
+    error: msg,
+  };
 }
 
 function inferFtpCode(err) {

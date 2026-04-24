@@ -25,7 +25,15 @@ const { uploadFTP } = require('./ftp');
 
 async function upload(payload = {}) {
   const { provider } = payload;
-  if (!provider) return { ok: false, error: 'Falta provider.', code: 'CONFIG' };
+  if (!provider) {
+    return {
+      ok: false,
+      errorKey: 'cdn.err.missingProvider',
+      errorParams: {},
+      error: 'Missing provider.',
+      code: 'CONFIG',
+    };
+  }
   const dispatch = {
     imgbb: uploadImgBB,
     cloudinary: uploadCloudinary,
@@ -34,11 +42,29 @@ async function upload(payload = {}) {
     ftp: uploadFTP,
   };
   const fn = dispatch[provider];
-  if (!fn) return { ok: false, error: `Provider "${provider}" no soportado.`, code: 'CONFIG' };
+  if (!fn) {
+    return {
+      ok: false,
+      errorKey: 'cdn.err.providerUnsupported',
+      errorParams: { provider },
+      error: `Provider "${provider}" not supported.`,
+      code: 'CONFIG',
+    };
+  }
   try {
     return await fn(payload);
   } catch (err) {
-    return { ok: false, error: err?.message || 'Error desconocido.', code: 'NETWORK' };
+    const message = err?.message;
+    if (message) {
+      return { ok: false, error: message, code: 'NETWORK' };
+    }
+    return {
+      ok: false,
+      errorKey: 'cdn.err.uploadUnknown',
+      errorParams: {},
+      error: 'Unknown error.',
+      code: 'NETWORK',
+    };
   }
 }
 
@@ -46,7 +72,7 @@ function toBuffer(fileLike) {
   if (Buffer.isBuffer(fileLike)) return fileLike;
   if (fileLike instanceof Uint8Array) return Buffer.from(fileLike);
   if (fileLike?.buffer) return Buffer.from(fileLike.buffer, fileLike.byteOffset, fileLike.byteLength);
-  throw new Error('payload.file debe ser Uint8Array o Buffer.');
+  throw new Error('payload.file must be Uint8Array or Buffer.');
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -55,7 +81,15 @@ function toBuffer(fileLike) {
 
 async function uploadImgBB({ secrets, file, filename, contentType }) {
   const apiKey = secrets?.apiKey;
-  if (!apiKey) return { ok: false, error: 'Falta API key de imgbb.', code: 'AUTH' };
+  if (!apiKey) {
+    return {
+      ok: false,
+      errorKey: 'cdn.err.imgbbMissingKey',
+      errorParams: {},
+      error: 'Missing imgbb API key.',
+      code: 'AUTH',
+    };
+  }
 
   const buf = toBuffer(file);
   const form = new FormData();
@@ -88,7 +122,13 @@ async function uploadCloudinary({ config, file, filename, contentType }) {
   const cloudName = config?.cloudName;
   const uploadPreset = config?.uploadPreset;
   if (!cloudName || !uploadPreset) {
-    return { ok: false, error: 'Falta cloud name o upload preset de Cloudinary.', code: 'CONFIG' };
+    return {
+      ok: false,
+      errorKey: 'cdn.err.cloudinaryMissingCloud',
+      errorParams: {},
+      error: 'Missing Cloudinary cloud name or upload preset.',
+      code: 'CONFIG',
+    };
   }
 
   const buf = toBuffer(file);
@@ -129,9 +169,23 @@ async function uploadS3({ config, secrets, file, filename, contentType }) {
   } = config || {};
   const secretAccessKey = secrets?.secret;
 
-  if (!bucket) return { ok: false, error: 'Falta nombre del bucket.', code: 'CONFIG' };
+  if (!bucket) {
+    return {
+      ok: false,
+      errorKey: 'cdn.err.awsMissingBucket',
+      errorParams: {},
+      error: 'Missing bucket name.',
+      code: 'CONFIG',
+    };
+  }
   if (!accessKeyId || !secretAccessKey) {
-    return { ok: false, error: 'Faltan credenciales AWS (Access Key + Secret).', code: 'AUTH' };
+    return {
+      ok: false,
+      errorKey: 'cdn.err.awsMissingCreds',
+      errorParams: {},
+      error: 'Missing AWS credentials (Access Key + Secret).',
+      code: 'AUTH',
+    };
   }
 
   const buf = toBuffer(file);
