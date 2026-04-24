@@ -117,12 +117,15 @@ async function callOpenAI({ model, apiKey, system, user, maxTokens = 2048, tempe
   if (system) messages.push({ role: 'system', content: system });
   messages.push({ role: 'user', content: user || '' });
 
+  const resolvedModel = model || 'gpt-4.1';
+  const isReasoning = /^(o\d|gpt-5)/i.test(resolvedModel);
+
   const body = {
-    model: model || 'gpt-4.1',
+    model: resolvedModel,
     messages,
     max_completion_tokens: maxTokens,
-    temperature,
   };
+  if (!isReasoning) body.temperature = temperature;
   if (responseFormat === 'json') body.response_format = { type: 'json_object' };
 
   const resp = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -160,7 +163,7 @@ async function callOpenAI({ model, apiKey, system, user, maxTokens = 2048, tempe
   return { ok: true, text: out, usage: json.usage || null };
 }
 
-async function callGoogle({ model, apiKey, system, user, maxTokens = 2048, temperature = 0.7, responseFormat }) {
+async function callGoogle({ model, apiKey, system, user, maxTokens = 2048, temperature = 0.7, responseFormat, think }) {
   if (!apiKey) return {
     ok: false,
     errorKey: 'ai.err.missingApiKey',
@@ -180,6 +183,9 @@ async function callGoogle({ model, apiKey, system, user, maxTokens = 2048, tempe
   };
   if (system) body.systemInstruction = { parts: [{ text: system }] };
   if (responseFormat === 'json') body.generationConfig.responseMimeType = 'application/json';
+  if (typeof think === 'boolean') {
+    body.generationConfig.thinkingConfig = { thinkingBudget: think ? -1 : 0 };
+  }
 
   const resp = await fetch(url, {
     method: 'POST',
@@ -213,7 +219,7 @@ async function callGoogle({ model, apiKey, system, user, maxTokens = 2048, tempe
   return { ok: true, text: out, usage: json.usageMetadata || null };
 }
 
-async function callOllama({ model, ollamaUrl, system, user, maxTokens = 2048, temperature = 0.7, responseFormat }) {
+async function callOllama({ model, ollamaUrl, system, user, maxTokens = 2048, temperature = 0.7, responseFormat, think }) {
   const base = (ollamaUrl || 'http://localhost:11434').replace(/\/+$/, '');
   const url = `${base}/api/chat`;
   const messages = [];
@@ -230,6 +236,7 @@ async function callOllama({ model, ollamaUrl, system, user, maxTokens = 2048, te
     },
   };
   if (responseFormat === 'json') body.format = 'json';
+  if (typeof think === 'boolean') body.think = think;
 
   let resp;
   try {
@@ -263,7 +270,7 @@ async function callOllama({ model, ollamaUrl, system, user, maxTokens = 2048, te
       code: mapHttpError(resp.status),
     };
   }
-  const out = json?.message?.content || '';
+  const out = json?.message?.content || json?.message?.thinking || '';
   if (!out) return {
     ok: false,
     errorKey: 'ai.err.emptyResponse',
