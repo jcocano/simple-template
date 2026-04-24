@@ -79,6 +79,13 @@ function read(workspaceId, localPath) {
   }
 }
 
+function exists(workspaceId, localPath) {
+  if (!isSafeWorkspaceId(workspaceId)) return false;
+  if (!isSafeLocalPath(localPath)) return false;
+  const full = path.join(workspaceImagesDir(workspaceId), localPath);
+  try { return fs.existsSync(full); } catch { return false; }
+}
+
 function remove(workspaceId, localPath) {
   if (!isSafeWorkspaceId(workspaceId)) return false;
   if (!isSafeLocalPath(localPath)) return false;
@@ -119,6 +126,7 @@ function bytesForUrl(url) {
 module.exports = {
   write,
   read,
+  exists,
   remove,
   parseStImgUrl,
   bytesForUrl,
