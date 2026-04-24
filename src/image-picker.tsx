@@ -63,6 +63,28 @@ function ImagePickerModal({ open, onClose, onSelect }) {
   const fileInputRef = React.useRef(null);
 
   const library = useImageLibrary();
+  // Folders are now workspace-scoped records ({id, name, color}). This hook
+  // must run before the `if (!open) return null` below so hook order stays
+  // consistent across renders. `useImageFolders` is registered in main.tsx
+  // ahead of this component, so it's always defined at render time.
+  const registeredFolders = window.useImageFolders();
+  const folderById = React.useMemo(() => {
+    const map = new Map();
+    for (const f of registeredFolders) map.set(f.id, f);
+    return map;
+  }, [registeredFolders]);
+  const counts = React.useMemo(() => {
+    const byFolder = new Map();
+    let unassigned = 0;
+    for (const img of library) {
+      if (img.folder && folderById.has(img.folder)) {
+        byFolder.set(img.folder, (byFolder.get(img.folder) || 0) + 1);
+      } else {
+        unassigned++;
+      }
+    }
+    return { byFolder, unassigned };
+  }, [library, folderById]);
 
   if (!open) return null;
 
@@ -81,22 +103,30 @@ function ImagePickerModal({ open, onClose, onSelect }) {
         setUploadError(window.stIpcErr.localize(result));
         return;
       }
-      const dim = await window.stImages.readImageSize(file);
+      const sizeBytes = result.sizeBytes ?? file.size ?? null;
+      const mime = result.mime ?? file.type ?? null;
+      let width = result.width ?? null;
+      let height = result.height ?? null;
+      if (width == null || height == null) {
+        const dim = await window.stImages.readImageSize(file);
+        width = dim.width;
+        height = dim.height;
+      }
       const saved = await window.stImages.save({
         url: result.url,
         name: file.name || t('imagePicker.defaultName'),
-        folder: t('imagePicker.folder.uploads'),
-        mime: file.type || null,
-        sizeBytes: file.size || null,
-        width: dim.width,
-        height: dim.height,
+        folder: null,
+        mime,
+        sizeBytes,
+        width,
+        height,
         provider: result.mode || cdnConfig,
         localPath: result.localPath || null,
       });
       if (saved) setSel(saved);
       const HEAVY_IMG_BYTES = 200 * 1024; // 200 KB — matchea el copy de i18n
-      if (saved && file.size > HEAVY_IMG_BYTES) {
-        const sizeKB = Math.round(file.size / 1024);
+      if (saved && sizeBytes && sizeBytes > HEAVY_IMG_BYTES) {
+        const sizeKB = Math.round(sizeBytes / 1024);
         window.notify && window.notify('heavyImg', {
           kind: 'warn',
           title: t('notif.heavyImg.toast.title', { size: sizeKB + ' KB' }),
@@ -124,14 +154,17 @@ function ImagePickerModal({ open, onClose, onSelect }) {
   };
 
   const items = library
-    .filter((i) => folder === 'all' || i.folder === folder)
+    .filter((i) => {
+      if (folder === 'all') return true;
+      if (folder === 'unassigned') return !i.folder || !folderById.has(i.folder);
+      return i.folder === folder;
+    })
     .filter((i) => !q || (i.name || '').toLowerCase().includes(q.toLowerCase()));
 
-  // Folders derived from the live library. "All" is always first; the rest
-  // are sorted by the facade (alphabetical).
   const folderList = [
-    { id:'all', name: t('imagePicker.folder.all'), count: library.length },
-    ...window.stImages.folders().map(f => ({ id: f.folder, name: f.folder, count: f.count })),
+    { id:'all', name: t('imagePicker.folder.all'), count: library.length, color: null },
+    ...registeredFolders.map((f) => ({ id: f.id, name: f.name, count: counts.byFolder.get(f.id) || 0, color: f.color })),
+    ...(counts.unassigned > 0 ? [{ id:'unassigned', name: t('imageLib.folder.unassigned'), count: counts.unassigned, color: null }] : []),
   ];
 
   return (
@@ -223,7 +256,9 @@ function ImagePickerModal({ open, onClose, onSelect }) {
                       fontSize:12,textAlign:'left',marginBottom:1,
                     }}
                   >
-                    <I.folder size={12}/>
+                    {f.color
+                      ? <span style={{width:10,height:10,borderRadius:2,background:f.color,flexShrink:0}}/>
+                      : <I.folder size={12}/>}
                     <span style={{flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.name}</span>
                     <span style={{fontSize:10,color:'var(--fg-3)'}}>{f.count}</span>
                   </button>
@@ -358,7 +393,7 @@ function ImagePickerModal({ open, onClose, onSelect }) {
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginTop:10,fontSize:11}}>
                     <div><div style={{color:'var(--fg-3)',fontSize:10}}>{t('imagePicker.detail.dimensions')}</div><div style={{fontFamily:'var(--font-mono)'}}>{sel.width && sel.height ? `${sel.width}×${sel.height}` : '—'}</div></div>
                     <div><div style={{color:'var(--fg-3)',fontSize:10}}>{t('imagePicker.detail.size')}</div><div style={{fontFamily:'var(--font-mono)'}}>{formatBytes(sel.sizeBytes)}</div></div>
-                    <div><div style={{color:'var(--fg-3)',fontSize:10}}>{t('imagePicker.detail.folder')}</div><div>{sel.folder}</div></div>
+                    <div><div style={{color:'var(--fg-3)',fontSize:10}}>{t('imagePicker.detail.folder')}</div><div>{(sel.folder && folderById.get(sel.folder)?.name) || t('imageLib.folder.unassigned')}</div></div>
                     <div><div style={{color:'var(--fg-3)',fontSize:10}}>{t('imagePicker.detail.source')}</div><div style={{fontFamily:'var(--font-mono)',textTransform:'uppercase'}}>{sel.provider || '—'}</div></div>
                   </div>
                   <button className="btn primary" style={{width:'100%',marginTop:12}}

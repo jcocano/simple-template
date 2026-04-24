@@ -1,5 +1,10 @@
 // Full-screen media library backed by workspace-scoped `stImages` (SQLite).
 // Shares the same source as ImagePicker, so uploads become immediately available.
+//
+// Folders are first-class records ({id, name, color}) persisted in workspace
+// settings — see `src/lib/image-folders.tsx`. Images link to a folder by id
+// via the `folder` column on the images table. Legacy string-based folders
+// from earlier versions are migrated on mount.
 
 function fmtBytes(n) {
   if (n == null) return '—';
@@ -20,6 +25,7 @@ function fmtDate(iso) {
 function ImageLibraryScreen({ onBack, onOpenSettings }) {
   const t = window.stI18n.t;
   window.stI18n.useLang();
+  // folder: 'all' | 'unassigned' | <folderId>
   const [folder, setFolder] = React.useState('all');
   const [q, setQ] = React.useState('');
   const [sel, setSel] = React.useState(null);
@@ -28,13 +34,22 @@ function ImageLibraryScreen({ onBack, onOpenSettings }) {
   const [dragOver, setDragOver] = React.useState(false);
   const [renameMode, setRenameMode] = React.useState(false);
   const [renameDraft, setRenameDraft] = React.useState('');
+  const [dragOverFolder, setDragOverFolder] = React.useState(null);
+  const [folderModal, setFolderModal] = React.useState(null); // { mode:'new'|'edit', folder? }
+  const [moveMenuOpen, setMoveMenuOpen] = React.useState(false);
   const fileInputRef = React.useRef(null);
 
   const [items, setItems] = React.useState(() => window.stImages.listCached());
+  const folders = window.useImageFolders();
+
   React.useEffect(() => {
     const refresh = () => setItems(window.stImages.listCached());
     window.addEventListener('st:images-change', refresh);
-    window.stImages.list().catch(() => {});
+    window.stImages.list().then(() => {
+      // Migrate legacy string-based folders into proper records. One-shot:
+      // subsequent mounts find nothing to migrate and exit immediately.
+      window.stImageFolders?.migrateLegacy?.().catch(() => {});
+    }).catch(() => {});
     return () => window.removeEventListener('st:images-change', refresh);
   }, []);
 
@@ -49,6 +64,10 @@ function ImageLibraryScreen({ onBack, onOpenSettings }) {
 
   const cdnConfig = window.stStorage.getWSSetting('storage', {}).mode || 'local';
 
+  // Upload into the currently-visible folder. When on 'all' or 'unassigned',
+  // images stay unassigned — user moves them manually or drags into a folder.
+  const uploadFolderId = (folder !== 'all' && folder !== 'unassigned') ? folder : null;
+
   const handleFiles = async (files) => {
     if (!files?.length) return;
     setUploadError(null);
@@ -60,15 +79,21 @@ function ImageLibraryScreen({ onBack, onOpenSettings }) {
           setUploadError(window.stIpcErr.localize(result));
           break;
         }
-        const dim = await window.stImages.readImageSize(file);
+        let width = result.width ?? null;
+        let height = result.height ?? null;
+        if (width == null || height == null) {
+          const dim = await window.stImages.readImageSize(file);
+          width = dim.width;
+          height = dim.height;
+        }
         const saved = await window.stImages.save({
           url: result.url,
           name: file.name || t('imageLib.fallback.name'),
-          folder: folder === 'all' ? t('imageLib.folder.uploads') : folder,
-          mime: file.type || null,
-          sizeBytes: file.size || null,
-          width: dim.width,
-          height: dim.height,
+          folder: uploadFolderId,
+          mime: result.mime ?? file.type ?? null,
+          sizeBytes: result.sizeBytes ?? file.size ?? null,
+          width,
+          height,
           provider: result.mode || cdnConfig,
           localPath: result.localPath || null,
         });
@@ -92,26 +117,42 @@ function ImageLibraryScreen({ onBack, onOpenSettings }) {
     await handleFiles(Array.from(e.dataTransfer?.files || []));
   };
 
-  const folders = [
-    { id:'all', name: t('imageLib.folder.all'), count: items.length },
-    ...window.stImages.folders().map(f => ({ id: f.folder, name: f.folder, count: f.count })),
-  ];
+  // Resolve each image to its folder record so we can compute counts and
+  // render badges. Images whose `folder` column points to a missing id are
+  // considered unassigned (the folder was deleted).
+  const folderById = React.useMemo(() => {
+    const map = new Map();
+    for (const f of folders) map.set(f.id, f);
+    return map;
+  }, [folders]);
+
+  const counts = React.useMemo(() => {
+    const byFolder = new Map();
+    let unassigned = 0;
+    for (const img of items) {
+      if (img.folder && folderById.has(img.folder)) {
+        byFolder.set(img.folder, (byFolder.get(img.folder) || 0) + 1);
+      } else {
+        unassigned++;
+      }
+    }
+    return { byFolder, unassigned };
+  }, [items, folderById]);
 
   const filtered = items
-    .filter((i) => folder === 'all' || i.folder === folder)
+    .filter((i) => {
+      if (folder === 'all') return true;
+      if (folder === 'unassigned') return !i.folder || !folderById.has(i.folder);
+      return i.folder === folder;
+    })
     .filter((i) => !q || (i.name || '').toLowerCase().includes(q.toLowerCase()));
+
+  const resolvedSelFolder = sel && sel.folder && folderById.get(sel.folder);
+  const selFolderName = resolvedSelFolder ? resolvedSelFolder.name : t('imageLib.folder.unassigned');
 
   const onDelete = async (img) => {
     if (!window.confirm(t('imageLib.confirm.delete', { name: img.name }))) return;
     await window.stImages.remove(img.id);
-  };
-
-  const onMoveFolder = async (img) => {
-    const current = img.folder || t('imageLib.folder.none');
-    const name = window.prompt(t('imageLib.prompt.moveFolder'), current);
-    if (name == null) return;
-    const clean = name.trim() || t('imageLib.folder.none');
-    await window.stImages.updateFolder(img.id, clean);
   };
 
   const onRenameSubmit = async () => {
@@ -132,6 +173,38 @@ function ImageLibraryScreen({ onBack, onOpenSettings }) {
     } catch {
       window.toast && window.toast({ kind:'err', title: t('imageLib.toast.copyFail') });
     }
+  };
+
+  const moveImageToFolder = async (imgId, folderId) => {
+    await window.stImages.updateFolder(imgId, folderId || null);
+  };
+
+  // Folder drop: accepts dragged images (text/x-mc-image) and moves them.
+  const folderDropProps = (folderId) => ({
+    onDragOver: (e) => {
+      if (!Array.from(e.dataTransfer.types).includes('text/x-mc-image')) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (dragOverFolder !== folderId) setDragOverFolder(folderId);
+    },
+    onDragLeave: (e) => {
+      if (e.currentTarget.contains(e.relatedTarget)) return;
+      setDragOverFolder((cur) => (cur === folderId ? null : cur));
+    },
+    onDrop: (e) => {
+      const imgId = e.dataTransfer.getData('text/x-mc-image');
+      setDragOverFolder(null);
+      if (!imgId) return;
+      e.preventDefault();
+      moveImageToFolder(imgId, folderId);
+    },
+  });
+
+  const onDeleteFolder = async (f) => {
+    const msg = t('imageLib.folder.deleteConfirm', { name: f.name });
+    if (!window.confirm(msg)) return;
+    await window.stImageFolders.remove(f.id);
+    if (folder === f.id) setFolder('all');
   };
 
   return (
@@ -179,23 +252,60 @@ function ImageLibraryScreen({ onBack, onOpenSettings }) {
           padding:16, overflow:'auto',
         }}>
           <div style={{fontSize:10.5,textTransform:'uppercase',letterSpacing:'0.06em',color:'var(--fg-3)',fontWeight:600,marginBottom:8}}>{t('imageLib.folders')}</div>
-          {folders.map(f => (
-            <button key={f.id}
+
+          <FolderNavItem
+            active={folder === 'all'}
+            onClick={()=>setFolder('all')}
+            label={t('imageLib.folder.all')}
+            count={items.length}
+            icon={<I.folder size={13}/>}
+          />
+
+          {folders.map((f) => (
+            <FolderNavItem
+              key={f.id}
+              active={folder === f.id}
+              dropOver={dragOverFolder === f.id}
               onClick={()=>setFolder(f.id)}
-              style={{
-                display:'flex',alignItems:'center',gap:8,
-                width:'100%',padding:'7px 9px',
-                border:'none',background: folder===f.id?'var(--accent-soft)':'transparent',
-                color: folder===f.id?'var(--accent)':'var(--fg-2)',
-                borderRadius:'var(--r-sm)', cursor:'pointer',
-                fontSize:12.5,textAlign:'left',marginBottom:2,
-              }}
-            >
-              <I.folder size={13}/>
-              <span style={{flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.name}</span>
-              <span style={{fontSize:10.5,color:'var(--fg-3)'}}>{f.count}</span>
-            </button>
+              color={f.color}
+              label={f.name}
+              count={counts.byFolder.get(f.id) || 0}
+              dropProps={folderDropProps(f.id)}
+              actions={(
+                <>
+                  <button className="btn icon sm ghost" title={t('imageLib.folder.edit')}
+                    onClick={(e)=>{ e.stopPropagation(); setFolderModal({ mode:'edit', folder: f }); }}>
+                    <I.edit size={11}/>
+                  </button>
+                  <button className="btn icon sm ghost" title={t('imageLib.folder.delete')}
+                    onClick={(e)=>{ e.stopPropagation(); onDeleteFolder(f); }}>
+                    <I.trash size={11}/>
+                  </button>
+                </>
+              )}
+            />
           ))}
+
+          {counts.unassigned > 0 && (
+            <FolderNavItem
+              active={folder === 'unassigned'}
+              dropOver={dragOverFolder === 'unassigned'}
+              onClick={()=>setFolder('unassigned')}
+              label={t('imageLib.folder.unassigned')}
+              count={counts.unassigned}
+              icon={<I.folder size={13}/>}
+              dropProps={folderDropProps(null)}
+            />
+          )}
+
+          <button className="nav-item" onClick={()=>setFolderModal({ mode:'new' })}
+            style={{color:'var(--fg-3)',background:'transparent',border:'none',width:'100%',marginTop:4,cursor:'pointer',
+              display:'flex',alignItems:'center',gap:8,padding:'7px 9px',fontSize:12.5,textAlign:'left',
+            }}>
+            <I.plus size={12}/>
+            <span>{t('imageLib.folder.new')}</span>
+          </button>
+
           <div style={{marginTop:14,padding:10,background:'var(--surface-2)',border:'1px solid var(--line)',borderRadius:'var(--r-sm)',fontSize:11,color:'var(--fg-3)',lineHeight:1.5}}>
             {t('imageLib.folders.hint')}
           </div>
@@ -229,7 +339,7 @@ function ImageLibraryScreen({ onBack, onOpenSettings }) {
             ) : filtered.length === 0 ? (
               <EmptyState
                 illustration="search"
-                title={q ? t('imageLib.empty.search.title', { q }) : t('imageLib.empty.folder.title', { folder })}
+                title={q ? t('imageLib.empty.search.title', { q }) : t('imageLib.empty.folder.title', { folder: (folderById.get(folder)?.name || t('imageLib.folder.unassigned')) })}
                 msg={t('imageLib.empty.search.msg')}
                 primaryAction={{ label: t('imageLib.empty.viewAll'), icon:'grid', onClick:()=>{setQ(''); setFolder('all');} }}
               />
@@ -264,12 +374,17 @@ function ImageLibraryScreen({ onBack, onOpenSettings }) {
 
                 {filtered.map(it => (
                   <button key={it.id}
-                    onClick={()=>{ setSel(it); setRenameMode(false); }}
+                    draggable
+                    onDragStart={(e)=>{
+                      e.dataTransfer.setData('text/x-mc-image', it.id);
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onClick={()=>{ setSel(it); setRenameMode(false); setMoveMenuOpen(false); }}
                     style={{
                       display:'flex',flexDirection:'column',gap:6,
                       border:`2px solid ${sel?.id===it.id?'var(--accent)':'transparent'}`,
                       background: sel?.id===it.id?'var(--accent-soft)':'transparent',
-                      borderRadius:'var(--r-md)', padding:6, cursor:'pointer',
+                      borderRadius:'var(--r-md)', padding:6, cursor:'grab',
                       textAlign:'left',
                     }}
                   >
@@ -320,7 +435,15 @@ function ImageLibraryScreen({ onBack, onOpenSettings }) {
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,fontSize:11.5}}>
               <div><div style={{color:'var(--fg-3)',fontSize:10}}>{t('imageLib.meta.dimensions')}</div><div style={{fontFamily:'var(--font-mono)'}}>{sel.width && sel.height ? `${sel.width}×${sel.height}` : '—'}</div></div>
               <div><div style={{color:'var(--fg-3)',fontSize:10}}>{t('imageLib.meta.size')}</div><div style={{fontFamily:'var(--font-mono)'}}>{fmtBytes(sel.sizeBytes)}</div></div>
-              <div><div style={{color:'var(--fg-3)',fontSize:10}}>{t('imageLib.meta.folder')}</div><div>{sel.folder}</div></div>
+              <div>
+                <div style={{color:'var(--fg-3)',fontSize:10}}>{t('imageLib.meta.folder')}</div>
+                <div style={{display:'flex',alignItems:'center',gap:6}}>
+                  {resolvedSelFolder && (
+                    <span style={{width:8,height:8,borderRadius:2,background:resolvedSelFolder.color,flexShrink:0}}/>
+                  )}
+                  <span>{selFolderName}</span>
+                </div>
+              </div>
               <div><div style={{color:'var(--fg-3)',fontSize:10}}>{t('imageLib.meta.origin')}</div><div style={{fontFamily:'var(--font-mono)',textTransform:'uppercase'}}>{sel.provider || '—'}</div></div>
               <div style={{gridColumn:'1 / -1'}}>
                 <div style={{color:'var(--fg-3)',fontSize:10}}>{t('imageLib.meta.uploaded')}</div>
@@ -337,13 +460,28 @@ function ImageLibraryScreen({ onBack, onOpenSettings }) {
               }} title={sel.url}>{sel.url}</div>
             </div>
 
-            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap',position:'relative'}}>
               <button className="btn sm" onClick={()=>onCopyUrl(sel)}>
                 <I.copy size={12}/> {t('imageLib.copyUrl')}
               </button>
-              <button className="btn sm" onClick={()=>onMoveFolder(sel)}>
+              <button className="btn sm" onClick={()=>setMoveMenuOpen((v)=>!v)}>
                 <I.folder size={12}/> {t('imageLib.moveFolder')}
               </button>
+              {moveMenuOpen && (
+                <MoveToFolderMenu
+                  folders={folders}
+                  currentFolderId={sel.folder && folderById.has(sel.folder) ? sel.folder : null}
+                  onPick={async (targetId)=>{
+                    await moveImageToFolder(sel.id, targetId);
+                    setMoveMenuOpen(false);
+                  }}
+                  onNewFolder={()=>{
+                    setMoveMenuOpen(false);
+                    setFolderModal({ mode:'new', assignOnCreateImgId: sel.id });
+                  }}
+                  onClose={()=>setMoveMenuOpen(false)}
+                />
+              )}
             </div>
 
             <div style={{flex:1}}/>
@@ -352,6 +490,191 @@ function ImageLibraryScreen({ onBack, onOpenSettings }) {
             </button>
           </aside>
         )}
+      </div>
+
+      {folderModal && (
+        <FolderModal
+          mode={folderModal.mode}
+          folder={folderModal.folder}
+          onClose={()=>setFolderModal(null)}
+          onCreated={async (created)=>{
+            // When invoked from "Move to" → "+ New folder", immediately
+            // assign the selected image to the freshly-created folder.
+            if (folderModal.assignOnCreateImgId) {
+              await moveImageToFolder(folderModal.assignOnCreateImgId, created.id);
+            }
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function FolderNavItem({ active, dropOver, onClick, label, count, icon, color, actions, dropProps }) {
+  const hasColor = !!color;
+  return (
+    <div
+      className={`nav-item ${active?'active':''} ${dropOver?'drop-active':''}`}
+      onClick={onClick}
+      {...(dropProps || {})}
+      style={{
+        display:'flex',alignItems:'center',gap:8,
+        width:'100%',padding:'7px 9px',
+        background: active?'var(--accent-soft)':'transparent',
+        color: active?'var(--accent)':'var(--fg-2)',
+        borderRadius:'var(--r-sm)', cursor:'pointer',
+        fontSize:12.5,textAlign:'left',marginBottom:2,
+        border:'none',
+      }}
+    >
+      {hasColor
+        ? <span style={{width:10,height:10,borderRadius:2,background:color,flexShrink:0}}/>
+        : icon}
+      <span style={{flex:1,minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{label}</span>
+      <span className="count oc-count-hideable" style={{fontSize:10.5,color:'var(--fg-3)'}}>{count}</span>
+      {actions && (
+        <div className="oc-actions" onClick={(e)=>e.stopPropagation()}>{actions}</div>
+      )}
+    </div>
+  );
+}
+
+// Popover anchored to the "Move to folder" button. Plays the same role as
+// MoveMenuPopover in the dashboard — lists folders with color dots and lets
+// the user create a new one inline.
+function MoveToFolderMenu({ folders, currentFolderId, onPick, onNewFolder, onClose }) {
+  const t = window.stI18n.t;
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    const handler = (e) => {
+      if (!ref.current) return;
+      if (!ref.current.contains(e.target)) onClose();
+    };
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    setTimeout(() => document.addEventListener('mousedown', handler), 0);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [onClose]);
+
+  return (
+    <div ref={ref} style={{
+      position:'absolute', top:'calc(100% + 4px)', left:0,
+      background:'var(--surface)', border:'1px solid var(--line)',
+      borderRadius:'var(--r-sm)', padding:4, minWidth:200,
+      boxShadow:'0 6px 24px rgba(0,0,0,.24)', zIndex:10,
+    }}>
+      <button onClick={()=>onPick(null)} style={moveMenuBtnStyle(currentFolderId == null)}>
+        <span style={{width:10,height:10,borderRadius:2,background:'transparent',border:'1px dashed var(--line-2)',flexShrink:0}}/>
+        <span style={{flex:1}}>{t('imageLib.folder.unassigned')}</span>
+      </button>
+      {folders.length > 0 && <div style={{height:1,background:'var(--line)',margin:'4px 0'}}/>}
+      {folders.map((f) => (
+        <button key={f.id} onClick={()=>onPick(f.id)} style={moveMenuBtnStyle(currentFolderId === f.id)}>
+          <span style={{width:10,height:10,borderRadius:2,background:f.color,flexShrink:0}}/>
+          <span style={{flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.name}</span>
+        </button>
+      ))}
+      <div style={{height:1,background:'var(--line)',margin:'4px 0'}}/>
+      <button onClick={onNewFolder} style={{...moveMenuBtnStyle(false), color:'var(--fg-3)'}}>
+        <I.plus size={12}/>
+        <span style={{flex:1}}>{t('imageLib.folder.new')}</span>
+      </button>
+    </div>
+  );
+}
+
+function moveMenuBtnStyle(on) {
+  return {
+    display:'flex',alignItems:'center',gap:8,
+    width:'100%',padding:'6px 8px',
+    background: on ? 'var(--accent-soft)' : 'transparent',
+    color: on ? 'var(--accent)' : 'var(--fg-2)',
+    border:'none', borderRadius:'var(--r-sm)',
+    fontSize:12, textAlign:'left', cursor:'pointer',
+  };
+}
+
+// Create / edit a folder record. Matches OccasionModal in dashboard but lives
+// here to keep the image library self-contained — the two flows evolve
+// independently, so copying the small surface is cheaper than sharing.
+function FolderModal({ mode, folder, onClose, onCreated }) {
+  const t = window.stI18n.t;
+  const palette = window.stOccasions?.PALETTE || [{ value:'#0F766E' }];
+  const [name, setName] = React.useState(folder?.name || '');
+  const [color, setColor] = React.useState(folder?.color || palette[0].value);
+  const inputRef = React.useRef(null);
+
+  React.useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+
+  const submit = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (mode === 'edit' && folder) {
+      window.stImageFolders.update(folder.id, { name: trimmed, color });
+      onClose();
+    } else {
+      const created = window.stImageFolders.add({ name: trimmed, color });
+      await onCreated?.(created);
+      onClose();
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal pop" onClick={e=>e.stopPropagation()} style={{maxWidth:440}}>
+        <div className="modal-head">
+          <div style={{width:32,height:32,borderRadius:8,background:color,display:'grid',placeItems:'center',transition:'background 120ms'}}>
+            <div style={{width:12,height:12,borderRadius:3,background:'rgba(255,255,255,.82)'}}/>
+          </div>
+          <div style={{flex:1}}>
+            <h3>{mode === 'edit' ? t('imageLib.newFolder.title.edit') : t('imageLib.newFolder.title.new')}</h3>
+            <div className="sub">{t('imageLib.newFolder.sub')}</div>
+          </div>
+          <button className="btn icon ghost" onClick={onClose}><I.x size={15}/></button>
+        </div>
+        <div className="modal-body">
+          <div className="prop-label" style={{marginBottom:6}}>{t('imageLib.newFolder.nameLabel')}</div>
+          <input ref={inputRef} className="field" value={name}
+            onChange={e=>setName(e.target.value)}
+            onKeyDown={e=>{
+              if (e.key === 'Enter') submit();
+              if (e.key === 'Escape') onClose();
+            }}
+            placeholder={t('imageLib.newFolder.namePlaceholder')}/>
+          <div className="prop-label" style={{marginTop:16,marginBottom:8}}>{t('imageLib.newFolder.colorLabel')}</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(9, 1fr)',gap:8}}>
+            {palette.map(p => {
+              const on = color === p.value;
+              return (
+                <button key={p.id || p.value} onClick={()=>setColor(p.value)} title={p.name}
+                  style={{
+                    aspectRatio:'1',
+                    borderRadius:'50%',
+                    background:p.value,
+                    border:'none',
+                    cursor:'pointer',
+                    position:'relative',
+                    outline: on ? '2px solid var(--fg)' : 'none',
+                    outlineOffset: 2,
+                  }}>
+                  {on && <I.check size={12} style={{color:'#fff',position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)'}}/>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="modal-foot">
+          <button className="btn" onClick={onClose}>{t('imageLib.newFolder.cancel')}</button>
+          <button className="btn primary" onClick={submit} disabled={!name.trim()}>
+            {mode === 'edit' ? t('imageLib.newFolder.save') : t('imageLib.newFolder.create')}
+          </button>
+        </div>
       </div>
     </div>
   );
