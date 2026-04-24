@@ -35,6 +35,11 @@ function list(workspaceId) {
 function add(workspaceId, entry) {
   if (!workspaceId || !entry?.url) return null;
   const id = entry.id || newId();
+  // `folder` column is NOT NULL (see migration 0005). Renderer sends null
+  // for "unassigned" since folders became first-class records — coerce to
+  // empty string so the constraint holds. Renderer already treats both
+  // null and '' as unassigned (see image-library.tsx filter).
+  const folder = entry.folder == null ? '' : String(entry.folder);
   db.get()
     .prepare(
       `INSERT INTO images
@@ -46,7 +51,7 @@ function add(workspaceId, entry) {
       workspaceId,
       entry.url,
       entry.name || 'imagen',
-      entry.folder || null,
+      folder,
       entry.mime || null,
       entry.sizeBytes != null ? entry.sizeBytes : null,
       entry.width != null ? entry.width : null,
@@ -104,9 +109,11 @@ function remove(workspaceId, id) {
 
 function updateFolder(workspaceId, id, folder) {
   if (!workspaceId || !id) return null;
+  // Same NOT NULL workaround as add(): null/undefined → '' (unassigned).
+  const value = folder == null ? '' : String(folder);
   db.get()
     .prepare('UPDATE images SET folder = ? WHERE workspace_id = ? AND id = ?')
-    .run(folder || null, workspaceId, id);
+    .run(value, workspaceId, id);
   return get(workspaceId, id);
 }
 
