@@ -4,7 +4,7 @@ Thanks for taking the time to contribute. Every form of help — filing a bug, s
 
 **Languages:** [English](./CONTRIBUTING.md) · [Español](./docs/es/CONTRIBUTING.md)
 
-> **Not ready to write code?** A [GitHub star](https://github.com/jcocano/simple-templete) or a [coffee](https://buymeacoffee.com/jesuscocana) also helps a lot.
+> **Not ready to write code?** A [GitHub star](https://github.com/jcocano/simple-template) or a [coffee](https://buymeacoffee.com/jesuscocana) also helps a lot.
 
 ## Table of contents
 
@@ -28,29 +28,29 @@ This project follows the [Contributor Covenant](./CODE_OF_CONDUCT.md). By partic
 ## Ways to contribute
 
 - **Star the repo** — low effort, very helpful for discoverability
-- **Report a bug** — use the [bug report template](https://github.com/jcocano/simple-templete/issues/new?template=bug_report.yml)
-- **Suggest a feature** — use the [feature request template](https://github.com/jcocano/simple-templete/issues/new?template=feature_request.yml)
-- **Help with translations** — use the [translation template](https://github.com/jcocano/simple-templete/issues/new?template=translation.yml)
+- **Report a bug** — use the [bug report template](https://github.com/jcocano/simple-template/issues/new?template=bug_report.yml)
+- **Suggest a feature** — use the [feature request template](https://github.com/jcocano/simple-template/issues/new?template=feature_request.yml)
+- **Help with translations** — use the [translation template](https://github.com/jcocano/simple-template/issues/new?template=translation.yml)
 - **Improve documentation** — typos, clarifications, examples all welcome
 - **Submit a pull request** — see [Pull request process](#pull-request-process) below
-- **Join discussions** — [GitHub Discussions](https://github.com/jcocano/simple-templete/discussions) for Q&A, ideas, show-and-tell
+- **Join discussions** — [GitHub Discussions](https://github.com/jcocano/simple-template/discussions) for Q&A, ideas, show-and-tell
 - **[Buy me a coffee](https://buymeacoffee.com/jesuscocana)** — funds ongoing development
 
 ## Reporting bugs
 
 Before opening an issue, please:
 
-1. Search [existing issues](https://github.com/jcocano/simple-templete/issues) to avoid duplicates.
+1. Search [existing issues](https://github.com/jcocano/simple-template/issues) to avoid duplicates.
 2. Try reproducing on the `main` branch.
 3. Collect: OS + version, app version, steps to reproduce, expected vs actual behavior, screenshots/logs if relevant.
 
-Then open the [bug report template](https://github.com/jcocano/simple-templete/issues/new?template=bug_report.yml).
+Then open the [bug report template](https://github.com/jcocano/simple-template/issues/new?template=bug_report.yml).
 
 For security issues, see [SECURITY.md](./SECURITY.md) — please **do not** open a public issue.
 
 ## Suggesting features
 
-Open the [feature request template](https://github.com/jcocano/simple-templete/issues/new?template=feature_request.yml) with:
+Open the [feature request template](https://github.com/jcocano/simple-template/issues/new?template=feature_request.yml) with:
 
 - The problem you're trying to solve (not the solution first)
 - Who it affects
@@ -83,7 +83,7 @@ Translations live in `src/lib/i18n/<lang>.tsx`. Each file is a flat object of st
 
 ### To add a new language
 
-1. Open a [translation issue](https://github.com/jcocano/simple-templete/issues/new?template=translation.yml) first so we can coordinate
+1. Open a [translation issue](https://github.com/jcocano/simple-template/issues/new?template=translation.yml) first so we can coordinate
 2. Copy `src/lib/i18n/en.tsx` as your starting point (English is the most complete non-source reference)
 3. Translate every key — leave placeholders intact
 4. Register the new language in the i18n loader
@@ -105,8 +105,8 @@ Missing context for a string? Open an issue — we'll clarify.
 ### Clone and run
 
 ```sh
-git clone https://github.com/jcocano/simple-templete.git
-cd simple-templete
+git clone https://github.com/jcocano/simple-template.git
+cd simple-template
 npm install
 npm run dev
 ```
@@ -211,7 +211,7 @@ Please report vulnerabilities privately. See [SECURITY.md](./SECURITY.md).
 
 ## Community
 
-- [GitHub Discussions](https://github.com/jcocano/simple-templete/discussions) — Q&A, ideas, show-and-tell
-- [Issues](https://github.com/jcocano/simple-templete/issues) — bugs, features, translations
+- [GitHub Discussions](https://github.com/jcocano/simple-template/discussions) — Q&A, ideas, show-and-tell
+- [Issues](https://github.com/jcocano/simple-template/issues) — bugs, features, translations
 
-Thank you for contributing. If the project helps you, consider [starring the repo](https://github.com/jcocano/simple-templete) or [buying me a coffee](https://buymeacoffee.com/jesuscocana).
+Thank you for contributing. If the project helps you, consider [starring the repo](https://github.com/jcocano/simple-template) or [buying me a coffee](https://buymeacoffee.com/jesuscocana).

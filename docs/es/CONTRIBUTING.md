@@ -4,7 +4,7 @@ Gracias por tomarte el tiempo de contribuir. Toda forma de ayuda — reportar un
 
 **Idiomas:** [English](../../CONTRIBUTING.md) · [Español](./CONTRIBUTING.md)
 
-> **¿No estás listo para escribir código?** Una [estrella en GitHub](https://github.com/jcocano/simple-templete) o un [café](https://buymeacoffee.com/jesuscocana) también ayudan un montón.
+> **¿No estás listo para escribir código?** Una [estrella en GitHub](https://github.com/jcocano/simple-template) o un [café](https://buymeacoffee.com/jesuscocana) también ayudan un montón.
 
 ## Índice
 
@@ -28,29 +28,29 @@ Este proyecto sigue el [Contributor Covenant](./CODE_OF_CONDUCT.md). Al particip
 ## Formas de contribuir
 
 - **Ponele una estrella al repo** — bajo esfuerzo, muy útil para que el proyecto sea encontrado
-- **Reportá un bug** — usá el [template de bug report](https://github.com/jcocano/simple-templete/issues/new?template=bug_report.yml)
-- **Sugerí una feature** — usá el [template de feature request](https://github.com/jcocano/simple-templete/issues/new?template=feature_request.yml)
-- **Ayudá con traducciones** — usá el [template de traducción](https://github.com/jcocano/simple-templete/issues/new?template=translation.yml)
+- **Reportá un bug** — usá el [template de bug report](https://github.com/jcocano/simple-template/issues/new?template=bug_report.yml)
+- **Sugerí una feature** — usá el [template de feature request](https://github.com/jcocano/simple-template/issues/new?template=feature_request.yml)
+- **Ayudá con traducciones** — usá el [template de traducción](https://github.com/jcocano/simple-template/issues/new?template=translation.yml)
 - **Mejorá la documentación** — typos, aclaraciones, ejemplos, todo bienvenido
 - **Mandá un pull request** — mirá [Proceso de pull request](#proceso-de-pull-request) más abajo
-- **Sumate a las discusiones** — [GitHub Discussions](https://github.com/jcocano/simple-templete/discussions) para preguntas, ideas, show-and-tell
+- **Sumate a las discusiones** — [GitHub Discussions](https://github.com/jcocano/simple-template/discussions) para preguntas, ideas, show-and-tell
 - **[Invitame un café](https://buymeacoffee.com/jesuscocana)** — banca el desarrollo
 
 ## Reportar bugs
 
 Antes de abrir un issue, por favor:
 
-1. Buscá en los [issues existentes](https://github.com/jcocano/simple-templete/issues) para evitar duplicados.
+1. Buscá en los [issues existentes](https://github.com/jcocano/simple-template/issues) para evitar duplicados.
 2. Probá reproducirlo en la rama `main`.
 3. Juntá: SO + versión, versión de la app, pasos para reproducir, comportamiento esperado vs real, screenshots/logs si aplica.
 
-Después abrí el [template de bug report](https://github.com/jcocano/simple-templete/issues/new?template=bug_report.yml).
+Después abrí el [template de bug report](https://github.com/jcocano/simple-template/issues/new?template=bug_report.yml).
 
 Para issues de seguridad, mirá [SECURITY.md](./SECURITY.md) — por favor **no** abras un issue público.
 
 ## Sugerir features
 
-Abrí el [template de feature request](https://github.com/jcocano/simple-templete/issues/new?template=feature_request.yml) con:
+Abrí el [template de feature request](https://github.com/jcocano/simple-template/issues/new?template=feature_request.yml) con:
 
 - El problema que querés resolver (no la solución primero)
 - A quién afecta
@@ -83,7 +83,7 @@ Las traducciones viven en `src/lib/i18n/<lang>.tsx`. Cada archivo es un objeto p
 
 ### Para agregar un idioma nuevo
 
-1. Primero abrí un [issue de traducción](https://github.com/jcocano/simple-templete/issues/new?template=translation.yml) así coordinamos
+1. Primero abrí un [issue de traducción](https://github.com/jcocano/simple-template/issues/new?template=translation.yml) así coordinamos
 2. Copiá `src/lib/i18n/en.tsx` como punto de partida (inglés es la referencia no-fuente más completa)
 3. Traducí todas las claves — dejá los placeholders intactos
 4. Registrá el idioma nuevo en el loader de i18n
@@ -105,8 +105,8 @@ Las traducciones viven en `src/lib/i18n/<lang>.tsx`. Cada archivo es un objeto p
 ### Clonar y correr
 
 ```sh
-git clone https://github.com/jcocano/simple-templete.git
-cd simple-templete
+git clone https://github.com/jcocano/simple-template.git
+cd simple-template
 npm install
 npm run dev
 ```
@@ -211,7 +211,7 @@ Por favor reportá vulnerabilidades de forma privada. Mirá [SECURITY.md](./SECU
 
 ## Comunidad
 
-- [GitHub Discussions](https://github.com/jcocano/simple-templete/discussions) — preguntas, ideas, show-and-tell
-- [Issues](https://github.com/jcocano/simple-templete/issues) — bugs, features, traducciones
+- [GitHub Discussions](https://github.com/jcocano/simple-template/discussions) — preguntas, ideas, show-and-tell
+- [Issues](https://github.com/jcocano/simple-template/issues) — bugs, features, traducciones
 
-Gracias por contribuir. Si el proyecto te sirve, pensá en [ponerle una estrella al repo](https://github.com/jcocano/simple-templete) o [invitarme un café](https://buymeacoffee.com/jesuscocana).
+Gracias por contribuir. Si el proyecto te sirve, pensá en [ponerle una estrella al repo](https://github.com/jcocano/simple-template) o [invitarme un café](https://buymeacoffee.com/jesuscocana).

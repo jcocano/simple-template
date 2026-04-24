@@ -8,7 +8,7 @@ body:
       value: |
         Thanks for taking the time to report a bug. Please fill in as much as you can — the more details you give, the faster this gets fixed.
 
-        Not sure if this is a bug? Start a [discussion](https://github.com/jcocano/simple-templete/discussions) instead.
+        Not sure if this is a bug? Start a [discussion](https://github.com/jcocano/simple-template/discussions) instead.
 
   - type: checkboxes
     id: pre-checks

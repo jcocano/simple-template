@@ -27,5 +27,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 First public cut. Feature list: see [README.md](./README.md#features).
 
-[Unreleased]: https://github.com/jcocano/simple-templete/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/jcocano/simple-templete/releases/tag/v0.1.0
+[Unreleased]: https://github.com/jcocano/simple-template/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/jcocano/simple-template/releases/tag/v0.1.0

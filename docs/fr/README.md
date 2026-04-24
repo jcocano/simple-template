@@ -3,8 +3,8 @@
 > Éditeur de modèles d'e-mails open-source et local-first pour macOS, Windows et Linux — une alternative no-code à Beefree qui fonctionne entièrement sur votre machine et que les agents IA peuvent piloter de bout en bout.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../../LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/jcocano/simple-templete?style=social)](https://github.com/jcocano/simple-templete/stargazers)
-[![GitHub issues](https://img.shields.io/github/issues/jcocano/simple-templete)](https://github.com/jcocano/simple-templete/issues)
+[![GitHub stars](https://img.shields.io/github/stars/jcocano/simple-template?style=social)](https://github.com/jcocano/simple-template/stargazers)
+[![GitHub issues](https://img.shields.io/github/issues/jcocano/simple-template)](https://github.com/jcocano/simple-template/issues)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](../../CONTRIBUTING.md)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)](#installation)
 
@@ -14,7 +14,7 @@
 
 Simple Template est une application de bureau pour toutes les personnes qui ont besoin de livrer des campagnes e-mail soignées et responsives sans toucher au HTML. Les modèles vivent sur votre disque — pas de comptes, pas de cloud, pas de tracking — et vous pouvez confier le clavier à un agent IA à tout moment via un serveur MCP intégré.
 
-> **Le projet vous plaît ?** Une [étoile GitHub](https://github.com/jcocano/simple-templete) est le moyen le plus simple de l'aider à grandir.
+> **Le projet vous plaît ?** Une [étoile GitHub](https://github.com/jcocano/simple-template) est le moyen le plus simple de l'aider à grandir.
 
 ## À qui ça s'adresse
 
@@ -153,8 +153,8 @@ Chaque problème dispose d'une action de correction directe lorsque c'est possib
 ### Depuis les sources
 
 ```sh
-git clone https://github.com/jcocano/simple-templete.git
-cd simple-templete
+git clone https://github.com/jcocano/simple-template.git
+cd simple-template
 npm install
 npm run dev
 ```
@@ -168,9 +168,23 @@ Prérequis :
 
 ### Binaires pré-compilés
 
-Pas encore distribués — la version v0.1.0 est en attente de signature de code et de CI/CD. [Mettez une étoile au dépôt](https://github.com/jcocano/simple-templete) ou [suivez les releases](https://github.com/jcocano/simple-templete/releases) pour être notifié.
+Téléchargez l'installateur pour votre plateforme depuis la [page des releases](https://github.com/jcocano/simple-template/releases) :
 
-En attendant, vous pouvez compiler les installateurs localement :
+| Plateforme | Téléchargement |
+|---|---|
+| macOS (Apple Silicon / Intel) | `.dmg` ou `.zip` |
+| Windows | `.exe` (installateur NSIS) |
+| Linux | `.AppImage` ou `.deb` |
+
+> **Attention — binaires non signés.** Simple Template est open source et n'inclut pas encore d'Apple Developer ID payant ni de certificat de code-signing Windows. Les artefacts sont compilés en CI à partir du code public, mais votre OS vous avertira au premier lancement :
+>
+> - **macOS** — Gatekeeper indique *« ne peut pas être ouvert car Apple ne peut pas vérifier qu'il ne contient pas de logiciels malveillants »*. Clic droit sur l'app → **Ouvrir** → confirmer. Depuis le Terminal : `xattr -d com.apple.quarantine "/Applications/Simple Template.app"`.
+> - **Windows** — SmartScreen affiche *« Windows a protégé votre PC »*. Cliquez sur **Informations complémentaires** → **Exécuter quand même**.
+> - **Linux** — pour le `.AppImage`, marquez-le exécutable d'abord : `chmod +x SimpleTemplate-*.AppImage`. Le `.deb` s'installe normalement avec `apt install ./...deb`.
+>
+> La signature de code et la notarisation arriveront dans une version future.
+
+Si vous préférez compiler les installateurs localement :
 
 ```sh
 npm run dist
@@ -255,50 +269,23 @@ Stade prototype — pas encore de lanceur de tests complet. Barre minimale avant
 2. `npm run dev` et exercez la fonctionnalité manuellement
 3. Si vous avez touché au packaging ou au main Electron, lancez aussi `npm run pack` et ouvrez l'application compilée
 
-## Roadmap
-
-**v0.1 (livrée) :**
-- Éditeur visuel cœur, bibliothèque de blocs enregistrés, bibliothèque d'images, occasions
-- IA sur 5 fournisseurs avec amélioration de texte et génération de modèle
-- Serveur MCP avec 28 outils typés et verrouillage en direct de l'éditeur
-- Export en HTML / MJML / texte brut / ZIP avec préservation des variables
-- Envoi de test SMTP + OAuth (Gmail, Outlook)
-- Revue pré-envoi sur 7 catégories
-- Partage via bundles `.st` chiffrés + liens profonds `simpletemplete://`
-- Six langues avec bascule en direct
-- SQLite local-first + secrets dans le trousseau de l'OS
-
-**v0.1.x (à suivre) :**
-- Builds signés et notarisés (macOS + Windows)
-- Pipeline de release CI/CD avec canal d'auto-update
-- Installateurs pré-compilés à chaque release
-
-**Plus tard (idées, pas des engagements) :**
-- Embeds plus riches pour les blocs video / GIF / map / accordion
-- Optimisation des images à l'export et réécriture de domaine CDN
-- Fournisseurs IA supplémentaires
-- Vérifications de revue plus poussées
-
-**Hors périmètre par choix :**
-- Listes de contacts, historique d'envoi, tracking d'ouverture/clic, CDN hébergé — tout cela appartient à votre plateforme de mailing, pas à un éditeur local.
-
 ## Soutenir le projet
 
 Simple Template est libre et open source. S'il vous aide, voici tout ce qui est utile :
 
-- **[Mettez une étoile au dépôt](https://github.com/jcocano/simple-templete)** pour que plus de monde le découvre
-- **[Signalez un bug](https://github.com/jcocano/simple-templete/issues/new?template=bug_report.yml)** si quelque chose est cassé
-- **[Demandez une fonctionnalité](https://github.com/jcocano/simple-templete/issues/new?template=feature_request.yml)** que vous aimeriez voir
-- **[Aidez avec les traductions](https://github.com/jcocano/simple-templete/issues/new?template=translation.yml)** — corrigez des fautes, améliorez la copie, ou ajoutez une nouvelle langue
+- **[Mettez une étoile au dépôt](https://github.com/jcocano/simple-template)** pour que plus de monde le découvre
+- **[Signalez un bug](https://github.com/jcocano/simple-template/issues/new?template=bug_report.yml)** si quelque chose est cassé
+- **[Demandez une fonctionnalité](https://github.com/jcocano/simple-template/issues/new?template=feature_request.yml)** que vous aimeriez voir
+- **[Aidez avec les traductions](https://github.com/jcocano/simple-template/issues/new?template=translation.yml)** — corrigez des fautes, améliorez la copie, ou ajoutez une nouvelle langue
 - **[Ouvrez une pull request](../../CONTRIBUTING.md)** — voir le guide de contribution pour la configuration de dev
-- **[Rejoignez les discussions](https://github.com/jcocano/simple-templete/discussions)** pour les questions, idées et démonstrations
+- **[Rejoignez les discussions](https://github.com/jcocano/simple-template/discussions)** pour les questions, idées et démonstrations
 - **[Offrez-moi un café](https://buymeacoffee.com/jesuscocana)** si vous voulez financer le développement continu
 
 ## Communauté
 
-- **[Discussions](https://github.com/jcocano/simple-templete/discussions)** — Q&R, idées, démonstrations
-- **[Issues](https://github.com/jcocano/simple-templete/issues)** — bugs, fonctionnalités, traductions
-- **[Releases](https://github.com/jcocano/simple-templete/releases)** — historique des versions
+- **[Discussions](https://github.com/jcocano/simple-template/discussions)** — Q&R, idées, démonstrations
+- **[Issues](https://github.com/jcocano/simple-template/issues)** — bugs, fonctionnalités, traductions
+- **[Releases](https://github.com/jcocano/simple-template/releases)** — historique des versions
 
 Merci de lire le [Code de conduite](../../CODE_OF_CONDUCT.md) avant de participer.
 

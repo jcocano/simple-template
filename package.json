@@ -7,13 +7,13 @@
   "main": "electron/main.js",
   "author": "Jesus Cocaño <jesus.cocano@gmail.com>",
   "license": "MIT",
-  "homepage": "https://github.com/jcocano/simple-templete",
+  "homepage": "https://github.com/jcocano/simple-template",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jcocano/simple-templete.git"
+    "url": "git+https://github.com/jcocano/simple-template.git"
   },
   "bugs": {
-    "url": "https://github.com/jcocano/simple-templete/issues"
+    "url": "https://github.com/jcocano/simple-template/issues"
   },
   "scripts": {
     "dev:web": "vite",
