@@ -1940,7 +1940,7 @@ function ImproveAIModal({ block, onClose, onApply }) {
     const result = await window.stAI.improveText({ block, action, extra });
     setLoading(false);
     if (!result.ok) {
-      setError(result.error || t('editor.improveAi.errorDefault'));
+      setError(window.stIpcErr.localize(result));
       setVariants([]);
       return;
     }

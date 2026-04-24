@@ -11,8 +11,18 @@ const VALID_KINDS = new Set([
 ]);
 
 function filePath(workspaceId, id) {
-  if (!ID_RE.test(workspaceId)) throw new Error(`invalid workspace id: ${workspaceId}`);
-  if (!ID_RE.test(id)) throw new Error(`invalid saved block id: ${id}`);
+  if (!ID_RE.test(workspaceId)) {
+    const err = new Error(`Invalid workspace id: ${workspaceId}`);
+    err.errorKey = 'storage.err.invalidWorkspaceId';
+    err.errorParams = { id: workspaceId };
+    throw err;
+  }
+  if (!ID_RE.test(id)) {
+    const err = new Error(`Invalid saved block id: ${id}`);
+    err.errorKey = 'storage.err.invalidSavedBlockId';
+    err.errorParams = { id };
+    throw err;
+  }
   return path.join(workspaceSavedBlocksDir(workspaceId), `${id}.json`);
 }
 

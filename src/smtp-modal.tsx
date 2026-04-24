@@ -245,7 +245,7 @@ function DeliveryModal({ onClose, embedded = false }) {
     setAuthorizing(false);
     if (!result.ok) {
       setState('err');
-      setError(result.error || t('smtp.oauth.failed'));
+      setError(window.stIpcErr.localize(result));
       return;
     }
     // Persist tokens + cfg immediately so auth survives even if the user

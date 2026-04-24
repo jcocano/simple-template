@@ -7,8 +7,18 @@ const db = require('./db');
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
 function filePath(workspaceId, id) {
-  if (!ID_RE.test(workspaceId)) throw new Error(`invalid workspace id: ${workspaceId}`);
-  if (!ID_RE.test(id)) throw new Error(`invalid template id: ${id}`);
+  if (!ID_RE.test(workspaceId)) {
+    const err = new Error(`Invalid workspace id: ${workspaceId}`);
+    err.errorKey = 'storage.err.invalidWorkspaceId';
+    err.errorParams = { id: workspaceId };
+    throw err;
+  }
+  if (!ID_RE.test(id)) {
+    const err = new Error(`Invalid template id: ${id}`);
+    err.errorKey = 'storage.err.invalidTemplateId';
+    err.errorParams = { id };
+    throw err;
+  }
   return path.join(workspaceTemplatesDir(workspaceId), `${id}.json`);
 }
 

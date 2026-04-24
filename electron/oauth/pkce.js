@@ -58,7 +58,7 @@ function startLoopbackServer({ timeoutMs = 5 * 60 * 1000 } = {}) {
       if (!settled) {
         settled = true;
         try { server.close(); } catch {}
-        rejectWait(new Error('Timeout esperando autorización (5 min).'));
+        rejectWait(new Error('Timeout waiting for authorization (5 min).'));
       }
     }, timeoutMs);
 
@@ -100,11 +100,11 @@ function startLoopbackServer({ timeoutMs = 5 * 60 * 1000 } = {}) {
       setImmediate(() => { try { server.close(); } catch {} });
 
       if (error) {
-        rejectWait(new Error(errorDescription || error || 'Autorización rechazada'));
+        rejectWait(new Error(errorDescription || error || 'Authorization rejected.'));
       } else if (code && state) {
         resolveWait({ code, state });
       } else {
-        rejectWait(new Error('Callback sin code/state.'));
+        rejectWait(new Error('Callback without code/state.'));
       }
     });
 
@@ -153,7 +153,12 @@ async function authorize(providerConfig = {}) {
   } = providerConfig;
 
   if (!authUrl || !tokenUrl || !clientId || !Array.isArray(scopes) || !scopes.length) {
-    return { ok: false, error: 'Config incompleto (authUrl/tokenUrl/clientId/scopes).' };
+    return {
+      ok: false,
+      errorKey: 'oauth.err.configIncomplete',
+      errorParams: {},
+      error: 'Incomplete config (authUrl/tokenUrl/clientId/scopes).',
+    };
   }
 
   const verifier = generateVerifier();
@@ -164,7 +169,12 @@ async function authorize(providerConfig = {}) {
   try {
     server = await startLoopbackServer();
   } catch (err) {
-    return { ok: false, error: `No se pudo abrir el servidor local: ${err.message}` };
+    return {
+      ok: false,
+      errorKey: 'oauth.err.loopbackServerFailed',
+      errorParams: { message: err.message },
+      error: `Could not open local server: ${err.message}`,
+    };
   }
   const { redirectUri, wait, close } = server;
 
@@ -187,7 +197,12 @@ async function authorize(providerConfig = {}) {
 
     const { code, state: receivedState } = await wait();
     if (receivedState !== state) {
-      return { ok: false, error: 'El state no coincide (posible CSRF). Volvé a intentar.' };
+      return {
+        ok: false,
+        errorKey: 'oauth.err.stateMismatch',
+        errorParams: {},
+        error: 'State does not match (possible CSRF). Please try again.',
+      };
     }
 
     const tokenResp = await exchangeCode({
@@ -223,10 +238,29 @@ async function exchangeCode({ tokenUrl, clientId, clientSecret, code, redirectUr
     let json;
     try { json = JSON.parse(text); } catch { json = { raw: text }; }
     if (!resp.ok) {
-      return { ok: false, error: json.error_description || json.error || `Token exchange falló (${resp.status}).` };
+      const providerMsg = json.error_description || json.error || '';
+      if (providerMsg) {
+        return {
+          ok: false,
+          errorKey: 'oauth.err.tokenExchangeFailed',
+          errorParams: { message: providerMsg },
+          error: providerMsg,
+        };
+      }
+      return {
+        ok: false,
+        errorKey: 'oauth.err.tokenExchangeStatus',
+        errorParams: { status: resp.status },
+        error: `Token exchange failed (${resp.status}).`,
+      };
     }
     if (!json.access_token) {
-      return { ok: false, error: 'El provider no devolvió access_token.' };
+      return {
+        ok: false,
+        errorKey: 'oauth.err.noAccessToken',
+        errorParams: {},
+        error: 'The provider did not return an access_token.',
+      };
     }
     return {
       ok: true,
@@ -237,17 +271,33 @@ async function exchangeCode({ tokenUrl, clientId, clientSecret, code, redirectUr
       scope: json.scope || '',
     };
   } catch (err) {
-    return { ok: false, error: err?.message || 'Error de red en token exchange.' };
+    const msg = err?.message || 'Network error during token exchange.';
+    return {
+      ok: false,
+      errorKey: 'oauth.err.tokenExchangeNetwork',
+      errorParams: { message: msg },
+      error: msg,
+    };
   }
 }
 
 async function refresh(providerConfig = {}, refreshToken) {
   const { tokenUrl, clientId, clientSecret } = providerConfig;
   if (!tokenUrl || !clientId) {
-    return { ok: false, error: 'Config incompleto para refresh.' };
+    return {
+      ok: false,
+      errorKey: 'oauth.err.refreshConfigIncomplete',
+      errorParams: {},
+      error: 'Incomplete config for refresh.',
+    };
   }
   if (!refreshToken) {
-    return { ok: false, error: 'Falta refresh_token.' };
+    return {
+      ok: false,
+      errorKey: 'oauth.err.missingRefreshToken',
+      errorParams: {},
+      error: 'Missing refresh_token.',
+    };
   }
 
   const params = new URLSearchParams();
@@ -269,10 +319,29 @@ async function refresh(providerConfig = {}, refreshToken) {
     let json;
     try { json = JSON.parse(text); } catch { json = { raw: text }; }
     if (!resp.ok) {
-      return { ok: false, error: json.error_description || json.error || `Refresh falló (${resp.status}).` };
+      const providerMsg = json.error_description || json.error || '';
+      if (providerMsg) {
+        return {
+          ok: false,
+          errorKey: 'oauth.err.refreshFailed',
+          errorParams: { message: providerMsg },
+          error: providerMsg,
+        };
+      }
+      return {
+        ok: false,
+        errorKey: 'oauth.err.refreshStatus',
+        errorParams: { status: resp.status },
+        error: `Refresh failed (${resp.status}).`,
+      };
     }
     if (!json.access_token) {
-      return { ok: false, error: 'El provider no devolvió access_token al refrescar.' };
+      return {
+        ok: false,
+        errorKey: 'oauth.err.noAccessTokenOnRefresh',
+        errorParams: {},
+        error: 'The provider did not return an access_token on refresh.',
+      };
     }
     return {
       ok: true,
@@ -283,7 +352,13 @@ async function refresh(providerConfig = {}, refreshToken) {
       tokenType: json.token_type || 'Bearer',
     };
   } catch (err) {
-    return { ok: false, error: err?.message || 'Error de red refrescando token.' };
+    const msg = err?.message || 'Network error refreshing token.';
+    return {
+      ok: false,
+      errorKey: 'oauth.err.refreshNetwork',
+      errorParams: { message: msg },
+      error: msg,
+    };
   }
 }
 

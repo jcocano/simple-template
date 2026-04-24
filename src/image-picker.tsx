@@ -79,7 +79,7 @@ function ImagePickerModal({ open, onClose, onSelect }) {
     try {
       const result = await window.stCDN.upload(file);
       if (!result.ok) {
-        setUploadError(result.error || t('imagePicker.upload.failed'));
+        setUploadError(window.stIpcErr.localize(result));
         return;
       }
       const dim = await window.stImages.readImageSize(file);

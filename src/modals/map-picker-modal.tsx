@@ -162,7 +162,7 @@ function MapPickerModal({ open, onClose, onSave, initial = {} }) {
     try {
       const result = await window.stCDN.upload(file);
       if (!result.ok) {
-        setUploadError(result.error || t('modal.map.uploadFailed'));
+        setUploadError(window.stIpcErr.localize(result));
         return;
       }
       const dim = await window.stImages.readImageSize(file);

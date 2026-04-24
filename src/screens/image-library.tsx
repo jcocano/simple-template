@@ -59,7 +59,7 @@ function ImageLibraryScreen({ onBack, onOpenSettings }) {
       for (const file of files) {
         const result = await window.stCDN.upload(file);
         if (!result.ok) {
-          setUploadError(result.error || t('imageLib.error.upload', { name: file.name }));
+          setUploadError(window.stIpcErr.localize(result));
           break;
         }
         const dim = await window.stImages.readImageSize(file);

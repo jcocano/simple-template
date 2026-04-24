@@ -849,7 +849,7 @@ function StorageSection({ onChange }) {
         ...tt,
         [providerId]: result.ok
           ? { state: 'ok', url: result.url }
-          : { state: 'err', msg: result.error || t('settings.storage.test.fail') },
+          : { state: 'err', msg: window.stIpcErr.localize(result) },
       }));
     } catch (err) {
       setTestState(tt => ({ ...tt, [providerId]: { state: 'err', msg: err?.message || t('settings.storage.test.unknownErr') } }));
@@ -1690,7 +1690,7 @@ function AISection({ onChange }) {
         }
       } else {
         setModels([]);
-        setModelsError(result.error);
+        setModelsError(window.stIpcErr.localize(result));
       }
     } catch (err) {
       setModels([]);

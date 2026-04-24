@@ -301,7 +301,7 @@ function renderHTML(template, opts = {}) {
   if (!template) return '';
   if (!template.doc) return '';
   if (typeof window === 'undefined' || typeof window.docToEmailHtml !== 'function') {
-    throw new Error('docToEmailHtml no está disponible');
+    throw new Error(window.stI18n.t('export.err.docToHtmlUnavailable'));
   }
 
   const previewVars = doResolve ? (template.vars || []) : null;

@@ -57,7 +57,7 @@ async function fileToUint8Array(file) {
     const buf = await file.arrayBuffer();
     return new Uint8Array(buf);
   }
-  throw new Error('No se pudo leer el archivo.');
+  throw new Error(window.stI18n.t('cdn.err.fileReadFailed'));
 }
 
 // Base64 path: reads the file into a data URL. Opcional, para HTML
@@ -70,7 +70,7 @@ async function uploadBase64(file, opts = {}) {
   if (sizeKB > maxKB) {
     return {
       ok: false,
-      error: `La imagen pesa ${sizeKB} KB. En modo Base64 el recomendado es quedarse debajo de ${maxKB} KB — algunos clientes truncan correos grandes. Cambiá a almacenamiento local en Ajustes → Almacenamiento.`,
+      error: window.stI18n.t('cdn.err.imgTooLargeBase64', { sizeKB, maxKB }),
       code: 'PAYLOAD_TOO_LARGE',
     };
   }
@@ -109,17 +109,20 @@ function extFrom(file) {
 }
 async function uploadLocal(file, opts = {}) {
   if (!window.cdn || typeof window.cdn.saveLocal !== 'function') {
-    return { ok: false, error: 'El puente de almacenamiento local no está disponible (abrí la app en Electron).', code: 'IPC' };
+    return { ok: false, error: window.stI18n.t('cdn.err.localBridgeUnavailable'), code: 'IPC' };
   }
   const workspaceId = window.stStorage?.getCurrentWorkspaceId?.();
   if (!workspaceId) {
-    return { ok: false, error: 'Workspace no inicializado. Esperá un instante.', code: 'CONFIG' };
+    return { ok: false, error: window.stI18n.t('cdn.err.workspaceNotReady'), code: 'CONFIG' };
   }
   const bytes = await fileToUint8Array(file);
   if (bytes.length > LOCAL_SOFT_CAP) {
     return {
       ok: false,
-      error: `La imagen pesa ${Math.round(bytes.length / 1024 / 1024)} MB. Máximo ${Math.round(LOCAL_SOFT_CAP / 1024 / 1024)} MB — reducí el tamaño o comprimila.`,
+      error: window.stI18n.t('cdn.err.imgTooLargeLocal', {
+        sizeMB: Math.round(bytes.length / 1024 / 1024),
+        maxMB: Math.round(LOCAL_SOFT_CAP / 1024 / 1024),
+      }),
       code: 'PAYLOAD_TOO_LARGE',
     };
   }
@@ -127,7 +130,7 @@ async function uploadLocal(file, opts = {}) {
   const ext = extFrom(file);
   try {
     const result = await window.cdn.saveLocal({ workspaceId, imageId, ext, bytes });
-    if (!result?.ok) return result || { ok: false, error: 'Error desconocido al guardar.', code: 'IO' };
+    if (!result?.ok) return result || { ok: false, error: window.stI18n.t('cdn.err.saveUnknown'), code: 'IO' };
     return {
       ok: true,
       url: result.url,
@@ -136,7 +139,7 @@ async function uploadLocal(file, opts = {}) {
       sizeKB: Math.round(bytes.length / 1024),
     };
   } catch (err) {
-    return { ok: false, error: err?.message || 'Error llamando al puente local.', code: 'IPC' };
+    return { ok: false, error: err?.message || window.stI18n.t('cdn.err.localIpcFailed'), code: 'IPC' };
   }
 }
 
@@ -152,7 +155,7 @@ function uint8ToBase64(bytes) {
 }
 
 async function upload(file, opts = {}) {
-  if (!file) return { ok: false, error: 'Falta archivo.' };
+  if (!file) return { ok: false, error: window.stI18n.t('cdn.err.missingFile') };
 
   const storageCfg = window.stStorage.getWSSetting('storage', {}) || {};
   const mode = opts.provider || storageCfg.mode || 'local';
@@ -182,7 +185,7 @@ async function upload(file, opts = {}) {
   }
 
   if (!window.cdn || typeof window.cdn.upload !== 'function') {
-    return { ok: false, error: 'El puente de subida no está disponible (abrí la app en Electron).' };
+    return { ok: false, error: window.stI18n.t('cdn.err.uploadBridgeUnavailable') };
   }
 
   const providerConfig = storageCfg[mode] || {};
@@ -284,14 +287,14 @@ async function optimizeImage(file, { maxDim = 2000, quality = 0.85 } = {}) {
   const ctx = canvas.getContext('2d');
   if (!ctx) {
     URL.revokeObjectURL(url);
-    throw new Error('No se pudo inicializar canvas para optimizar.');
+    throw new Error(window.stI18n.t('cdn.err.canvasInitFailed'));
   }
   ctx.drawImage(img, 0, 0, tw, th);
   URL.revokeObjectURL(url);
 
   const outBlob = await new Promise((resolve, reject) => {
     canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error('canvas.toBlob devolvió null.'))),
+      (b) => (b ? resolve(b) : reject(new Error(window.stI18n.t('cdn.err.canvasToBlobNull')))),
       outType,
       quality,
     );

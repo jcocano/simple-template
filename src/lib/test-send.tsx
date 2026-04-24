@@ -6,8 +6,9 @@
 //   1. Resolve the current workspace's delivery provider + cfg (from secrets).
 //   2. Render the template with `{ resolveVars: true }` so recipients see
 //      substituted values, not {{literal}}.
-//   3. Subject also gets vars resolved, and is prefixed with [PRUEBA] so
-//      recipients distinguish it from production sends.
+//   3. Subject also gets vars resolved, and is prefixed with a localized
+//      test badge (e.g. [PRUEBA] / [TEST]) so recipients distinguish it
+//      from production sends.
 //   4. Invoke window.smtp.send (IPC → electron/smtp/send.js → nodemailer).
 //
 // Return shape:
@@ -16,6 +17,12 @@
 //
 // Higher-level helper `sendFromEditor(recipients)` flushes pending autosave
 // and pulls the active template before delegating to send().
+
+// Safe t() wrapper — i18n.tsx always loads before this file (see src/main.tsx
+// import order), but fall back to the key if window.stI18n isn't ready yet so
+// we never leak `undefined` into an error message.
+const tr = (key, params) =>
+  window.stI18n && typeof window.stI18n.t === 'function' ? window.stI18n.t(key, params) : key;
 
 function resolveSubject(s = '', vars) {
   const map = {};
@@ -45,10 +52,10 @@ function isSupportedProvider(provider) {
 async function loadWorkspaceDeliveryCfg() {
   const provider = window.stStorage.getWSSetting('delivery:provider', null);
   if (!provider) {
-    return { error: 'No hay proveedor de envío configurado. Abrí Ajustes → Envío para conectarte.' };
+    return { error: tr('testSend.error.noProvider') };
   }
   if (!isSupportedProvider(provider)) {
-    return { error: `El proveedor "${provider}" todavía no está soportado.` };
+    return { error: tr('testSend.error.providerUnsupported', { provider }) };
   }
   try {
     const raw = await window.stStorage.secrets.get(
@@ -56,20 +63,20 @@ async function loadWorkspaceDeliveryCfg() {
     );
     const cfg = raw ? JSON.parse(raw) : null;
     if (!cfg) {
-      return { error: 'La configuración está vacía. Revisá Ajustes → Envío.' };
+      return { error: tr('testSend.error.cfgEmpty') };
     }
 
     if (OAUTH_PROVIDERS.has(provider)) {
       if (!cfg.clientId || !cfg.user || !cfg.fromEmail) {
-        return { error: 'Configuración OAuth incompleta (client_id, usuario o From). Revisá Ajustes → Envío.' };
+        return { error: tr('testSend.error.oauthIncomplete') };
       }
       if (!cfg.tokens?.accessToken) {
-        return { error: 'Necesitás autorizar el proveedor antes de enviar. Abrí Ajustes → Envío y hacé clic en "Autorizar".' };
+        return { error: tr('testSend.error.oauthNotAuthorized') };
       }
     } else {
       // Password-based (smtp/gmail/outlook/yahoo/icloud)
       if (!cfg.host || !cfg.user || !cfg.pass) {
-        return { error: 'La configuración SMTP está incompleta. Revisá Ajustes → Envío.' };
+        return { error: tr('testSend.error.smtpIncomplete') };
       }
     }
 
@@ -81,25 +88,25 @@ async function loadWorkspaceDeliveryCfg() {
     const fromDomain = extractDomain(cfg.fromEmail);
     if (userDomain && fromDomain && userDomain !== fromDomain) {
       return {
-        error: `El "From" (@${fromDomain}) no coincide con el dominio de la cuenta autenticada (@${userDomain}). Gmail y otros filtros descartan estos correos como spam. Abrí Ajustes → Envío para corregirlo.`,
+        error: tr('testSend.error.fromDomainMismatch', { fromDomain, userDomain }),
       };
     }
     return { provider, cfg };
   } catch (err) {
-    return { error: 'No se pudo leer la configuración de envío guardada.' };
+    return { error: tr('testSend.error.cfgReadFailed') };
   }
 }
 
 async function send({ template, recipients, fromOverride } = {}) {
-  if (!template) return { ok: false, error: 'No hay una plantilla para enviar.' };
+  if (!template) return { ok: false, error: tr('testSend.error.noTemplate') };
   const list = Array.isArray(recipients) ? recipients.filter(Boolean) : [];
-  if (list.length === 0) return { ok: false, error: 'Agregá al menos un destinatario.' };
+  if (list.length === 0) return { ok: false, error: tr('testSend.error.noRecipients') };
 
   if (!window.smtp || typeof window.smtp.send !== 'function') {
-    return { ok: false, error: 'El puente de envío no está disponible (abrí la app en Electron, no en el navegador).' };
+    return { ok: false, error: tr('testSend.error.bridgeUnavailable') };
   }
   if (!window.stExport) {
-    return { ok: false, error: 'El motor de export no está disponible.' };
+    return { ok: false, error: tr('testSend.error.exportUnavailable') };
   }
 
   const loaded = await loadWorkspaceDeliveryCfg();
@@ -116,9 +123,10 @@ async function send({ template, recipients, fromOverride } = {}) {
   const fromName  = String(fromOverride?.name || cfg.fromName || '').trim();
   const from = fromName ? `"${fromName.replace(/"/g, '')}" <${fromEmail}>` : fromEmail;
 
-  let subject = template.meta?.subject || template.name || '(sin asunto)';
+  let subject = template.meta?.subject || template.name || tr('testSend.subject.untitled');
   subject = resolveSubject(subject, template.vars);
-  subject = `[PRUEBA] ${subject}`;
+  const badge = tr('modals.test.tag.badge');
+  subject = `${badge} ${subject}`;
 
   // Resolve the nodemailer auth object based on provider kind. Password-based
   // providers use {user, pass}; OAuth providers refresh the access token if
@@ -129,7 +137,7 @@ async function send({ template, recipients, fromOverride } = {}) {
   if (OAUTH_PROVIDERS.has(provider)) {
     const smtpCfg = window.stOAuth?.getSmtpConfig(provider);
     if (!smtpCfg) {
-      return { ok: false, error: 'No hay configuración SMTP para este proveedor OAuth.' };
+      return { ok: false, error: tr('testSend.error.oauthSmtpMissing') };
     }
     host = smtpCfg.host;
     secure = smtpCfg.security === 'ssl';
@@ -137,7 +145,7 @@ async function send({ template, recipients, fromOverride } = {}) {
 
     const refreshResult = await window.stOAuth.refreshIfNeeded(provider, cfg.tokens, cfg);
     if (!refreshResult.ok) {
-      return { ok: false, error: refreshResult.error || 'No se pudo refrescar el token OAuth.' };
+      return { ok: false, error: refreshResult.error || tr('testSend.error.tokenRefreshFailed') };
     }
     // Persist rotated tokens so next send doesn't re-refresh unnecessarily.
     if (refreshResult.accessToken !== cfg.tokens.accessToken
@@ -189,7 +197,7 @@ async function send({ template, recipients, fromOverride } = {}) {
   try {
     return await window.smtp.send(payload);
   } catch (err) {
-    return { ok: false, error: err?.message || 'Error llamando al puente SMTP.', code: 'IPC' };
+    return { ok: false, error: err?.message || tr('testSend.error.smtpIpc'), code: 'IPC' };
   }
 }
 
@@ -199,15 +207,15 @@ async function send({ template, recipients, fromOverride } = {}) {
 async function sendFromEditor(recipients, fromOverride) {
   const ed = window.__stEditor;
   if (!ed || typeof ed.getTemplateId !== 'function') {
-    return { ok: false, error: 'Abrí una plantilla en el editor antes de enviar una prueba.' };
+    return { ok: false, error: tr('testSend.error.openTemplate') };
   }
   const id = ed.getTemplateId();
-  if (!id) return { ok: false, error: 'No hay una plantilla activa.' };
+  if (!id) return { ok: false, error: tr('testSend.error.noActiveTemplate') };
   if (typeof ed.flush === 'function') {
     try { await ed.flush(); } catch {}
   }
   const template = await window.stTemplates.read(id);
-  if (!template) return { ok: false, error: 'No se pudo leer la plantilla desde disco.' };
+  if (!template) return { ok: false, error: tr('testSend.error.templateReadFailed') };
   return await send({ template, recipients, fromOverride });
 }
 

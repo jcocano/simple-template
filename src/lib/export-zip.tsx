@@ -6,7 +6,7 @@ async function buildZip(template, opts = {}) {
   const { default: JSZip } = await import('jszip');
   const docFn = window.docToEmailHtml;
   if (typeof docFn !== 'function' || !template?.doc) {
-    throw new Error('docToEmailHtml no está disponible o template sin doc.');
+    throw new Error(window.stI18n.t('export.err.docToHtmlUnavailableOrEmpty'));
   }
   const result = docFn(template.doc, {
     lang: opts.lang,

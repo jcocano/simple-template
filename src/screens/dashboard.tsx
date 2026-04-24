@@ -1172,7 +1172,7 @@ function AIGenerateModal({ onClose, onGenerated }) {
     const result = await window.stAI.generateTemplate({ prompt, tone, length, blocks });
     if (!result.ok) {
       setLoading(false);
-      setError(result.error || 'No se pudo generar la plantilla.');
+      setError(window.stIpcErr.localize(result));
       return;
     }
     // Create a real template from the generated doc and open it in the editor.

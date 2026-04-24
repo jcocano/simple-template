@@ -340,7 +340,7 @@ function DevsTab({ onClose }) {
         let collectedWarnings = [];
         const docFn = window.docToEmailHtml;
         if (typeof docFn !== 'function' || !template.doc) {
-          throw new Error('docToEmailHtml no está disponible para exportar HTML.');
+          throw new Error(window.stI18n.t('export.err.docToHtmlUnavailable'));
         }
         const result = docFn(template.doc, {
           lang,
