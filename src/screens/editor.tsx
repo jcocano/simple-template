@@ -2037,7 +2037,12 @@ function ImproveAIModal({ block, onClose, onApply }) {
         </div>
         <div className="modal-foot">
           <div style={{fontSize:11,color:'var(--fg-3)',flex:1}}>
-            {t('editor.improveAi.using')}<b style={{color:'var(--fg-2)'}}>{aiCfg.provider==='openai'?'OpenAI':aiCfg.provider==='google'?'Gemini':aiCfg.provider==='ollama'?'Ollama':'Claude'}</b>
+            {(() => {
+              const providerName = aiCfg.provider==='openai'?'OpenAI':aiCfg.provider==='google'?'Gemini':aiCfg.provider==='ollama'?'Ollama':'Claude';
+              const label = aiCfg.model ? `${providerName} · ${aiCfg.model}` : providerName;
+              const parts = t('editor.improveAi.using').split('{model}');
+              return <>{parts[0]}<b style={{color:'var(--fg-2)'}}>{label}</b>{parts[1] || ''}</>;
+            })()}
           </div>
           <button className="btn" onClick={onClose}>{t('common.close')}</button>
           <button className="btn primary" onClick={handleGenerate} disabled={loading}>
