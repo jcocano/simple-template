@@ -1617,6 +1617,9 @@ function AISection({ onChange }) {
   ], [lang]);
   const provider = PROVIDERS.find(p => p.id === (ai.provider||'anthropic'));
   const enabled = ai.enabled !== false;
+  // Howto state — holds the id of the provider whose help panel is expanded
+  // below the grid, or null when closed. Click the `?` glyph to toggle.
+  const [howto, setHowto] = React.useState(null);
 
   // API key lives in workspace secrets (encrypted via safeStorage), keyed per
   // provider so switching providers doesn't clobber another's key. The flag
@@ -1748,23 +1751,107 @@ function AISection({ onChange }) {
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
             {PROVIDERS.map(p => {
               const on = (ai.provider||'anthropic') === p.id;
+              const howtoOpen = howto === p.id;
               return (
-                <button key={p.id} onClick={()=>set('provider', p.id)} style={{
-                  textAlign:'left',padding:'11px 13px',
-                  border: on?'1.5px solid var(--accent)':'1px solid var(--line)',
-                  borderRadius:'var(--r-md)',
-                  background: on?'var(--accent-soft)':'var(--surface)',
-                  cursor:'pointer',
-                }}>
-                  <div style={{fontSize:12.5,fontWeight:500,display:'flex',alignItems:'center',gap:6}}>
-                    {p.name}
-                    {on && <I.check size={12} style={{color:'var(--accent)'}}/>}
-                  </div>
-                  <div style={{fontSize:10.5,color:'var(--fg-3)',marginTop:3,lineHeight:1.4}}>{p.hint}</div>
-                </button>
+                <div key={p.id} style={{position:'relative'}}>
+                  <button onClick={()=>set('provider', p.id)} style={{
+                    textAlign:'left',padding:'11px 13px',paddingRight:32,
+                    width:'100%',
+                    border: on?'1.5px solid var(--accent)':'1px solid var(--line)',
+                    borderRadius:'var(--r-md)',
+                    background: on?'var(--accent-soft)':'var(--surface)',
+                    cursor:'pointer',
+                  }}>
+                    <div style={{fontSize:12.5,fontWeight:500,display:'flex',alignItems:'center',gap:6}}>
+                      {p.name}
+                      {on && <I.check size={12} style={{color:'var(--accent)'}}/>}
+                    </div>
+                    <div style={{fontSize:10.5,color:'var(--fg-3)',marginTop:3,lineHeight:1.4}}>{p.hint}</div>
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={t('settings.ai.provider.howto.aria', { provider: p.name })}
+                    title={t('settings.ai.provider.howto.aria', { provider: p.name })}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setHowto(howtoOpen ? null : p.id);
+                    }}
+                    style={{
+                      position:'absolute',top:8,right:8,
+                      width:20,height:20,padding:0,
+                      display:'grid',placeItems:'center',
+                      border:'1px solid var(--line)',
+                      borderRadius:999,
+                      background: howtoOpen ? 'var(--accent)' : 'var(--surface)',
+                      color: howtoOpen ? '#fff' : 'var(--fg-3)',
+                      fontSize:11,fontWeight:600,
+                      cursor:'pointer',
+                      lineHeight:1,
+                    }}
+                  >?</button>
+                </div>
               );
             })}
           </div>
+          {howto && (() => {
+            const p = PROVIDERS.find(pp => pp.id === howto);
+            if (!p) return null;
+            return (
+              <div style={{
+                marginTop: 10,
+                border: '1px solid var(--line)',
+                borderRadius: 'var(--r-md)',
+                background: 'var(--surface-2)',
+                padding: '12px 14px',
+                display: 'grid',
+                gridTemplateColumns: '1fr auto',
+                gap: 10,
+                alignItems: 'start',
+              }}>
+                <div>
+                  <div style={{fontSize:12, fontWeight:600, color:'var(--fg)', marginBottom:6}}>
+                    {t(`settings.ai.provider.${p.id}.howto.title`)}
+                  </div>
+                  <div style={{fontSize:11.5, color:'var(--fg-2)', lineHeight:1.6, whiteSpace:'pre-line'}}>
+                    {t(`settings.ai.provider.${p.id}.howto.body`)}
+                  </div>
+                  {p.url && (
+                    <a
+                      href={p.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        display:'inline-flex',
+                        alignItems:'center',
+                        gap:4,
+                        marginTop:10,
+                        color:'var(--accent)',
+                        fontSize:11.5,
+                        fontWeight:500,
+                        textDecoration:'none',
+                      }}
+                    >
+                      {t('settings.ai.provider.howto.open', { provider: p.name })}
+                      <I.external size={10}/>
+                    </a>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setHowto(null)}
+                  aria-label="Close"
+                  style={{
+                    width:22, height:22, padding:0,
+                    display:'grid', placeItems:'center',
+                    border:'none', borderRadius:6,
+                    background:'transparent',
+                    color:'var(--fg-3)',
+                    cursor:'pointer',
+                  }}
+                ><I.x size={12}/></button>
+              </div>
+            );
+          })()}
         </SRow>
       </SGroup>
 
