@@ -50,41 +50,37 @@ async function resolveApiKey(aiCfg) {
   return null;
 }
 
-// Map of error codes → user-facing Spanish copy. Keeps messages consistent
-// across operations (improveText, generateTemplate) and provider quirks.
+// Map of error codes → user-facing copy. Keeps messages consistent across
+// operations (improveText, generateTemplate) and provider quirks. Uses the
+// renderer i18n layer so the copy matches the active locale.
 function friendlyError(result) {
   if (result?.ok) return null;
   const code = result?.code;
   const raw = result?.error;
+  const t = window.stI18n.t;
   switch (code) {
-    case 'AUTH':
-      return 'La API key fue rechazada por el proveedor. Revisá Ajustes → IA.';
-    case 'RATE_LIMIT':
-      return 'El proveedor limitó las llamadas temporalmente. Esperá unos segundos y reintentá.';
-    case 'NETWORK':
-      return raw || 'No se pudo conectar con el proveedor de IA.';
-    case 'PARSE':
-      return 'La respuesta del modelo no pudo leerse. Reintentá — suele ser un hiccup del proveedor.';
-    case 'SERVER':
-      return 'El proveedor devolvió un error del servidor. Reintentá en un momento.';
-    default:
-      return raw || 'Error desconocido al llamar al proveedor de IA.';
+    case 'AUTH':       return t('ai.err.codeAuth');
+    case 'RATE_LIMIT': return t('ai.err.codeRateLimit');
+    case 'NETWORK':    return raw || t('ai.err.codeNetwork');
+    case 'PARSE':      return t('ai.err.codeParse');
+    case 'SERVER':     return t('ai.err.codeServer');
+    default:           return raw || t('ai.err.codeUnknown');
   }
 }
 
 async function callModel({ system, user, responseFormat, maxTokens = 1024, temperature = 0.7, op = 'other' }) {
   const aiCfg = window.stStorage.getSetting('ai', {}) || {};
   if (aiCfg.enabled === false) {
-    return { ok: false, error: 'La IA está desactivada. Activala en Ajustes → Inteligencia artificial.' };
+    return { ok: false, error: window.stI18n.t('ai.err.aiDisabled') };
   }
   const provider = aiCfg.provider || 'anthropic';
   const model = aiCfg.model || PROVIDER_DEFAULTS[provider];
   const apiKey = await resolveApiKey(aiCfg);
   if (provider !== 'ollama' && !apiKey) {
-    return { ok: false, error: 'Falta la API key del proveedor. Configurala en Ajustes → IA.' };
+    return { ok: false, error: window.stI18n.t('ai.err.missingApiKeyClient') };
   }
   if (!window.ai || typeof window.ai.complete !== 'function') {
-    return { ok: false, error: 'El puente de IA no está disponible (abrí la app en Electron).' };
+    return { ok: false, error: window.stI18n.t('ai.err.bridgeUnavailable') };
   }
   const result = await window.ai.complete({
     provider,
@@ -169,9 +165,9 @@ function getBlockText(block) {
 }
 
 async function improveText({ block, action = 'rewrite', extra = '', lang = 'es' } = {}) {
-  if (!block) return { ok: false, error: 'No hay bloque seleccionado.' };
+  if (!block) return { ok: false, error: window.stI18n.t('ai.err.noBlock') };
   const currentText = getBlockText(block);
-  if (!currentText) return { ok: false, error: 'El bloque no tiene texto que mejorar.' };
+  if (!currentText) return { ok: false, error: window.stI18n.t('ai.err.blockNoText') };
 
   const aiCfg = window.stStorage.getSetting('ai', {}) || {};
   const tone = aiCfg.tone || 'neutral';
@@ -205,7 +201,7 @@ async function improveText({ block, action = 'rewrite', extra = '', lang = 'es' 
   const parsed = tryParseJSON(result.text);
   const variants = parsed?.variants;
   if (!Array.isArray(variants) || variants.length === 0) {
-    return { ok: false, error: 'La respuesta del modelo no tuvo el formato esperado. Reintentá.' };
+    return { ok: false, error: window.stI18n.t('ai.err.badResponseFormat') };
   }
   return {
     ok: true,
@@ -219,7 +215,7 @@ async function improveText({ block, action = 'rewrite', extra = '', lang = 'es' 
 // ═══════════════════════════════════════════════════════════════════
 
 async function generateTemplate({ prompt, tone, length = 'medio', blocks = [] } = {}) {
-  if (!prompt || !prompt.trim()) return { ok: false, error: 'Escribí un prompt describiendo el correo.' };
+  if (!prompt || !prompt.trim()) return { ok: false, error: window.stI18n.t('ai.err.missingPrompt') };
 
   const aiCfg = window.stStorage.getSetting('ai', {}) || {};
   const defaultTone = tone || aiCfg.tone || 'neutral';
@@ -279,12 +275,12 @@ async function generateTemplate({ prompt, tone, length = 'medio', blocks = [] } 
 
   const parsed = tryParseJSON(result.text);
   if (!parsed || !Array.isArray(parsed.sections) || !parsed.sections.length) {
-    return { ok: false, error: 'El modelo no devolvió un documento válido. Reintentá.' };
+    return { ok: false, error: window.stI18n.t('ai.err.invalidDoc') };
   }
 
   const doc = buildDocFromAI(parsed);
   if (!doc.sections.length) {
-    return { ok: false, error: 'No se pudieron interpretar las secciones que devolvió el modelo.' };
+    return { ok: false, error: window.stI18n.t('ai.err.noSections') };
   }
   return { ok: true, doc, usage: result.usage };
 }
@@ -358,7 +354,7 @@ async function listModels(providerId) {
   const provider = providerId || aiCfg.provider || 'anthropic';
   const apiKey = provider === 'ollama' ? null : await resolveApiKey({ ...aiCfg, provider });
   if (!window.ai || typeof window.ai.listModels !== 'function') {
-    return { ok: false, error: 'El puente de IA no está disponible.' };
+    return { ok: false, error: window.stI18n.t('ai.err.bridgeUnavailableSimple') };
   }
   const result = await window.ai.listModels({
     provider,

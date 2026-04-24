@@ -62,24 +62,26 @@ function buildProviderCfg(providerId, userCfg = {}) {
 
 async function authorize(providerId, userCfg) {
   const base = OAUTH_PROVIDER_CFG[providerId];
-  if (!base) return { ok: false, error: `Provider "${providerId}" no soportado.` };
-  if (!userCfg?.clientId) return { ok: false, error: 'Falta client_id.' };
+  const t = window.stI18n.t;
+  if (!base) return { ok: false, error: t('oauth.err.providerUnsupported', { provider: providerId }) };
+  if (!userCfg?.clientId) return { ok: false, error: t('oauth.err.missingClientId') };
   if (base.requiresClientSecret && !userCfg.clientSecret) {
-    return { ok: false, error: 'Falta client_secret.' };
+    return { ok: false, error: t('oauth.err.missingClientSecret') };
   }
   if (base.requiresTenant && !userCfg.tenantId) {
-    return { ok: false, error: 'Falta tenant_id (usá "common" para multi-tenant).' };
+    return { ok: false, error: t('oauth.err.missingTenantId') };
   }
   if (!window.oauth || typeof window.oauth.authorize !== 'function') {
-    return { ok: false, error: 'Puente OAuth no disponible (abrí la app en Electron).' };
+    return { ok: false, error: t('oauth.err.bridgeUnavailable') };
   }
   const providerCfg = buildProviderCfg(providerId, userCfg);
   return await window.oauth.authorize(providerCfg);
 }
 
 async function refreshIfNeeded(providerId, tokens, userCfg) {
+  const t = window.stI18n.t;
   if (!tokens?.accessToken) {
-    return { ok: false, error: 'No hay access token. Re-autorizá el proveedor.' };
+    return { ok: false, error: t('oauth.err.missingLocalToken') };
   }
   const now = Date.now();
   const skewMs = 60 * 1000; // refresh 60s before expiry
@@ -87,10 +89,10 @@ async function refreshIfNeeded(providerId, tokens, userCfg) {
     return { ok: true, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, expiresAt: tokens.expiresAt };
   }
   if (!tokens.refreshToken) {
-    return { ok: false, error: 'Access token expirado y sin refresh token. Re-autorizá el proveedor.' };
+    return { ok: false, error: t('oauth.err.tokenExpiredNoRefresh') };
   }
   if (!window.oauth || typeof window.oauth.refresh !== 'function') {
-    return { ok: false, error: 'Puente OAuth no disponible.' };
+    return { ok: false, error: t('oauth.err.bridgeUnavailableRefresh') };
   }
   const providerCfg = buildProviderCfg(providerId, userCfg);
   return await window.oauth.refresh(providerCfg, tokens.refreshToken);
