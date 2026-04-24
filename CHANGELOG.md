@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.0.1] — 2026-04-24
+
+First public cut. Feature list: see [README.md](./README.md#features).
+
 ### Added
 - `electron-builder` packaging pipeline with macOS/Windows/Linux targets
 - Production load path for the renderer (`dist/index.html`) with relative asset base
@@ -15,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - GitHub issue templates for bug reports, feature requests and translation help
 - GitHub pull request template
 - `FUNDING.yml` pointing to Buy Me a Coffee
+- Real app icon in the sidebar and onboarding headers (replaces the `"S"` placeholder)
 
 ### Changed
 - `package.json` gains full metadata: `description`, `author`, `homepage`, `repository`, `bugs`, `license`
@@ -23,9 +28,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Notes
 - Native `better-sqlite3` rebuild runs automatically via `postinstall: electron-builder install-app-deps`
 
-## [0.1.0] — unreleased
-
-First public cut. Feature list: see [README.md](./README.md#features).
-
-[Unreleased]: https://github.com/jcocano/simple-template/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/jcocano/simple-template/releases/tag/v0.1.0
+[Unreleased]: https://github.com/jcocano/simple-template/compare/v0.0.1...HEAD
+[0.0.1]: https://github.com/jcocano/simple-template/releases/tag/v0.0.1

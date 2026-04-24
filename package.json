@@ -1,7 +1,7 @@
 {
   "name": "simple-template-desktop",
   "productName": "Simple Template",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Open-source, local-first desktop app to design email templates visually — a no-code Beefree alternative for macOS, Windows and Linux.",
   "private": true,
   "main": "electron/main.js",

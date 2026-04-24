@@ -85,7 +85,7 @@ async function tryListen(server, requestedPort) {
 async function handleMcpRequest(req, res, body) {
   const { Server, StreamableHTTPServerTransport, ListToolsRequestSchema, CallToolRequestSchema } = sdkModules;
   const server = new Server(
-    { name: 'simple-template', version: '0.1.0' },
+    { name: 'simple-template', version: '0.0.1' },
     { capabilities: { tools: {} } }
   );
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: toolsRef.toolDefs }));
