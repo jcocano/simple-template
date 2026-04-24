@@ -1916,4 +1916,5 @@ window.stI18nDict.ja = {
   'cdn.err.workspaceNotReady': 'ワークスペースが初期化されていません。少しお待ちください。',
   'export.err.docToHtmlUnavailable': 'docToEmailHtml が利用できません。',
   'export.err.docToHtmlUnavailableOrEmpty': 'docToEmailHtml が利用できないか、テンプレートに doc がありません。',
+  'common.err.unknown': '不明なエラーです。',
 };

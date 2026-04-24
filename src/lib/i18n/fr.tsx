@@ -1915,4 +1915,5 @@ window.stI18nDict.fr = {
   'cdn.err.workspaceNotReady': 'Espace de travail non initialisé. Attends un instant.',
   'export.err.docToHtmlUnavailable': 'docToEmailHtml n’est pas disponible.',
   'export.err.docToHtmlUnavailableOrEmpty': 'docToEmailHtml n’est pas disponible ou le modèle n’a pas de doc.',
+  'common.err.unknown': 'Erreur inconnue.',
 };

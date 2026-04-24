@@ -1915,4 +1915,5 @@ window.stI18nDict.es = {
   'cdn.err.workspaceNotReady': 'Workspace no inicializado. Esperá un instante.',
   'export.err.docToHtmlUnavailable': 'docToEmailHtml no está disponible.',
   'export.err.docToHtmlUnavailableOrEmpty': 'docToEmailHtml no está disponible o template sin doc.',
+  'common.err.unknown': 'Error desconocido.',
 };

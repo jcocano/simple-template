@@ -15,6 +15,7 @@ import "./lib/i18n/fr.tsx";
 import "./lib/i18n/ja.tsx";
 import "./lib/i18n/zh.tsx";
 import "./lib/i18n.tsx";
+import "./lib/ipc-errors.tsx";
 import "./lib/workspaces.tsx";
 import "./lib/templates.tsx";
 import "./lib/occasions.tsx";

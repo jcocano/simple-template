@@ -1916,4 +1916,5 @@ window.stI18nDict.zh = {
   'cdn.err.workspaceNotReady': '工作区未初始化。请稍候。',
   'export.err.docToHtmlUnavailable': 'docToEmailHtml 不可用。',
   'export.err.docToHtmlUnavailableOrEmpty': 'docToEmailHtml 不可用或模板没有 doc。',
+  'common.err.unknown': '未知错误。',
 };

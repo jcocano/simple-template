@@ -1918,4 +1918,5 @@ window.stI18nDict.en = {
   'cdn.err.workspaceNotReady': 'Workspace not initialized. Wait a moment.',
   'export.err.docToHtmlUnavailable': 'docToEmailHtml is not available.',
   'export.err.docToHtmlUnavailableOrEmpty': 'docToEmailHtml is not available or template has no doc.',
+  'common.err.unknown': 'Unknown error.',
 };
