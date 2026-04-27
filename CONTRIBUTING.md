@@ -135,7 +135,7 @@ There is no full test runner configured (see [Project architecture](#project-arc
 
 ## Project architecture
 
-For the full context, see [CLAUDE.md](./CLAUDE.md). In short:
+In short:
 
 - **Renderer is not a standard ES-module app.** Files under `src/` load in a specific order from `src/main.tsx` and attach their exports to `window`. Order matters — register new modules correctly.
 - **Architecture principles (non-negotiable for new code):**

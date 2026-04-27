@@ -1,19 +1,19 @@
 # Cómo contribuir a Simple Template
 
-Gracias por tomarte el tiempo de contribuir. Toda forma de ayuda — reportar un bug, sugerir una feature, corregir un typo, traducir un string, escribir código — mejora el proyecto.
+Gracias por tomarte el tiempo de contribuir. Toda forma de ayuda — reportar un bug, sugerir una funcionalidad, corregir un typo, traducir un string o escribir código — mejora el proyecto.
 
 **Idiomas:** [English](../../CONTRIBUTING.md) · [Español](./CONTRIBUTING.md)
 
-> **¿No estás listo para escribir código?** Una [estrella en GitHub](https://github.com/jcocano/simple-template) o un [café](https://buymeacoffee.com/jesuscocana) también ayudan un montón.
+> **¿No estás listo para escribir código?** Una [estrella en GitHub](https://github.com/jcocano/simple-template) o un [café](https://buymeacoffee.com/jesuscocana) también ayudan mucho.
 
 ## Índice
 
 - [Código de Conducta](#c%C3%B3digo-de-conducta)
 - [Formas de contribuir](#formas-de-contribuir)
 - [Reportar bugs](#reportar-bugs)
-- [Sugerir features](#sugerir-features)
+- [Sugerir funcionalidades](#sugerir-funcionalidades)
 - [Ayudar con traducciones](#ayudar-con-traducciones)
-- [Setup de desarrollo](#setup-de-desarrollo)
+- [Configuración de desarrollo](#configuraci%C3%B3n-de-desarrollo)
 - [Arquitectura del proyecto](#arquitectura-del-proyecto)
 - [Convenciones de código](#convenciones-de-c%C3%B3digo)
 - [Mensajes de commit](#mensajes-de-commit)
@@ -23,45 +23,45 @@ Gracias por tomarte el tiempo de contribuir. Toda forma de ayuda — reportar un
 
 ## Código de Conducta
 
-Este proyecto sigue el [Contributor Covenant](./CODE_OF_CONDUCT.md). Al participar aceptás respetarlo. Reportá comportamientos inaceptables a `jesus.cocano@gmail.com`.
+Este proyecto sigue el [Contributor Covenant](./CODE_OF_CONDUCT.md). Al participar aceptas respetarlo. Reporta comportamientos inaceptables a `jesus.cocano@gmail.com`.
 
 ## Formas de contribuir
 
-- **Ponele una estrella al repo** — bajo esfuerzo, muy útil para que el proyecto sea encontrado
-- **Reportá un bug** — usá el [template de bug report](https://github.com/jcocano/simple-template/issues/new?template=bug_report.yml)
-- **Sugerí una feature** — usá el [template de feature request](https://github.com/jcocano/simple-template/issues/new?template=feature_request.yml)
-- **Ayudá con traducciones** — usá el [template de traducción](https://github.com/jcocano/simple-template/issues/new?template=translation.yml)
-- **Mejorá la documentación** — typos, aclaraciones, ejemplos, todo bienvenido
-- **Mandá un pull request** — mirá [Proceso de pull request](#proceso-de-pull-request) más abajo
-- **Sumate a las discusiones** — [GitHub Discussions](https://github.com/jcocano/simple-template/discussions) para preguntas, ideas, show-and-tell
-- **[Invitame un café](https://buymeacoffee.com/jesuscocana)** — banca el desarrollo
+- **Dale una estrella al repo** — bajo esfuerzo, muy útil para que el proyecto sea encontrado
+- **Reporta un bug** — usa el [template de bug report](https://github.com/jcocano/simple-template/issues/new?template=bug_report.yml)
+- **Sugiere una funcionalidad** — usa el [template de feature request](https://github.com/jcocano/simple-template/issues/new?template=feature_request.yml)
+- **Ayuda con traducciones** — usa el [template de traducción](https://github.com/jcocano/simple-template/issues/new?template=translation.yml)
+- **Mejora la documentación** — typos, aclaraciones, ejemplos, todo es bienvenido
+- **Envía un pull request** — consulta [Proceso de pull request](#proceso-de-pull-request) más abajo
+- **Únete a las discusiones** — [GitHub Discussions](https://github.com/jcocano/simple-template/discussions) para preguntas, ideas y show-and-tell
+- **[Invítame un café](https://buymeacoffee.com/jesuscocana)** — apoya el desarrollo
 
 ## Reportar bugs
 
-Antes de abrir un issue, por favor:
+Antes de abrir un issue:
 
-1. Buscá en los [issues existentes](https://github.com/jcocano/simple-template/issues) para evitar duplicados.
-2. Probá reproducirlo en la rama `main`.
-3. Juntá: SO + versión, versión de la app, pasos para reproducir, comportamiento esperado vs real, screenshots/logs si aplica.
+1. Busca en los [issues existentes](https://github.com/jcocano/simple-template/issues) para evitar duplicados.
+2. Intenta reproducirlo en la rama `main`.
+3. Reúne: SO + versión, versión de la app, pasos para reproducir, comportamiento esperado vs. real, capturas de pantalla o logs si aplica.
 
-Después abrí el [template de bug report](https://github.com/jcocano/simple-template/issues/new?template=bug_report.yml).
+Después abre el [template de bug report](https://github.com/jcocano/simple-template/issues/new?template=bug_report.yml).
 
-Para issues de seguridad, mirá [SECURITY.md](./SECURITY.md) — por favor **no** abras un issue público.
+Para issues de seguridad, consulta [SECURITY.md](./SECURITY.md) — por favor **no** abras un issue público.
 
-## Sugerir features
+## Sugerir funcionalidades
 
-Abrí el [template de feature request](https://github.com/jcocano/simple-template/issues/new?template=feature_request.yml) con:
+Abre el [template de feature request](https://github.com/jcocano/simple-template/issues/new?template=feature_request.yml) con:
 
-- El problema que querés resolver (no la solución primero)
+- El problema que quieres resolver (no la solución primero)
 - A quién afecta
 - Alternativas que consideraste
-- Si encaja con el scope local-first sin backend del proyecto
+- Si encaja con el alcance local-first sin backend del proyecto
 
-Features que requieran backend o infraestructura de cuentas (listas de contactos, tracking de envíos, CDN hosteado) están fuera del scope del core. Eso no significa "no" para siempre — pero sí que vamos a discutir el tradeoff con cuidado.
+Las funcionalidades que requieren backend o infraestructura de cuentas (listas de contactos, tracking de envíos, CDN hosteado) están fuera del alcance del core. Eso no significa "no" para siempre — pero sí que el tradeoff se discutirá con cuidado.
 
 ## Ayudar con traducciones
 
-Simple Template viene en seis idiomas:
+Simple Template está disponible en seis idiomas:
 
 | Código | Idioma | Estado |
 |--------|--------|--------|
@@ -76,33 +76,33 @@ Las traducciones viven en `src/lib/i18n/<lang>.tsx`. Cada archivo es un objeto p
 
 ### Para corregir o mejorar una traducción existente
 
-1. Abrí `src/lib/i18n/<lang>.tsx`
-2. Buscá la clave que querés mejorar
-3. Editá el string, preservando los placeholders de interpolación (ej: `{name}`, `{n}`)
-4. Mandá un PR con prefijo de commit `i18n(<lang>): …`
+1. Abre `src/lib/i18n/<lang>.tsx`
+2. Busca la clave que quieres mejorar
+3. Edita el string preservando los placeholders de interpolación (por ejemplo `{name}`, `{n}`)
+4. Envía un PR con el prefijo de commit `i18n(<lang>): …`
 
 ### Para agregar un idioma nuevo
 
-1. Primero abrí un [issue de traducción](https://github.com/jcocano/simple-template/issues/new?template=translation.yml) así coordinamos
-2. Copiá `src/lib/i18n/en.tsx` como punto de partida (inglés es la referencia no-fuente más completa)
-3. Traducí todas las claves — dejá los placeholders intactos
-4. Registrá el idioma nuevo en el loader de i18n
-5. Mandá un PR con prefijo de commit `i18n(<nuevo-lang>): add <Idioma> translation`
+1. Primero abre un [issue de traducción](https://github.com/jcocano/simple-template/issues/new?template=translation.yml) para coordinar
+2. Copia `src/lib/i18n/en.tsx` como punto de partida (inglés es la referencia no-fuente más completa)
+3. Traduce todas las claves; deja los placeholders intactos
+4. Registra el idioma nuevo en el loader de i18n
+5. Envía un PR con el prefijo de commit `i18n(<nuevo-lang>): add <Idioma> translation`
 
-¿Falta contexto para un string? Abrí un issue — te aclaramos.
+¿Falta contexto para un string? Abre un issue — te lo aclaramos.
 
-## Setup de desarrollo
+## Configuración de desarrollo
 
 ### Requisitos
 
 - **Node.js 20+**
-- **npm** (viene con Node)
+- **npm** (incluido con Node)
 - Un toolchain de C funcionando (para `better-sqlite3`):
   - **macOS:** Xcode Command Line Tools (`xcode-select --install`)
   - **Linux (Debian/Ubuntu):** `sudo apt install build-essential python3`
   - **Windows:** Visual Studio Build Tools con el workload "Desktop development with C++"
 
-### Clonar y correr
+### Clonar y ejecutar
 
 ```sh
 git clone https://github.com/jcocano/simple-template.git
@@ -111,55 +111,55 @@ npm install
 npm run dev
 ```
 
-`npm install` dispara un paso de postinstall que rebuildea `better-sqlite3` para el ABI de Electron. Si falla, corré `npm run postinstall` manualmente.
+`npm install` ejecuta un paso de postinstall que recompila `better-sqlite3` para el ABI de Electron. Si falla, ejecuta `npm run postinstall` manualmente.
 
 ### Scripts útiles
 
 | Script | Descripción |
 |---|---|
 | `npm run dev` | Vite (renderer) + Electron (shell) con live reload |
-| `npm run dev:web` | Sólo Vite, para iterar el renderer en un navegador |
-| `npm run dev:electron` | Electron contra un Vite dev server ya corriendo |
+| `npm run dev:web` | Solo Vite, para iterar el renderer en un navegador |
+| `npm run dev:electron` | Electron contra un servidor de desarrollo de Vite ya en ejecución |
 | `npm run build:web` | Bundle de producción de Vite en `dist/` |
 | `npm run pack` | `.app` / `.exe` / Linux sin empaquetar (sin instalador) |
 | `npm run dist` | Instaladores completos en `release/` (sin firmar en máquina local) |
-| `npm run test:export` | Smoke test del pipeline de export |
+| `npm run test:export` | Smoke test del pipeline de exportación |
 
 ### Probar tus cambios
 
-No hay un test runner completo configurado (ver [Arquitectura del proyecto](#arquitectura-del-proyecto)). Antes de abrir un PR:
+No hay un test runner completo configurado (consulta [Arquitectura del proyecto](#arquitectura-del-proyecto)). Antes de abrir un PR:
 
-1. Corré `npm run test:export` — valida el pipeline de export contra tres fixtures.
-2. Corré `npm run dev` y ejercitá la feature manualmente.
-3. Si tocaste packaging/Electron, corré `npm run pack` y abrí la app empaquetada.
+1. Ejecuta `npm run test:export` — valida el pipeline de exportación contra tres fixtures.
+2. Ejecuta `npm run dev` y prueba la funcionalidad manualmente.
+3. Si modificaste packaging o Electron, ejecuta `npm run pack` y abre la app empaquetada.
 
 ## Arquitectura del proyecto
 
-Para el contexto completo, mirá [CLAUDE.md](../../CLAUDE.md). En resumen:
+En resumen:
 
-- **El renderer no es una app ES-module estándar.** Los archivos en `src/` cargan en un orden específico desde `src/main.tsx` y adjuntan sus exports a `window`. El orden importa — registrá módulos nuevos correctamente.
+- **El renderer no es una app ES-module estándar.** Los archivos en `src/` se cargan en un orden específico desde `src/main.tsx` y registran sus exports en `window`. El orden importa — registra los módulos nuevos correctamente.
 - **Principios de arquitectura (no negociables para código nuevo):**
-  - Single Responsibility — una función hace una cosa
+  - Single Responsibility — una función hace una sola cosa
   - Desacoplamiento visual / lógica — `.tsx` es presentación; la lógica vive en `src/lib/`
-  - Modular por feature
+  - Modular por funcionalidad
   - DRY con regla de tres (sin abstracción antes de tres repeticiones)
   - Persistencia en SQLite (`localStorage` es estado legacy de prototipo)
-  - Cross-platform: Windows, macOS, Linux
-- **Postura de seguridad:** `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`, IPC sólo por preload vía `contextBridge`.
-- **Protocolo custom `st-img://`** para servir imágenes del workspace sin relajar `webSecurity`.
+  - Multiplataforma: Windows, macOS, Linux
+- **Postura de seguridad:** `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`, IPC solo a través de preload mediante `contextBridge`.
+- **Protocolo personalizado `st-img://`** para servir imágenes del workspace sin relajar `webSecurity`.
 
 ## Convenciones de código
 
-- **Sólo JavaScript/JSX** — no hay compilador de TypeScript configurado. `.tsx` es una conveniencia JSX.
-- **Sin import implícito de React** — `vite.config.js` auto-inyecta `import React from 'react'` en build time. Usá `React.useState`, `React.useEffect`, etc.
-- **Globals en `window`** — registrá componentes nuevos vía `Object.assign(window, { Foo })` y agregalos a `src/main.tsx` en la posición correcta.
-- **Español para copy del usuario** — el idioma default es español; traducciones viven en `src/lib/i18n/<lang>.tsx`.
-- **`localStorage` con namespace `mc:*`** (legacy) o `st:*` (actual). Preferí SQLite para cualquier cosa más allá de estado UI trivial.
-- **Sin emojis en archivos commiteados** salvo que cumplan una función de UX en la UI de la app.
+- **Solo JavaScript/JSX** — no hay compilador de TypeScript configurado. `.tsx` es una conveniencia de sintaxis JSX.
+- **Sin import implícito de React** — `vite.config.js` auto-inyecta `import React from 'react'` en build time. Usa `React.useState`, `React.useEffect`, etc.
+- **Globals en `window`** — registra los componentes nuevos mediante `Object.assign(window, { Foo })` y agrégalos a `src/main.tsx` en la posición correcta.
+- **Español para el copy del usuario** — el idioma por defecto es español; las traducciones viven en `src/lib/i18n/<lang>.tsx`.
+- **`localStorage` con namespace `mc:*`** (legacy) o `st:*` (actual). Prefiere SQLite para cualquier cosa más allá de estado de UI trivial.
+- **Sin emojis en archivos versionados** salvo que cumplan una función de UX en la interfaz de la app.
 
 ## Mensajes de commit
 
-Seguí [Conventional Commits](https://www.conventionalcommits.org/) con estos scopes:
+Sigue [Conventional Commits](https://www.conventionalcommits.org/) con estos scopes:
 
 ```
 <tipo>(<scope>): <resumen corto>
@@ -180,38 +180,38 @@ i18n(pt): translate review panel strings
 chore(release): wire electron-builder for macOS signing
 ```
 
-Mantené los commits enfocados. No mezcles una feature con un refactor no relacionado.
+Mantén los commits enfocados. No mezcles una funcionalidad con un refactor no relacionado.
 
-**No incluyas líneas `Co-Authored-By`** — los commits deben estar autorados únicamente por el contributor.
+**No incluyas líneas `Co-Authored-By`** — los commits deben estar autorados únicamente por la persona que contribuye.
 
 ## Proceso de pull request
 
-1. Forkeá el repo y creá un branch desde `main`:
+1. Haz un fork del repo y crea una rama desde `main`:
    ```sh
    git checkout -b feat/tu-feature
    ```
-2. Hacé tus cambios. Mantené los diffs chicos y enfocados.
-3. Corré `npm run test:export` y los smoke tests manuales relevantes a tu cambio.
-4. Pusheá tu branch y abrí un PR contra `main`.
-5. Completá el template de PR — describí qué, por qué, y cómo lo probaste.
-6. Linkeá issues relacionados con `Closes #123` o `Refs #123`.
-7. Tené paciencia: el proyecto lo mantiene una sola persona; el feedback puede tardar unos días.
-8. Atendé los comentarios de review como commits nuevos (no fuerces el push durante la review — al final podés squashear).
+2. Realiza tus cambios. Mantén los diffs pequeños y enfocados.
+3. Ejecuta `npm run test:export` y los smoke tests manuales relevantes a tu cambio.
+4. Haz push de tu rama y abre un PR contra `main`.
+5. Completa el template de PR — describe qué, por qué y cómo lo probaste.
+6. Vincula los issues relacionados con `Closes #123` o `Refs #123`.
+7. Ten paciencia: el proyecto lo mantiene una sola persona; el feedback puede tardar unos días.
+8. Atiende los comentarios de revisión como commits nuevos (no fuerces el push durante la revisión — al final puedes hacer squash).
 
-**PRs que se van a cerrar rápido (lo siento):**
+**PRs que se cerrarán rápido (lo siento):**
 
-- Reformatear todo el codebase para matchear una preferencia de estilo personal
+- Reformatear todo el codebase para ajustarlo a una preferencia de estilo personal
 - Agregar backends, cuentas o telemetría sin discusión previa
-- Refactors grandes sin un issue adjunto explicando la motivación
-- Agregar dependencias para features que son one-liners
+- Refactors grandes sin un issue adjunto que explique la motivación
+- Agregar dependencias para funcionalidades que son one-liners
 
 ## Seguridad
 
-Por favor reportá vulnerabilidades de forma privada. Mirá [SECURITY.md](./SECURITY.md).
+Por favor reporta vulnerabilidades de forma privada. Consulta [SECURITY.md](./SECURITY.md).
 
 ## Comunidad
 
 - [GitHub Discussions](https://github.com/jcocano/simple-template/discussions) — preguntas, ideas, show-and-tell
-- [Issues](https://github.com/jcocano/simple-template/issues) — bugs, features, traducciones
+- [Issues](https://github.com/jcocano/simple-template/issues) — bugs, funcionalidades, traducciones
 
-Gracias por contribuir. Si el proyecto te sirve, pensá en [ponerle una estrella al repo](https://github.com/jcocano/simple-template) o [invitarme un café](https://buymeacoffee.com/jesuscocana).
+Gracias por contribuir. Si el proyecto te resulta útil, considera [darle una estrella al repo](https://github.com/jcocano/simple-template) o [invitarme un café](https://buymeacoffee.com/jesuscocana).

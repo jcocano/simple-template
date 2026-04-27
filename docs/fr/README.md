@@ -238,7 +238,7 @@ L'application doit être en cours d'exécution pour que le serveur MCP réponde.
 ### Architecture en un coup d'œil
 
 - **Shell Electron** avec des défauts de sécurité stricts (`contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`, IPC uniquement via preload avec `contextBridge`)
-- **Renderer React 18** avec une convention de modules **globals-on-`window`** — les fichiers sont chargés pour leurs effets de bord depuis `src/main.tsx` et s'enregistrent sur `window`. Voir [CLAUDE.md](../../CLAUDE.md) pour la justification complète.
+- **Renderer React 18** avec une convention de modules **globals-on-`window`** — les fichiers sont chargés pour leurs effets de bord depuis `src/main.tsx` et s'enregistrent sur `window`. L'ordre dans `src/main.tsx` importe ; les nouveaux fichiers doivent s'enregistrer via `Object.assign(window, { Foo })`.
 - **better-sqlite3** pour les métadonnées locales + fichiers JSON pour les documents de modèle
 - **Vite** pour le bundling, runtime JSX classique (auto-injection)
 - **Pas de compilateur TypeScript** dans le pipeline — `.tsx` n'est que de la syntaxe JSX
