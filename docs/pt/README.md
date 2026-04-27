@@ -238,7 +238,7 @@ O app precisa estar rodando para o servidor MCP responder. Fechou o app → a co
 ### Arquitetura em resumo
 
 - **Shell Electron** com defaults estritos de segurança (`contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`, IPC apenas via preload com `contextBridge`)
-- **Renderer React 18** com convenção de módulos **globals-on-`window`** — arquivos são carregados por efeito colateral a partir de `src/main.tsx` e se registram em `window`. Veja [CLAUDE.md](../../CLAUDE.md) para a explicação completa.
+- **Renderer React 18** com convenção de módulos **globals-on-`window`** — arquivos são carregados por efeito colateral a partir de `src/main.tsx` e se registram em `window`. A ordem em `src/main.tsx` importa; novos arquivos devem se registrar via `Object.assign(window, { Foo })`.
 - **better-sqlite3** para metadados locais + arquivos JSON para documentos de template
 - **Vite** para bundling, JSX runtime clássico (auto-inject)
 - **Sem compilador TypeScript** no pipeline — `.tsx` é apenas sintaxe JSX

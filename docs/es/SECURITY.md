@@ -4,7 +4,7 @@
 
 ## Versiones soportadas
 
-Simple Template está pre-1.0. Sólo la última minor version recibe fixes de seguridad.
+Simple Template está pre-1.0. Solo la última versión menor recibe correcciones de seguridad.
 
 | Versión | Soportada |
 |---------|-----------|
@@ -13,22 +13,22 @@ Simple Template está pre-1.0. Sólo la última minor version recibe fixes de se
 
 ## Reportar una vulnerabilidad
 
-Por favor **no** abras un issue público para reportes de seguridad. En su lugar, contactá al maintainer directamente en:
+Por favor **no** abras un issue público para reportes de seguridad. En su lugar, contacta al maintainer directamente en:
 
 **jesus.cocano@gmail.com**
 
-Al reportar, incluí:
+Al reportar, incluye:
 
-- Una descripción clara del issue y su impacto
+- Una descripción clara del problema y su impacto
 - Pasos para reproducirlo (proof-of-concept si es posible)
 - Versión(es) y plataforma(s) afectadas
-- Si la vulnerabilidad fue divulgada en otro lado
+- Si la vulnerabilidad fue divulgada en otro lugar
 
 ## Tiempos de respuesta
 
 - **Confirmación:** dentro de 72 horas
 - **Evaluación inicial:** dentro de 7 días
-- **Plan de fix o mitigación:** comunicado apenas sea factible, según la severidad
+- **Plan de corrección o mitigación:** se comunicará lo antes posible, según la gravedad
 
 Como el proyecto lo mantiene una sola persona, los tiempos pueden variar. Gracias por la paciencia.
 
@@ -36,18 +36,18 @@ Como el proyecto lo mantiene una sola persona, los tiempos pueden variar. Gracia
 
 El maintainer sigue un enfoque de divulgación coordinada:
 
-1. Reportás el issue en privado.
+1. Reportas el problema en privado.
 2. Confirmamos e investigamos.
-3. Se prepara y libera un fix.
-4. Una vez que los usuarios tuvieron tiempo razonable para actualizar, los detalles se publican en el changelog y, si corresponde, en un GitHub Security Advisory.
+3. Se prepara y se libera una corrección.
+4. Una vez que las personas usuarias tuvieron tiempo razonable para actualizar, los detalles se publican en el changelog y, si corresponde, en un GitHub Security Advisory.
 
-Se da crédito al reportante salvo que pida anonimato.
+Se da crédito a quien reporta, salvo que pida anonimato.
 
 ## Alcance
 
-Esta política cubre el código de la aplicación Simple Template hospedado en este repo. No cubre:
+Esta política cubre el código de la aplicación Simple Template alojado en este repositorio. No cubre:
 
-- Dependencias de terceros — reportalas upstream a los maintainers respectivos
+- Dependencias de terceros — repórtalas a los maintainers correspondientes
 - Issues en servicios a los que conectes Simple Template (tu proveedor SMTP, tu CDN, etc.)
 
 ## Gracias

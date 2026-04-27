@@ -238,7 +238,7 @@ The app must be running for the MCP server to answer. Close the app → connecti
 ### Architecture at a glance
 
 - **Electron shell** with strict security defaults (`contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`, preload-only IPC via `contextBridge`)
-- **React 18 renderer** with a **globals-on-`window`** module convention — files load for side effects from `src/main.tsx` and register onto `window`. See [CLAUDE.md](./CLAUDE.md) for the full rationale.
+- **React 18 renderer** with a **globals-on-`window`** module convention — files load for side effects from `src/main.tsx` and register onto `window`. Order in `src/main.tsx` matters; new files must register themselves via `Object.assign(window, { Foo })`.
 - **better-sqlite3** for local metadata + JSON files for template documents
 - **Vite** for bundling, classic JSX runtime (auto-inject)
 - **No TypeScript compiler** in the pipeline — `.tsx` is JSX syntax only

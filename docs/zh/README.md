@@ -238,7 +238,7 @@ npm run dist
 ### 架构一览
 
 - **Electron shell** 采用严格的安全默认值（`contextIsolation: true`、`sandbox: true`、`nodeIntegration: false`，仅通过 `contextBridge` 使用 preload IPC）
-- **React 18 renderer**，采用 **globals-on-`window`** 模块约定 —— 文件由 `src/main.tsx` 以副作用方式加载并注册到 `window`。完整说明见 [CLAUDE.md](../../CLAUDE.md)。
+- **React 18 renderer**，采用 **globals-on-`window`** 模块约定 —— 文件由 `src/main.tsx` 以副作用方式加载并注册到 `window`。`src/main.tsx` 中的顺序很重要；新文件必须通过 `Object.assign(window, { Foo })` 自行注册。
 - **better-sqlite3** 用于本地元数据 + JSON 文件用于模板文档
 - **Vite** 负责打包，使用经典 JSX runtime（自动注入）
 - **流程中没有 TypeScript 编译器** —— `.tsx` 只是 JSX 语法
