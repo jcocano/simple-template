@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Electron + V8 require JIT and unsigned executable memory under hardened runtime. -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+
+  <!-- Required for native modules (better-sqlite3) loaded outside the app bundle's main lib path. -->
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+
+  <!-- Allows DYLD_* env vars used by Electron during launch. -->
+  <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+  <true/>
+
+  <!-- Outbound network for AI providers, SMTP, OAuth, MCP HTTP transport. -->
+  <key>com.apple.security.network.client</key>
+  <true/>
+
+  <!-- MCP server binds 127.0.0.1 on a loopback port. -->
+  <key>com.apple.security.network.server</key>
+  <true/>
+
+  <!-- User-selected files for import/export (.st bundles, HTML/MJML/ZIP exports, image picker). -->
+  <key>com.apple.security.files.user-selected.read-write</key>
+  <true/>
+</dict>
+</plist>
