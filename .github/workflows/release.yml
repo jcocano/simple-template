@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   build:
@@ -35,6 +36,12 @@ jobs:
               release/*.deb
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
+    env:
+      # Gating flags. Steps that depend on signing skip cleanly when the
+      # required secrets are not configured, so the unsigned build path
+      # keeps working until the certificates are tramited.
+      HAS_MAC_SIGNING: ${{ secrets.MAC_CSC_LINK != '' && secrets.APPLE_ID != '' }}
+      HAS_SIGNPATH: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
 
     steps:
       - name: Checkout
@@ -55,12 +62,41 @@ jobs:
         run: npm run build:web
 
       - name: Build installers (electron-builder)
-        # Unsigned builds: CSC_LINK / CSC_KEY_PASSWORD (mac) and
-        # WIN_CSC_LINK / WIN_CSC_KEY_PASSWORD (win) are intentionally not set.
-        # See README "Pre-built binaries" for how end users open unsigned artifacts.
+        # macOS: signing + notarization activate when MAC_CSC_LINK and APPLE_*
+        # are set. Otherwise electron-builder produces an unsigned bundle.
+        # Windows: always builds unsigned here; SignPath signs post-build below.
+        # Linux: never signed.
         run: npx --no-install electron-builder --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ matrix.os == 'macos-latest' && secrets.MAC_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          APPLE_ID: ${{ matrix.os == 'macos-latest' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ matrix.os == 'macos-latest' && secrets.APPLE_TEAM_ID || '' }}
+
+      - name: Upload unsigned Windows installer (input for SignPath)
+        if: matrix.os == 'windows-latest' && env.HAS_SIGNPATH == 'true'
+        id: upload-unsigned-win
+        uses: actions/upload-artifact@v7
+        with:
+          name: simple-template-windows-unsigned
+          path: release/*.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Submit Windows installer to SignPath
+        if: matrix.os == 'windows-latest' && env.HAS_SIGNPATH == 'true'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORG_ID }}
+          project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ secrets.SIGNPATH_ARTIFACT_CONFIG_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned-win.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: release
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v7
